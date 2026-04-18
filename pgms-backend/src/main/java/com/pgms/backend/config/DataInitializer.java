@@ -3,6 +3,7 @@ package com.pgms.backend.config;
 import com.pgms.backend.entity.MenuItem;
 import com.pgms.backend.entity.Pg;
 import com.pgms.backend.entity.Room;
+import com.pgms.backend.entity.enums.CleaningStatus;
 import com.pgms.backend.entity.enums.MealType;
 import com.pgms.backend.entity.enums.RoomStatus;
 import com.pgms.backend.entity.enums.SharingType;
@@ -13,46 +14,33 @@ import com.pgms.backend.service.AuthService;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.WeekFields;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Configuration
 public class DataInitializer {
+
+    private static final String SAMPLE_PG_NAME = "Green Valley PG";
+    private static final String SAMPLE_PG_ADDRESS = "12 Residency Road, Chennai";
 
     @Bean
     CommandLineRunner seedData(AuthService authService,
                                PgRepository pgRepository,
                                RoomRepository roomRepository,
-                               MenuItemRepository menuItemRepository) {
+                               MenuItemRepository menuItemRepository,
+                               JdbcTemplate jdbcTemplate) {
         return args -> {
             authService.createSeedOwnerIfMissing();
-            Pg seededPg = null;
-            if (pgRepository.count() == 0) {
-                seededPg = pgRepository.save(Pg.builder()
-                        .name("Green Valley PG")
-                        .address("12 Residency Road, Chennai")
-                        .totalFloors(3)
-                        .totalRooms(10)
-                        .paymentDeadlineDay(10)
-                        .fineAmountPerDay(100)
-                        .slaHours(48)
-                        .build());
-                List<Room> rooms = List.of(
-                        room(seededPg, "101", 1, true, SharingType.SINGLE, 10000, 15000, RoomStatus.VACANT),
-                        room(seededPg, "102", 1, false, SharingType.DOUBLE, 8000, 12000, RoomStatus.VACANT),
-                        room(seededPg, "103", 1, false, SharingType.TRIPLE, 6500, 10000, RoomStatus.VACANT),
-                        room(seededPg, "104", 1, true, SharingType.DOUBLE, 8500, 12000, RoomStatus.VACANT),
-                        room(seededPg, "201", 2, true, SharingType.SINGLE, 11000, 15000, RoomStatus.VACANT),
-                        room(seededPg, "202", 2, false, SharingType.DOUBLE, 8200, 12000, RoomStatus.VACANT),
-                        room(seededPg, "203", 2, false, SharingType.TRIPLE, 6800, 10000, RoomStatus.VACANT),
-                        room(seededPg, "204", 2, true, SharingType.DOUBLE, 8700, 12000, RoomStatus.VACANT),
-                        room(seededPg, "301", 3, true, SharingType.SINGLE, 11500, 15000, RoomStatus.VACANT),
-                        room(seededPg, "302", 3, false, SharingType.DORM, 5500, 8000, RoomStatus.VACANT)
-                );
-                roomRepository.saveAll(rooms);
+            syncRoomStatusEnumIfNeeded(jdbcTemplate);
+            Pg seededPg = resolveOrCreateSamplePg(pgRepository);
+            if (seededPg != null) {
+                seedSampleRoomsIfMissing(seededPg, roomRepository);
             }
 
             if (menuItemRepository.count() == 0) {
@@ -64,7 +52,73 @@ public class DataInitializer {
         };
     }
 
-    private Room room(Pg pg, String roomNumber, int floor, boolean isAc, SharingType sharingType, double rent, double deposit, RoomStatus status) {
+    private void syncRoomStatusEnumIfNeeded(JdbcTemplate jdbcTemplate) {
+        String columnType = jdbcTemplate.queryForObject(
+                "SHOW COLUMNS FROM rooms LIKE 'status'",
+                (rs, rowNum) -> rs.getString("Type")
+        );
+
+        if (columnType != null && !columnType.contains("'MAINTENANCE'")) {
+            jdbcTemplate.execute(
+                    "ALTER TABLE rooms MODIFY COLUMN status " +
+                            "ENUM('VACANT','OCCUPIED','SUBLETTING','VACATING','MAINTENANCE') NOT NULL"
+            );
+        }
+    }
+
+    private Pg resolveOrCreateSamplePg(PgRepository pgRepository) {
+        if (pgRepository.count() == 0) {
+            return pgRepository.save(Pg.builder()
+                    .name(SAMPLE_PG_NAME)
+                    .address(SAMPLE_PG_ADDRESS)
+                    .totalFloors(3)
+                    .totalRooms(10)
+                    .paymentDeadlineDay(10)
+                    .fineAmountPerDay(100)
+                    .slaHours(48)
+                    .build());
+        }
+
+        return pgRepository.findAll().stream()
+                .filter(this::isSamplePg)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private boolean isSamplePg(Pg pg) {
+        return SAMPLE_PG_NAME.equals(pg.getName()) && SAMPLE_PG_ADDRESS.equals(pg.getAddress());
+    }
+
+    private void seedSampleRoomsIfMissing(Pg pg, RoomRepository roomRepository) {
+        Set<String> existingRoomNumbers = roomRepository.findByPgId(pg.getId()).stream()
+                .map(Room::getRoomNumber)
+                .collect(Collectors.toSet());
+
+        List<Room> missingRooms = createSampleRooms(pg).stream()
+                .filter(room -> !existingRoomNumbers.contains(room.getRoomNumber()))
+                .toList();
+
+        if (!missingRooms.isEmpty()) {
+            roomRepository.saveAll(missingRooms);
+        }
+    }
+
+    private List<Room> createSampleRooms(Pg pg) {
+        return List.of(
+                room(pg, "101", 1, true, SharingType.SINGLE, 10000, 15000, RoomStatus.VACANT, CleaningStatus.CLEAN),
+                room(pg, "102", 1, false, SharingType.DOUBLE, 8000, 12000, RoomStatus.VACANT, CleaningStatus.DIRTY),
+                room(pg, "103", 1, false, SharingType.TRIPLE, 6500, 10000, RoomStatus.MAINTENANCE, CleaningStatus.IN_PROGRESS),
+                room(pg, "104", 1, true, SharingType.DOUBLE, 8500, 12000, RoomStatus.VACANT, CleaningStatus.CLEAN),
+                room(pg, "201", 2, true, SharingType.SINGLE, 11000, 15000, RoomStatus.VACANT, CleaningStatus.CLEAN),
+                room(pg, "202", 2, false, SharingType.DOUBLE, 8200, 12000, RoomStatus.VACANT, CleaningStatus.DIRTY),
+                room(pg, "203", 2, false, SharingType.TRIPLE, 6800, 10000, RoomStatus.VACANT, CleaningStatus.CLEAN),
+                room(pg, "204", 2, true, SharingType.DOUBLE, 8700, 12000, RoomStatus.VACANT, CleaningStatus.IN_PROGRESS),
+                room(pg, "301", 3, true, SharingType.SINGLE, 11500, 15000, RoomStatus.VACANT, CleaningStatus.CLEAN),
+                room(pg, "302", 3, false, SharingType.DORM, 5500, 8000, RoomStatus.VACANT, CleaningStatus.DIRTY)
+        );
+    }
+
+    private Room room(Pg pg, String roomNumber, int floor, boolean isAc, SharingType sharingType, double rent, double deposit, RoomStatus status, CleaningStatus cleaningStatus) {
         return Room.builder()
                 .pg(pg)
                 .roomNumber(roomNumber)
@@ -74,6 +128,7 @@ public class DataInitializer {
                 .monthlyRent(rent)
                 .depositAmount(deposit)
                 .status(status)
+                .cleaningStatus(cleaningStatus)
                 .build();
     }
 

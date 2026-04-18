@@ -1,5 +1,6 @@
 package com.pgms.backend.dto.pg;
 
+import com.pgms.backend.entity.enums.CleaningStatus;
 import com.pgms.backend.entity.enums.RoomStatus;
 import com.pgms.backend.entity.enums.SharingType;
 import lombok.Builder;
@@ -17,4 +18,5 @@ public class RoomResponse {
     private Double monthlyRent;
     private Double depositAmount;
     private RoomStatus status;
+    private CleaningStatus cleaningStatus;
 }

@@ -1,5 +1,6 @@
 package com.pgms.backend.entity;
 
+import com.pgms.backend.entity.enums.CleaningStatus;
 import com.pgms.backend.entity.enums.RoomStatus;
 import com.pgms.backend.entity.enums.SharingType;
 import jakarta.persistence.Column;
@@ -56,4 +57,8 @@ public class Room {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private RoomStatus status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private CleaningStatus cleaningStatus;
 }
