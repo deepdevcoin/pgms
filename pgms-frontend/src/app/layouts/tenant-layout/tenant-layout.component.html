@@ -1,0 +1,12 @@
+<div class="app-layout">
+  <app-sidebar [items]="navigationItems"></app-sidebar>
+  <div class="content-area">
+    <app-navbar
+      title="Tenant Workspace"
+      subtitle="Self-service access for profile, rent, complaints, amenities, and support."
+    ></app-navbar>
+    <main class="page-content">
+      <router-outlet></router-outlet>
+    </main>
+  </div>
+</div>

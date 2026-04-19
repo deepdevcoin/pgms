@@ -1,0 +1,12 @@
+<div class="app-layout">
+  <app-sidebar [items]="navigationItems"></app-sidebar>
+  <div class="content-area">
+    <app-navbar
+      title="Owner Workspace"
+      subtitle="Portfolio oversight, PG operations, and manager administration."
+    ></app-navbar>
+    <main class="page-content">
+      <router-outlet></router-outlet>
+    </main>
+  </div>
+</div>
