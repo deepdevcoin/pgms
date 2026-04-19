@@ -158,7 +158,7 @@ export class LoginComponent {
 
     email = '';
     password = '';
-    demo = this.auth.demoMode || true; // default to demo for first-time visitors
+    demo = this.auth.demoMode;
     apiBase = this.auth.apiBase;
     loading = signal(false);
 

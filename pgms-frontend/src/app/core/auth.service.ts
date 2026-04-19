@@ -1,5 +1,6 @@
 import { Injectable, signal, computed } from '@angular/core';
 import { Role, LoginResponse } from './models';
+import { environment } from '../../environments/environment';
 
 const TOKEN_KEY = 'pgms_token';
 const USER_KEY = 'pgms_user';
@@ -18,12 +19,15 @@ export class AuthService {
   private _user = signal<StoredUser | null>(this.loadUser());
   user = this._user.asReadonly();
   role = computed(() => this._user()?.role ?? null);
-  isAuthenticated = computed(() => !!this._user() && !!this.token);
+  isAuthenticated = computed(() => !!this._user() && (this.demoMode || !!this.token));
 
   get token(): string | null { return localStorage.getItem(TOKEN_KEY); }
-  get demoMode(): boolean { return localStorage.getItem(DEMO_KEY) === '1'; }
+  get demoMode(): boolean {
+    const stored = localStorage.getItem(DEMO_KEY);
+    return stored === null ? environment.demoMode : stored === '1';
+  }
   set demoMode(v: boolean) { localStorage.setItem(DEMO_KEY, v ? '1' : '0'); }
-  get apiBase(): string { return localStorage.getItem(API_KEY) || 'http://localhost:8080/api'; }
+  get apiBase(): string { return localStorage.getItem(API_KEY) || environment.apiBaseUrl; }
   set apiBase(v: string) { localStorage.setItem(API_KEY, v); }
 
   private loadUser(): StoredUser | null {
@@ -34,7 +38,8 @@ export class AuthService {
   }
 
   setSession(resp: LoginResponse) {
-    localStorage.setItem(TOKEN_KEY, resp.token);
+    if (resp.token) localStorage.setItem(TOKEN_KEY, resp.token);
+    else localStorage.removeItem(TOKEN_KEY);
     const user: StoredUser = {
       userId: resp.userId,
       name: resp.name,

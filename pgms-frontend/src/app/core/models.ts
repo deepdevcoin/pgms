@@ -4,7 +4,7 @@ export type RoomStatus = 'VACANT' | 'OCCUPIED' | 'SUBLETTING' | 'VACATING';
 export type SharingType = 'SINGLE' | 'DOUBLE' | 'TRIPLE' | 'DORM';
 
 export interface LoginResponse {
-  token: string;
+  token?: string;
   role: Role;
   userId: number;
   name: string;
