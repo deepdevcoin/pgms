@@ -2,7 +2,7 @@ export const environment = {
   production: false,
   apiBaseUrl: 'http://localhost:8080/api',
   demoMode: true,
-  fallbackToMockOnError: true,
+  fallbackToMockOnError: false,
   seedBackendOnEmpty: false,
   endpoints: {
     auth: {
@@ -10,11 +10,15 @@ export const environment = {
       changePassword: '/auth/change-password'
     },
     pgs: {
-      list: '/owner/pgs',
+      ownerList: '/owner/pgs',
+      ownerLayoutList: '/owner/layout-pgs',
+      managerList: '/manager/pgs',
       create: '/owner/pgs'
     },
     rooms: {
-      listByPg: '/owner/pgs/:pgId/rooms',
+      ownerListByPg: '/owner/pgs/:pgId/rooms',
+      ownerLayoutByPg: '/owner/pgs/:pgId/layout',
+      managerLayoutByPg: '/manager/pgs/:pgId/layout',
       update: '/manager/rooms/:id',
       create: '/owner/pgs/:pgId/rooms'
     },

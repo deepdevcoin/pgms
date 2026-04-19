@@ -73,7 +73,7 @@ public class AuthService {
                         .email("owner@pgms.com")
                         .build());
 
-        owner.setName("PGMS Owner");
+        owner.setName("StayMate Owner");
         owner.setPhone("9999999999");
         owner.setPasswordHash(passwordEncoder.encode(DEFAULT_OWNER_PASSWORD));
         owner.setRole(Role.OWNER);

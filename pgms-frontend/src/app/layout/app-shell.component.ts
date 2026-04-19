@@ -17,7 +17,7 @@ interface NavItem { icon: string; label: string; route: string; testId: string; 
       <div class=\"brand\">
         <div class=\"brand-mark\"><mat-icon>apartment</mat-icon></div>
         <div class=\"brand-txt\">
-          <div class=\"brand-title\">PGMS</div>
+          <div class=\"brand-title\">StayMate</div>
           <div class=\"brand-sub\">{{ roleLabel() }}</div>
         </div>
       </div>

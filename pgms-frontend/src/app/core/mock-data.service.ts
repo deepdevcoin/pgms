@@ -36,17 +36,13 @@ export class MockDataService {
     }
 
     // -------- PGs / Rooms --------
-    listPgs(): Observable<PG[]> { return of(JSON.parse(JSON.stringify(this.pgs))).pipe(delay(200)); }
+    listPgs(): Observable<PG[]> { return of(this.clone(this.pgs)).pipe(delay(200)); }
 
     listRooms(pgId: number, opts?: { status?: RoomStatus; floor?: number }): Observable<Room[]> {
         let list = this.rooms.filter(r => r.pgId === pgId);
         if (opts?.status) list = list.filter(r => r.status === opts.status);
         if (opts?.floor !== undefined) list = list.filter(r => r.floor === opts.floor);
-        // attach occupants
-        const hydrated = list.map(r => ({
-            ...r,
-            occupants: this.tenants.filter(t => t.roomId === r.id && t.status === 'ACTIVE')
-        }));
+        const hydrated = list.map(r => this.hydrateRoom(r));
         return of(hydrated).pipe(delay(180));
     }
 
@@ -54,12 +50,13 @@ export class MockDataService {
         const idx = this.rooms.findIndex(r => r.id === id);
         if (idx < 0) return throwError(() => new Error('Room not found'));
         this.rooms[idx] = { ...this.rooms[idx], ...patch };
+        this.syncTenantsForRoom(this.rooms[idx]);
         this.recomputePgCounts();
-        return of({ ...this.rooms[idx] }).pipe(delay(120));
+        return of(this.hydrateRoom(this.rooms[idx])).pipe(delay(120));
     }
 
-    listManagers(): Observable<Manager[]> { return of(JSON.parse(JSON.stringify(this.managers))).pipe(delay(150)); }
-    listTenants(): Observable<Tenant[]> { return of(JSON.parse(JSON.stringify(this.tenants))).pipe(delay(150)); }
+    listManagers(): Observable<Manager[]> { return of(this.clone(this.managers)).pipe(delay(150)); }
+    listTenants(): Observable<Tenant[]> { return of(this.clone(this.tenants)).pipe(delay(150)); }
 
     tenantProfile(): Observable<Tenant> {
         return of({ ...this.tenants[0], creditWalletBalance: 1200 }).pipe(delay(150));
@@ -92,7 +89,7 @@ export class MockDataService {
     managerSummary(): Observable<ManagerSummary> {
         const pgId = this.pgs[0].id;
         const total = this.rooms.filter(r => r.pgId === pgId).length;
-        const occ = this.rooms.filter(r => r.pgId === pgId && r.status === 'OCCUPIED').length;
+        const occ = this.rooms.filter(r => r.pgId === pgId && r.status !== 'VACANT').length;
         return of({
             occupancyRate: Math.round((occ / total) * 1000) / 10,
             totalRooms: total,
@@ -158,28 +155,34 @@ export class MockDataService {
     }
 
     private buildTenants(): Tenant[] {
-        const names = [
-            'Devika Rao', 'Karan Mehta', 'Priya Singh', 'Rahul Jain', 'Sneha Iyer', 'Vikram Shah',
-            'Meera Pillai', 'Aditya Roy', 'Nisha Gupta', 'Rohan Desai', 'Tara Sen', 'Yash Bhatia',
-            'Kavya Menon', 'Arnav Kulkarni', 'Ishika Das', 'Manav Khanna'
+        const firstNames = [
+            'Devika', 'Karan', 'Priya', 'Rahul', 'Sneha', 'Vikram',
+            'Meera', 'Aditya', 'Nisha', 'Rohan', 'Tara', 'Yash',
+            'Kavya', 'Arnav', 'Ishika', 'Manav', 'Neha', 'Ishaan',
+            'Aarav', 'Ananya', 'Diya', 'Kabir', 'Mira', 'Reyansh'
         ];
-        const occupiedRooms = this.buildRooms().filter(r => r.status === 'OCCUPIED' || r.status === 'VACATING');
+        const lastNames = ['Rao', 'Mehta', 'Singh', 'Jain', 'Iyer', 'Shah', 'Pillai', 'Roy', 'Gupta', 'Desai', 'Sen', 'Bhatia', 'Menon', 'Kulkarni', 'Das', 'Khanna'];
+        const occupiedRooms = this.rooms.filter(r => r.status === 'OCCUPIED' || r.status === 'VACATING' || r.status === 'SUBLETTING');
         const tenants: Tenant[] = [];
         let uid = 1000;
-        names.forEach((n, i) => {
-            const r = occupiedRooms[i % occupiedRooms.length];
-            tenants.push({
-                userId: uid++,
-                name: n,
-                email: n.toLowerCase().replace(/\s+/g, '.') + '@pgms.in',
-                phone: '+91 9' + (810000000 + i),
-                roomId: r.id,
-                pgId: r.pgId,
-                joiningDate: '2025-' + (((i % 11) + 1).toString().padStart(2, '0')) + '-12',
-                advanceAmountPaid: 12000,
-                creditWalletBalance: i % 5 === 0 ? 1200 : 0,
-                status: r.status === 'VACATING' ? 'VACATING' : 'ACTIVE'
-            });
+        occupiedRooms.forEach((r, i) => {
+            const occupantCount = Math.max(1, Math.min(r.capacity ?? 1, r.sharingType === 'SINGLE' ? 1 : 2));
+            for (let bed = 0; bed < occupantCount; bed++) {
+                const nameIndex = (i * 2 + bed) % firstNames.length;
+                const n = `${firstNames[nameIndex]} ${lastNames[(i + bed) % lastNames.length]}`;
+                tenants.push({
+                    userId: uid++,
+                    name: n,
+                    email: n.toLowerCase().replace(/\s+/g, '.') + '@pgms.in',
+                    phone: '+91 9' + (810000000 + tenants.length),
+                    roomId: r.id,
+                    pgId: r.pgId,
+                    joiningDate: '2025-' + (((i % 11) + 1).toString().padStart(2, '0')) + '-12',
+                    advanceAmountPaid: 12000,
+                    creditWalletBalance: tenants.length % 5 === 0 ? 1200 : 0,
+                    status: r.status === 'VACATING' ? 'VACATING' : 'ACTIVE'
+                });
+            }
         });
         return tenants;
     }
@@ -188,8 +191,50 @@ export class MockDataService {
         for (const pg of this.pgs) {
             const list = this.rooms.filter(r => r.pgId === pg.id);
             pg.vacantCount = list.filter(r => r.status === 'VACANT').length;
-            pg.occupiedCount = list.filter(r => r.status === 'OCCUPIED').length;
+            pg.occupiedCount = list.filter(r => r.status === 'OCCUPIED' || r.status === 'SUBLETTING').length;
             pg.vacatingCount = list.filter(r => r.status === 'VACATING').length;
         }
+    }
+
+    private hydrateRoom(room: Room): Room {
+        const occupants = room.status === 'VACANT'
+            ? []
+            : this.tenants.filter(t => t.roomId === room.id && t.status !== 'ARCHIVED');
+        return this.clone({ ...room, occupants });
+    }
+
+    private syncTenantsForRoom(room: Room) {
+        if (room.status === 'VACANT') {
+            this.tenants = this.tenants.map(t => t.roomId === room.id ? { ...t, status: 'ARCHIVED' } : t);
+            return;
+        }
+
+        const existing = this.tenants.filter(t => t.roomId === room.id && t.status !== 'ARCHIVED');
+        if (!existing.length) {
+            const userId = Math.max(999, ...this.tenants.map(t => t.userId)) + 1;
+            const name = `Tenant ${room.roomNumber}`;
+            this.tenants.push({
+                userId,
+                name,
+                email: name.toLowerCase().replace(/\s+/g, '.') + '@pgms.in',
+                phone: '+91 9000000000',
+                roomId: room.id,
+                pgId: room.pgId,
+                joiningDate: new Date().toISOString().slice(0, 10),
+                advanceAmountPaid: 12000,
+                creditWalletBalance: 0,
+                status: room.status === 'VACATING' ? 'VACATING' : 'ACTIVE'
+            });
+            return;
+        }
+
+        this.tenants = this.tenants.map(t => t.roomId === room.id && t.status !== 'ARCHIVED'
+            ? { ...t, status: room.status === 'VACATING' ? 'VACATING' : 'ACTIVE' }
+            : t
+        );
+    }
+
+    private clone<T>(value: T): T {
+        return JSON.parse(JSON.stringify(value)) as T;
     }
 }

@@ -353,7 +353,7 @@ export class LayoutVizComponent {
 
     canEdit = computed(() => {
         const r = this.auth.role();
-        return r === 'OWNER' || r === 'MANAGER';
+        return r === 'MANAGER';
     });
 
     constructor() {
@@ -375,8 +375,12 @@ export class LayoutVizComponent {
             next: pgs => {
                 this.pgs.set(pgs);
                 if (this.activePgId() === null && pgs.length) this.activePgId.set(pgs[0].id);
+                if (!pgs.length) this.loading.set(false);
             },
-            error: () => this.snack.open('Failed to load PGs', 'Dismiss', { duration: 3000 })
+            error: () => {
+                this.loading.set(false);
+                this.snack.open('Failed to load PGs', 'Dismiss', { duration: 3000 });
+            }
         });
     }
 

@@ -9,7 +9,7 @@ import {
 } from './models';
 import {
   asCollection, mapLogin, mapManager, mapManagerSummary, mapOwnerSummary,
-  mapPg, mapRoom, mapTenant, unwrapApiPayload
+  mapLayoutRooms, mapPg, mapRoom, mapTenant, unwrapApiPayload
 } from './api-adapters';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -66,7 +66,10 @@ export class ApiService {
   }
 
   listPgs(): Observable<PG[]> {
-    const live = this.get<unknown>(environment.endpoints.pgs.list).pipe(
+    const path = this.role() === 'MANAGER'
+      ? environment.endpoints.pgs.managerList
+      : environment.endpoints.pgs.ownerList;
+    const live = this.get<unknown>(path).pipe(
       map(response => asCollection(response).map(mapPg))
     );
     return this.withMockFallback(live, {
@@ -81,19 +84,13 @@ export class ApiService {
     if (opts?.status) params['status'] = opts.status;
     if (opts?.floor !== undefined) params['floor'] = opts.floor;
 
-    const live = this.get<unknown>(
-      this.path(environment.endpoints.rooms.listByPg, { pgId }),
-      { params }
-    ).pipe(
-      map(response => asCollection(response).map(room => {
-        const mapped = mapRoom(room);
-        return { ...mapped, pgId: mapped.pgId || pgId };
-      }))
+    const live = this.get<unknown>(this.roomsPath(pgId), { params }).pipe(
+      map(response => this.mapRoomsResponse(response, pgId, opts))
     );
 
     return this.withMockFallback(live, {
       mock: this.mock.listRooms(pgId, opts),
-      isEmpty: list => list.length === 0,
+      isEmpty: list => list.length === 0 || this.roomsNeedOccupants(list),
       seed: list => this.seedMany(this.path(environment.endpoints.rooms.create, { pgId }), list)
     });
   }
@@ -101,11 +98,7 @@ export class ApiService {
   updateRoom(id: number, patch: Partial<Room>): Observable<Room> {
     if (this.isDemo()) return this.mock.updateRoom(id, patch);
     return this.put<unknown>(this.path(environment.endpoints.rooms.update, { id }), patch).pipe(
-      map(mapRoom),
-      catchError(error => {
-        this.lastError.set(this.describeError(error));
-        return this.mock.updateRoom(id, patch);
-      })
+      map(mapRoom)
     );
   }
 
@@ -182,7 +175,7 @@ export class ApiService {
 
     return live.pipe(
       switchMap(value => {
-        if (!options.isEmpty?.(value)) return of(value);
+        if (!options.isEmpty?.(value) || !environment.fallbackToMockOnError) return of(value);
         return options.mock.pipe(
           switchMap(mockValue => this.seedIfEnabled(mockValue, options.seed))
         );
@@ -209,6 +202,35 @@ export class ApiService {
     );
   }
 
+  private mapRoomsResponse(response: unknown, pgId: number, opts?: { status?: RoomStatus; floor?: number }): Room[] {
+    const rooms = mapLayoutRooms(response, pgId);
+    const mapped = rooms.length
+      ? rooms
+      : asCollection(response).map(room => {
+        const mappedRoom = mapRoom(room);
+        return { ...mappedRoom, pgId: mappedRoom.pgId || pgId };
+      });
+    return mapped.filter(room =>
+      (!opts?.status || room.status === opts.status) &&
+      (opts?.floor === undefined || room.floor === opts.floor)
+    );
+  }
+
+  private roomsPath(pgId: number): string {
+    if (this.role() === 'MANAGER') {
+      return this.path(environment.endpoints.rooms.managerLayoutByPg, { pgId });
+    }
+    return this.path(environment.endpoints.rooms.ownerLayoutByPg, { pgId });
+  }
+
+  private roomsNeedOccupants(rooms: Room[]): boolean {
+    return rooms.some(room => this.occupiedStatus(room.status) && !(room.occupants?.length));
+  }
+
+  private occupiedStatus(status: RoomStatus): boolean {
+    return status === 'OCCUPIED' || status === 'VACATING' || status === 'SUBLETTING';
+  }
+
   private url(path: string): string {
     if (/^https?:\/\//i.test(path)) return path;
     return `${this.base()}${path.startsWith('/') ? path : `/${path}`}`;
@@ -220,6 +242,10 @@ export class ApiService {
 
   private isDemo(): boolean {
     return this.auth.demoMode;
+  }
+
+  private role() {
+    return this.auth.role();
   }
 
   private path(template: string, params: PathParams): string {

@@ -14,10 +14,16 @@ function isRecord(value: unknown): value is AnyRecord {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
-function valueAt(source: unknown, keys: string[]): unknown {
+export function valueAt(source: unknown, keys: string[]): unknown {
   if (!isRecord(source)) return undefined;
   for (const key of keys) {
     if (source[key] !== undefined && source[key] !== null) return source[key];
+    if (key.includes('.')) {
+      const nested = key.split('.').reduce<unknown>((value, part) => {
+        return isRecord(value) ? value[part] : undefined;
+      }, source);
+      if (nested !== undefined && nested !== null) return nested;
+    }
   }
   return undefined;
 }
@@ -52,6 +58,14 @@ function enumValue<T extends string>(source: unknown, keys: string[], allowed: r
   return allowed.includes(value as T) ? value as T : fallback;
 }
 
+function roomStatus(source: unknown, occupants: Tenant[]): RoomStatus {
+  const raw = text(source, ['status', 'roomStatus', 'availabilityStatus'], '').toUpperCase().replace(/[\s-]+/g, '_');
+  if (raw === 'AVAILABLE') return 'VACANT';
+  if (raw === 'FULL' || raw === 'PARTIAL') return occupants.some(tenant => tenant.status === 'VACATING') ? 'VACATING' : 'OCCUPIED';
+  if (raw === 'MAINTENANCE') return 'VACANT';
+  return roomStatuses.includes(raw as RoomStatus) ? raw as RoomStatus : occupants.length ? 'OCCUPIED' : 'VACANT';
+}
+
 export function unwrapApiPayload(response: unknown): unknown {
   if (!isRecord(response)) return response;
   const success = response['success'];
@@ -82,7 +96,7 @@ export function mapLogin(response: unknown): LoginResponse {
     token,
     role,
     userId: numberValue(userSource, ['userId', 'id', 'accountId'], 0),
-    name: text(userSource, ['name', 'fullName', 'username', 'email'], 'PGMS User'),
+    name: text(userSource, ['name', 'fullName', 'username', 'email'], 'StayMate User'),
     isFirstLogin: booleanValue(userSource, ['isFirstLogin', 'firstLogin', 'temporaryPassword', 'passwordChangeRequired'], false)
   };
 }
@@ -104,18 +118,44 @@ export function mapPg(source: unknown): PG {
 
 export function mapRoom(source: unknown): Room {
   const acValue = valueAt(source, ['isAC', 'isAc', 'ac', 'airConditioned']);
+  const occupants = [
+    ...asCollection(valueAt(source, ['occupants', 'tenants', 'activeTenants', 'residents', 'allocations'])),
+    ...asCollection(valueAt(source, ['currentOccupants', 'currentTenants']))
+  ].map(mapTenant);
+  const singleTenant = valueAt(source, ['tenant', 'currentTenant', 'occupant', 'resident']);
+  if (singleTenant) occupants.push(mapTenant(singleTenant));
+  const status = roomStatus(source, occupants);
+
   return {
     id: numberValue(source, ['id', 'roomId']),
-    pgId: numberValue(source, ['pgId', 'propertyId']),
-    roomNumber: text(source, ['roomNumber', 'number', 'name'], 'Room'),
+    pgId: numberValue(source, ['pgId', 'propertyId', 'pg.id', 'property.id']),
+    roomNumber: text(source, ['roomNumber', 'number', 'name', 'roomNo'], 'Room'),
     floor: numberValue(source, ['floor', 'floorNumber'], 0),
     isAC: typeof acValue === 'string' ? acValue.toLowerCase().includes('ac') : booleanValue(source, ['isAC', 'isAc', 'ac', 'airConditioned'], false),
-    sharingType: enumValue(source, ['sharingType', 'sharing', 'type'], sharingTypes, 'SINGLE'),
+    sharingType: enumValue(source, ['sharingType', 'sharing', 'type', 'occupancyType'], sharingTypes, 'SINGLE'),
     monthlyRent: numberValue(source, ['monthlyRent', 'rent', 'price'], 0),
-    status: enumValue(source, ['status', 'roomStatus'], roomStatuses, 'VACANT'),
-    capacity: optionalNumber(source, ['capacity', 'beds']),
-    occupants: asCollection(valueAt(source, ['occupants', 'tenants'])).map(mapTenant)
+    status,
+    capacity: optionalNumber(source, ['capacity', 'beds', 'bedCount']),
+    occupants
   };
+}
+
+export function mapLayoutRooms(response: unknown, pgId: number): Room[] {
+  const payload = unwrapApiPayload(response);
+  const floors = asCollection(valueAt(payload, ['floors', 'layoutFloors']));
+  if (!floors.length) return asCollection(payload).map(room => ({ ...mapRoom(room), pgId }));
+
+  return floors.flatMap(floor => {
+    const floorNumber = numberValue(floor, ['floorNumber', 'floor'], 0);
+    return asCollection(valueAt(floor, ['rooms'])).map(room => {
+      const mapped = mapRoom(room);
+      return {
+        ...mapped,
+        pgId,
+        floor: mapped.floor || floorNumber
+      };
+    });
+  });
 }
 
 export function mapTenant(source: unknown): Tenant {
@@ -124,8 +164,8 @@ export function mapTenant(source: unknown): Tenant {
     name: text(source, ['name', 'fullName', 'tenantName'], 'Unnamed tenant'),
     email: text(source, ['email'], ''),
     phone: text(source, ['phone', 'mobile'], ''),
-    roomId: numberValue(source, ['roomId']),
-    pgId: numberValue(source, ['pgId', 'propertyId']),
+    roomId: numberValue(source, ['roomId', 'room.id', 'allocatedRoomId']),
+    pgId: numberValue(source, ['pgId', 'propertyId', 'pg.id', 'property.id']),
     joiningDate: text(source, ['joiningDate', 'joinedOn', 'moveInDate'], ''),
     advanceAmountPaid: numberValue(source, ['advanceAmountPaid', 'advance', 'deposit'], 0),
     creditWalletBalance: numberValue(source, ['creditWalletBalance', 'walletBalance', 'credits'], 0),

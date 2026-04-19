@@ -20,8 +20,8 @@ public class OpenApiConfig {
                 .info(new Info()
                         .title("PG Management System API")
                         .version("v1")
-                        .description("Production-ready backend APIs for PGMS")
-                        .contact(new Contact().name("PGMS Backend")))
+                        .description("Production-ready backend APIs for StayMate")
+                        .contact(new Contact().name("StayMate Backend")))
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
                 .components(new Components()
                         .addSecuritySchemes(

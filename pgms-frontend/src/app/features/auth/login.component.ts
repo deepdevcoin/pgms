@@ -17,14 +17,13 @@ import { ApiService } from '../../core/api.service';
       <div class="brand">
         <div class="mark"><mat-icon>apartment</mat-icon></div>
         <div>
-          <div class="t">PGMS</div>
+          <div class="t">StayMate</div>
           <div class="s">Property Intelligence</div>
         </div>
       </div>
 
       <div class="hero">
         <h1>See your building. <br/><span>Not a spreadsheet.</span></h1>
-        <p>Walk through floors visually. Spot vacancies in a glance. Act on what matters in seconds.</p>
 
         <div class="legend">
           <div class="lg-item"><span class="dot vacant"></span>Vacant</div>
@@ -49,7 +48,7 @@ import { ApiService } from '../../core/api.service';
       <form class="form card" (ngSubmit)="submit()" #f="ngForm">
         <div class="head">
           <div class="eyebrow">Welcome back</div>
-          <h2>Sign in to PGMS</h2>
+          <h2>Sign in to StayMate</h2>
           <p>Access your owner, manager or tenant workspace.</p>
         </div>
 
@@ -122,7 +121,7 @@ import { ApiService } from '../../core/api.service';
     .dot.vacating { background: var(--status-vacating-text); }
     .dot.subletting { background: var(--status-subletting-text); }
     .mini-building { position: absolute; bottom: 48px; right: -40px; display: flex; flex-direction: column; gap: 6px; opacity: 0.85; transform: perspective(800px) rotateX(28deg) rotateZ(-8deg); transform-origin: bottom right; }
-    .mini-building .floor { display: flex; gap: 6px; }
+    .mini-building .floor { display: flex; gap: 10px; }
     .mini-building .cell { width: 28px; height: 22px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08); }
     .c-vacant { background: var(--status-vacant-bg); border-color: var(--status-vacant-border); }
     .c-occupied { background: var(--status-occupied-bg); border-color: var(--status-occupied-border); }
