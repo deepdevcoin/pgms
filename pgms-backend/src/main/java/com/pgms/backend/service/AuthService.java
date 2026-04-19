@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 public class AuthService {
 
     public static final String DEFAULT_OWNER_PASSWORD = "Admin@123";
-    public static final String DEFAULT_USER_PASSWORD = "Temp@1234";
+    public static final String DEFAULT_USER_PASSWORD = "Temp@123";
     public static final String STRONG_PASSWORD_REGEX = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z\\d]).{8,}$";
 
     private final UserRepository userRepository;
