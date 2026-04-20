@@ -44,14 +44,18 @@ export interface Room {
 }
 
 export interface Tenant {
+  tenantProfileId?: number;
   userId: number;
   name: string;
   email?: string;
   phone?: string;
   roomId?: number;
+  roomNumber?: string;
   pgId?: number;
   joiningDate?: string;
   advanceAmountPaid?: number;
+  kycDocType?: string;
+  kycDocPath?: string;
   creditWalletBalance?: number;
   status?: 'ACTIVE' | 'VACATING' | 'ARCHIVED';
 }
@@ -90,4 +94,130 @@ export interface ManagerSummary {
   openComplaints: number;
   pendingServiceRequests: number;
   vacateNotices: { tenantName: string; intendedDate: string; refundEligible: boolean }[];
+}
+
+export type RentStatus = 'PENDING' | 'PAID' | 'PARTIAL' | 'OVERDUE';
+export type ComplaintStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'ESCALATED' | 'CLOSED';
+export type ComplaintCategory = 'MAINTENANCE' | 'NOISE' | 'HYGIENE' | 'FOOD' | 'OTHER' | 'AGAINST_MANAGER';
+export type VacateStatus = 'PENDING' | 'REFERRAL_APPROVED' | 'REFERRAL_REJECTED' | 'CHECKED_OUT';
+export type ServiceStatus = 'REQUESTED' | 'CONFIRMED' | 'COMPLETED' | 'REJECTED';
+export type ServiceType = 'ROOM_CLEANING' | 'LINEN_CHANGE' | 'PEST_CONTROL' | 'PLUMBING_INSPECTION' | 'ELECTRICAL_CHECK';
+export type AmenityType = 'WASHING_MACHINE' | 'GAME_ROOM' | 'TT' | 'CARROM' | 'BADMINTON';
+export type BookingStatus = 'AVAILABLE' | 'BOOKED' | 'CANCELLED' | 'COMPLETED';
+export type SubletStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
+export type NoticeTargetType = 'ALL_TENANTS' | 'PG_TENANTS' | 'ALL_MANAGERS' | 'SPECIFIC_MANAGER' | 'SPECIFIC_TENANT';
+export type MealType = 'BREAKFAST' | 'LUNCH' | 'DINNER';
+
+export interface RentRecord {
+  id: number;
+  tenantProfileId: number;
+  tenantName: string;
+  roomNumber: string;
+  billingMonth: string;
+  rentAmount: number;
+  ebAmount?: number;
+  fineAccrued: number;
+  amountPaid: number;
+  totalDue: number;
+  remainingAmountDue: number;
+  dueDate?: string;
+  status: RentStatus;
+  fineWaivedReason?: string;
+}
+
+export interface Complaint {
+  id: number;
+  tenantProfileId?: number;
+  tenantName?: string;
+  roomNumber?: string;
+  category: ComplaintCategory;
+  description: string;
+  attachmentPath?: string;
+  status: ComplaintStatus;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Notice {
+  id: number;
+  title: string;
+  content: string;
+  targetType: NoticeTargetType;
+  targetPgId?: number;
+  targetUserId?: number;
+  createdByName?: string;
+  createdAt?: string;
+  read?: boolean;
+  readCount?: number;
+}
+
+export interface VacateNotice {
+  id: number;
+  tenantProfileId?: number;
+  tenantName?: string;
+  roomNumber?: string;
+  intendedVacateDate: string;
+  noticeType?: string;
+  status: VacateStatus;
+  refundEligible?: boolean;
+  advanceRefundAmount?: number;
+  referralName?: string;
+  referralPhone?: string;
+  referralEmail?: string;
+}
+
+export interface ServiceBooking {
+  id: number;
+  tenantProfileId?: number;
+  tenantName?: string;
+  roomNumber?: string;
+  serviceType: ServiceType;
+  preferredDate: string;
+  preferredTimeWindow?: string;
+  status: ServiceStatus;
+  notes?: string;
+  rating?: number;
+  ratingComment?: string;
+}
+
+export interface AmenityBooking {
+  bookingId?: number;
+  slotId: number;
+  pgId?: number;
+  tenantName?: string;
+  amenityType: AmenityType;
+  facilityName?: string;
+  slotDate: string;
+  startTime: string;
+  endTime: string;
+  capacity: number;
+  bookingCount?: number;
+  openInvite?: boolean;
+  status?: BookingStatus;
+}
+
+export interface MenuItem {
+  id?: number;
+  pgId: number;
+  weekLabel: string;
+  dayOfWeek: string;
+  mealType: MealType;
+  itemNames: string;
+  isVeg: boolean;
+}
+
+export interface SubletRequest {
+  id: number;
+  tenantProfileId?: number;
+  tenantName?: string;
+  roomNumber?: string;
+  startDate: string;
+  endDate: string;
+  reason: string;
+  status: SubletStatus;
+  guestName?: string;
+  guestPhone?: string;
+  checkInDate?: string;
+  checkOutDate?: string;
 }

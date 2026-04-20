@@ -138,15 +138,35 @@ export class AppShellComponent {
             { icon: 'space_dashboard', label: 'Overview', route: '/owner/dashboard', testId: 'nav-owner-overview' },
             { icon: 'grid_view', label: 'Layout', route: '/owner/layout', testId: 'nav-owner-layout' },
             { icon: 'domain', label: 'Properties', route: '/owner/pgs', testId: 'nav-owner-pgs' },
-            { icon: 'badge', label: 'Managers', route: '/owner/managers', testId: 'nav-owner-managers' }
+            { icon: 'badge', label: 'Managers', route: '/owner/managers', testId: 'nav-owner-managers' },
+            { icon: 'payments', label: 'Payments', route: '/owner/payments', testId: 'nav-owner-payments' },
+            { icon: 'report_problem', label: 'Complaints', route: '/owner/complaints', testId: 'nav-owner-complaints' },
+            { icon: 'campaign', label: 'Notices', route: '/owner/notices', testId: 'nav-owner-notices' },
+            { icon: 'restaurant_menu', label: 'Menu', route: '/owner/menu', testId: 'nav-owner-menu' }
         ];
         if (r === 'MANAGER') return [
             { icon: 'space_dashboard', label: 'Overview', route: '/manager/dashboard', testId: 'nav-manager-overview' },
             { icon: 'grid_view', label: 'Layout', route: '/manager/layout', testId: 'nav-manager-layout' },
-            { icon: 'group', label: 'Tenants', route: '/manager/tenants', testId: 'nav-manager-tenants' }
+            { icon: 'group', label: 'Tenants', route: '/manager/tenants', testId: 'nav-manager-tenants' },
+            { icon: 'payments', label: 'Payments', route: '/manager/payments', testId: 'nav-manager-payments' },
+            { icon: 'report_problem', label: 'Complaints', route: '/manager/complaints', testId: 'nav-manager-complaints' },
+            { icon: 'move_down', label: 'Vacate', route: '/manager/vacate', testId: 'nav-manager-vacate' },
+            { icon: 'campaign', label: 'Notices', route: '/manager/notices', testId: 'nav-manager-notices' },
+            { icon: 'home_repair_service', label: 'Services', route: '/manager/services', testId: 'nav-manager-services' },
+            { icon: 'event_available', label: 'Amenities', route: '/manager/amenities', testId: 'nav-manager-amenities' },
+            { icon: 'restaurant_menu', label: 'Menu', route: '/manager/menu', testId: 'nav-manager-menu' },
+            { icon: 'sync_alt', label: 'Sublets', route: '/manager/sublets', testId: 'nav-manager-sublets' }
         ];
         return [
-            { icon: 'space_dashboard', label: 'Dashboard', route: '/tenant/dashboard', testId: 'nav-tenant-dashboard' }
+            { icon: 'space_dashboard', label: 'Dashboard', route: '/tenant/dashboard', testId: 'nav-tenant-dashboard' },
+            { icon: 'payments', label: 'Payments', route: '/tenant/payments', testId: 'nav-tenant-payments' },
+            { icon: 'report_problem', label: 'Complaints', route: '/tenant/complaints', testId: 'nav-tenant-complaints' },
+            { icon: 'move_down', label: 'Vacate', route: '/tenant/vacate', testId: 'nav-tenant-vacate' },
+            { icon: 'campaign', label: 'Notices', route: '/tenant/notices', testId: 'nav-tenant-notices' },
+            { icon: 'home_repair_service', label: 'Services', route: '/tenant/services', testId: 'nav-tenant-services' },
+            { icon: 'event_available', label: 'Amenities', route: '/tenant/amenities', testId: 'nav-tenant-amenities' },
+            { icon: 'restaurant_menu', label: 'Menu', route: '/tenant/menu', testId: 'nav-tenant-menu' },
+            { icon: 'sync_alt', label: 'Sublets', route: '/tenant/sublets', testId: 'nav-tenant-sublets' }
         ];
     });
 

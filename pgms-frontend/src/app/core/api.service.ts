@@ -5,7 +5,9 @@ import { environment } from '../../environments/environment';
 import { AuthService } from './auth.service';
 import { MockDataService } from './mock-data.service';
 import {
-  LoginResponse, Manager, ManagerSummary, OwnerSummary, PG, Room, RoomStatus, Tenant
+  AmenityBooking, Complaint, LoginResponse, Manager, ManagerSummary, MenuItem,
+  Notice, OwnerSummary, PG, RentRecord, Room, RoomStatus, ServiceBooking,
+  SubletRequest, Tenant, VacateNotice
 } from './models';
 import {
   asCollection, mapLogin, mapManager, mapManagerSummary, mapOwnerSummary,
@@ -114,7 +116,8 @@ export class ApiService {
   }
 
   listTenants(): Observable<Tenant[]> {
-    const live = this.get<unknown>(environment.endpoints.tenants.list).pipe(
+    const path = this.role() === 'OWNER' ? environment.endpoints.tenants.ownerList : environment.endpoints.tenants.list;
+    const live = this.get<unknown>(path).pipe(
       map(response => asCollection(response).map(mapTenant))
     );
     return this.withMockFallback(live, {
@@ -152,6 +155,172 @@ export class ApiService {
       mock: this.mock.tenantProfile(),
       isEmpty: tenant => !tenant.userId && !tenant.name
     });
+  }
+
+  createTenant(payload: {
+    name: string;
+    email: string;
+    phone: string;
+    roomId: number;
+    joiningDate: string;
+    advanceAmountPaid: number;
+  }): Observable<Tenant> {
+    return this.post<unknown>(environment.endpoints.tenants.create, payload).pipe(map(mapTenant));
+  }
+
+  createManager(payload: { name: string; email: string; phone: string; designation: string; pgIds: number[] }): Observable<Manager> {
+    return this.post<unknown>(environment.endpoints.managers.create, payload).pipe(map(mapManager));
+  }
+
+  assignManagerPgs(id: number, pgIds: number[]): Observable<Manager> {
+    return this.put<unknown>(this.path('/owner/managers/:id/assign', { id }), { pgIds }).pipe(map(mapManager));
+  }
+
+  setManagerActive(id: number, active: boolean): Observable<void> {
+    return this.put<unknown>(this.path(active ? '/owner/managers/:id/activate' : '/owner/managers/:id/deactivate', { id }), {}).pipe(map(() => void 0));
+  }
+
+  listPayments(): Observable<RentRecord[]> {
+    const path = this.role() === 'TENANT' ? environment.endpoints.payments.tenant : environment.endpoints.payments.manager;
+    return this.get<unknown>(path).pipe(map(response => asCollection(response) as RentRecord[]));
+  }
+
+  payRent(recordId: number, amount: number): Observable<RentRecord> {
+    return this.post<RentRecord>(environment.endpoints.payments.tenantPay, { recordId, amount });
+  }
+
+  applyCredit(rentRecordId: number): Observable<RentRecord> {
+    return this.post<RentRecord>(environment.endpoints.payments.applyCredit, { rentRecordId });
+  }
+
+  cashPayment(payload: { tenantProfileId: number; billingMonth: string; amount: number }): Observable<RentRecord> {
+    return this.post<RentRecord>(environment.endpoints.payments.cash, payload);
+  }
+
+  waiveFine(id: number, reason: string): Observable<RentRecord> {
+    return this.put<RentRecord>(this.path(environment.endpoints.payments.waiveFine, { id }), { reason });
+  }
+
+  listComplaints(): Observable<Complaint[]> {
+    const role = this.role();
+    const path = role === 'OWNER'
+      ? environment.endpoints.complaints.owner
+      : role === 'MANAGER'
+        ? environment.endpoints.complaints.manager
+        : environment.endpoints.complaints.tenant;
+    return this.get<unknown>(path).pipe(map(response => asCollection(response) as Complaint[]));
+  }
+
+  createComplaint(payload: { category: string; description: string; attachmentPath?: string }): Observable<Complaint> {
+    return this.post<Complaint>(environment.endpoints.complaints.tenant, payload);
+  }
+
+  updateComplaint(id: number, status: string, notes?: string): Observable<Complaint> {
+    const endpoint = this.role() === 'OWNER' ? environment.endpoints.complaints.ownerUpdate : environment.endpoints.complaints.managerUpdate;
+    return this.put<Complaint>(this.path(endpoint, { id }), { status, notes });
+  }
+
+  listNotices(): Observable<Notice[]> {
+    return this.get<unknown>(environment.endpoints.notices.list).pipe(map(response => asCollection(response) as Notice[]));
+  }
+
+  createNotice(payload: { title: string; content: string; targetType: string; targetPgId?: number; targetUserId?: number }): Observable<Notice> {
+    return this.post<Notice>(environment.endpoints.notices.create, payload);
+  }
+
+  markNoticeRead(id: number): Observable<void> {
+    return this.put<unknown>(this.path(environment.endpoints.notices.read, { id }), {}).pipe(map(() => void 0));
+  }
+
+  listVacates(): Observable<VacateNotice[]> {
+    if (this.role() === 'TENANT') {
+      return this.get<VacateNotice>(environment.endpoints.vacate.tenant).pipe(
+        map(v => v ? [v] : []),
+        catchError(() => of([] as VacateNotice[]))
+      );
+    }
+    return this.get<unknown>(environment.endpoints.vacate.manager).pipe(map(response => asCollection(response) as VacateNotice[]));
+  }
+
+  createVacate(payload: { intendedVacateDate: string; hasReferral: boolean; referralName?: string; referralPhone?: string; referralEmail?: string }): Observable<VacateNotice> {
+    return this.post<VacateNotice>(environment.endpoints.vacate.tenant, payload);
+  }
+
+  approveVacateReferral(id: number, approve: boolean): Observable<VacateNotice> {
+    return this.put<VacateNotice>(this.path(environment.endpoints.vacate.approveReferral, { id }), { approve });
+  }
+
+  checkoutVacate(id: number): Observable<VacateNotice> {
+    return this.put<VacateNotice>(this.path(environment.endpoints.vacate.checkout, { id }), {});
+  }
+
+  listServices(): Observable<ServiceBooking[]> {
+    const path = this.role() === 'TENANT' ? environment.endpoints.services.tenant : environment.endpoints.services.manager;
+    return this.get<unknown>(path).pipe(map(response => asCollection(response) as ServiceBooking[]));
+  }
+
+  createService(payload: { serviceType: string; preferredDate: string; preferredTimeWindow?: string }): Observable<ServiceBooking> {
+    return this.post<ServiceBooking>(environment.endpoints.services.tenant, payload);
+  }
+
+  updateService(id: number, status: string, notes?: string): Observable<ServiceBooking> {
+    return this.put<ServiceBooking>(this.path(environment.endpoints.services.managerUpdate, { id }), { status, notes });
+  }
+
+  rateService(id: number, rating: number, ratingComment?: string): Observable<ServiceBooking> {
+    return this.post<ServiceBooking>(this.path(environment.endpoints.services.tenantRate, { id }), { rating, ratingComment });
+  }
+
+  listAmenities(): Observable<AmenityBooking[]> {
+    const path = this.role() === 'MANAGER' ? environment.endpoints.amenities.managerBookings : environment.endpoints.amenities.tenantSlots;
+    return this.get<unknown>(path).pipe(map(response => asCollection(response) as AmenityBooking[]));
+  }
+
+  createAmenitySlot(payload: { amenityType: string; slotDate: string; startTime: string; endTime: string; capacity: number; facilityName?: string }): Observable<AmenityBooking> {
+    return this.post<AmenityBooking>(environment.endpoints.amenities.managerSlots, payload);
+  }
+
+  bookAmenity(slotId: number, isOpenInvite: boolean): Observable<AmenityBooking> {
+    return this.post<AmenityBooking>(environment.endpoints.amenities.tenantBook, { slotId, isOpenInvite });
+  }
+
+  cancelAmenity(bookingId: number): Observable<void> {
+    return this.delete<unknown>(this.path(environment.endpoints.amenities.tenantCancel, { id: bookingId })).pipe(map(() => void 0));
+  }
+
+  joinAmenityInvite(slotId: number): Observable<AmenityBooking> {
+    return this.post<AmenityBooking>(this.path(environment.endpoints.amenities.joinInvite, { slotId }), {});
+  }
+
+  listMenu(pgId: number, weekLabel: string): Observable<MenuItem[]> {
+    return this.get<unknown>(environment.endpoints.menu.list, { params: { pgId, weekLabel } }).pipe(
+      map(response => asCollection(response) as MenuItem[])
+    );
+  }
+
+  saveMenu(items: MenuItem[]): Observable<MenuItem[]> {
+    return this.post<unknown>(environment.endpoints.menu.save, items).pipe(map(response => asCollection(response) as MenuItem[]));
+  }
+
+  listSublets(): Observable<SubletRequest[]> {
+    const path = this.role() === 'TENANT' ? environment.endpoints.sublets.tenant : environment.endpoints.sublets.manager;
+    return this.get<unknown>(path).pipe(map(response => asCollection(response) as SubletRequest[]));
+  }
+
+  createSublet(payload: { startDate: string; endDate: string; reason: string }): Observable<SubletRequest> {
+    return this.post<SubletRequest>(environment.endpoints.sublets.tenant, payload);
+  }
+
+  approveSublet(id: number): Observable<SubletRequest> {
+    return this.put<SubletRequest>(this.path(environment.endpoints.sublets.approve, { id }), {});
+  }
+
+  completeSublet(id: number, payload: { guestName: string; guestPhone: string; checkInDate: string }): Observable<SubletRequest> {
+    return this.put<SubletRequest>(this.path(environment.endpoints.sublets.complete, { id }), payload);
+  }
+
+  wallet(): Observable<{ creditWalletBalance: number }> {
+    return this.get<{ creditWalletBalance: number }>(environment.endpoints.sublets.wallet);
   }
 
   private request<T>(method: HttpMethod, path: string, options?: RequestOptions): Observable<T> {

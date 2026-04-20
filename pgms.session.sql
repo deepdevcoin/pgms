@@ -1,1 +1,2 @@
-select * from rooms;
+select * from menu_items;
+show tables;
