@@ -72,6 +72,15 @@ import { ApiService } from '../../core/api.service';
           <span class="kbd">Enter ↵</span>
         </div>
 
+        <div class="seed-login">
+          <div class="seed-label">Quick login</div>
+          <div class="seed-actions">
+            <button type="button" class="seed-btn" (click)="fillSeed('OWNER')">Admin / Owner</button>
+            <button type="button" class="seed-btn" (click)="fillSeed('MANAGER')">Manager</button>
+            <button type="button" class="seed-btn" (click)="fillSeed('TENANT')">Tenant</button>
+          </div>
+        </div>
+
         <button class="btn btn--primary full" type="submit" [disabled]="loading()" data-testid="login-submit">
           {{ loading() ? 'Signing you in…' : 'Continue' }}
         </button>
@@ -140,6 +149,11 @@ import { ApiService } from '../../core/api.service';
     .row { display: flex; align-items: center; justify-content: space-between; }
     .demo { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); cursor: pointer; }
     .demo em { color: var(--text-dim); font-style: normal; }
+    .seed-login { display: flex; flex-direction: column; gap: 10px; }
+    .seed-label { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }
+    .seed-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .seed-btn { border: 1px solid var(--border); background: var(--bg-elev); color: var(--text); border-radius: 10px; padding: 10px 8px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .seed-btn:hover { border-color: var(--primary); color: var(--primary); }
     .full { width: 100%; padding: 12px; font-size: 14px; }
     .demo-hint { display: flex; gap: 12px; padding: 14px; border: 1px dashed var(--border); border-radius: 12px; font-size: 12px; color: var(--text-muted); background: rgba(129,140,248,0.04); }
     .demo-hint mat-icon { color: var(--accent); flex-shrink: 0; }
@@ -165,6 +179,22 @@ export class LoginComponent {
     private stateOrder = ['occupied', 'occupied', 'vacant', 'occupied', 'vacating', 'occupied', 'subletting', 'occupied', 'vacant'];
     rowStates(f: number): string[] {
         return Array.from({ length: 9 }, (_, i) => this.stateOrder[(i + f * 2) % this.stateOrder.length]);
+    }
+
+    fillSeed(role: 'OWNER' | 'MANAGER' | 'TENANT') {
+        const creds = this.demo
+            ? {
+                OWNER: { email: 'owner@pgms.in', password: 'demo-pass' },
+                MANAGER: { email: 'manager@pgms.in', password: 'demo-pass' },
+                TENANT: { email: 'tenant@pgms.in', password: 'demo-pass' }
+            }
+            : {
+                OWNER: { email: 'owner@pgms.com', password: 'Admin@123' },
+                MANAGER: { email: 'manager@pgms.com', password: 'Temp@123' },
+                TENANT: { email: 'tenant@pgms.com', password: 'Temp@123' }
+            };
+        this.email = creds[role].email;
+        this.password = creds[role].password;
     }
 
     submit() {

@@ -1,6 +1,7 @@
 package com.pgms.backend.service;
 
 import com.pgms.backend.dto.notice.NoticeCreateRequest;
+import com.pgms.backend.dto.notice.NoticeReadReceiptResponse;
 import com.pgms.backend.dto.notice.NoticeResponse;
 import com.pgms.backend.entity.Notice;
 import com.pgms.backend.entity.NoticeRead;
@@ -112,6 +113,24 @@ public class NoticeService {
                 .read(currentUserId != null && noticeReadRepository.findByNoticeIdAndUserId(notice.getId(), currentUserId).isPresent())
                 .readCount(noticeReadRepository.findByNoticeId(notice.getId()).size())
                 .build();
+    }
+
+    public List<NoticeReadReceiptResponse> getReadReceipts(Long noticeId) {
+        Notice notice = noticeRepository.findById(noticeId)
+                .orElseThrow(() -> new NotFoundException("Notice not found"));
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+        Role currentRole = SecurityUtils.getCurrentUserRole();
+        if (!notice.getCreatedBy().getId().equals(currentUserId) && currentRole != Role.OWNER) {
+            throw new BadRequestException("Only the notice poster or owner can view read receipts");
+        }
+        return noticeReadRepository.findByNoticeIdOrderByReadAtDesc(noticeId).stream()
+                .map(read -> NoticeReadReceiptResponse.builder()
+                        .userId(read.getUser().getId())
+                        .userName(read.getUser().getName())
+                        .role(read.getUser().getRole())
+                        .readAt(read.getReadAt())
+                        .build())
+                .toList();
     }
 
     private void validateTargets(Role role, NoticeCreateRequest request) {

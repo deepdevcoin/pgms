@@ -1,23 +1,37 @@
 package com.pgms.backend.config;
 
+import com.pgms.backend.entity.ManagerProfile;
 import com.pgms.backend.entity.MenuItem;
 import com.pgms.backend.entity.Pg;
+import com.pgms.backend.entity.RentRecord;
 import com.pgms.backend.entity.Room;
+import com.pgms.backend.entity.TenantProfile;
+import com.pgms.backend.entity.User;
 import com.pgms.backend.entity.enums.CleaningStatus;
 import com.pgms.backend.entity.enums.MealType;
+import com.pgms.backend.entity.enums.RentStatus;
 import com.pgms.backend.entity.enums.RoomStatus;
+import com.pgms.backend.entity.enums.Role;
 import com.pgms.backend.entity.enums.SharingType;
+import com.pgms.backend.entity.enums.TenantStatus;
+import com.pgms.backend.repository.ManagerProfileRepository;
 import com.pgms.backend.repository.MenuItemRepository;
 import com.pgms.backend.repository.PgRepository;
+import com.pgms.backend.repository.RentRecordRepository;
 import com.pgms.backend.repository.RoomRepository;
+import com.pgms.backend.repository.TenantProfileRepository;
+import com.pgms.backend.repository.UserRepository;
 import com.pgms.backend.service.AuthService;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.temporal.WeekFields;
 import java.util.List;
 import java.util.Set;
@@ -34,13 +48,19 @@ public class DataInitializer {
                                PgRepository pgRepository,
                                RoomRepository roomRepository,
                                MenuItemRepository menuItemRepository,
-                               JdbcTemplate jdbcTemplate) {
+                               JdbcTemplate jdbcTemplate,
+                               UserRepository userRepository,
+                               ManagerProfileRepository managerProfileRepository,
+                               TenantProfileRepository tenantProfileRepository,
+                               RentRecordRepository rentRecordRepository,
+                               PasswordEncoder passwordEncoder) {
         return args -> {
             authService.createSeedOwnerIfMissing();
             syncRoomStatusEnumIfNeeded(jdbcTemplate);
             Pg seededPg = resolveOrCreateSamplePg(pgRepository);
             if (seededPg != null) {
                 seedSampleRoomsIfMissing(seededPg, roomRepository);
+                seedManagerAndTenantIfMissing(seededPg, roomRepository, userRepository, managerProfileRepository, tenantProfileRepository, rentRecordRepository, passwordEncoder);
             }
 
             if (menuItemRepository.count() == 0) {
@@ -50,6 +70,81 @@ public class DataInitializer {
                 }
             }
         };
+    }
+
+    private void seedManagerAndTenantIfMissing(Pg pg,
+                                               RoomRepository roomRepository,
+                                               UserRepository userRepository,
+                                               ManagerProfileRepository managerProfileRepository,
+                                               TenantProfileRepository tenantProfileRepository,
+                                               RentRecordRepository rentRecordRepository,
+                                               PasswordEncoder passwordEncoder) {
+        User manager = userRepository.findByEmail("manager@pgms.com")
+                .orElseGet(() -> User.builder().email("manager@pgms.com").build());
+        manager.setName("Seed Manager");
+        manager.setPhone("9999999998");
+        manager.setPasswordHash(passwordEncoder.encode(AuthService.DEFAULT_USER_PASSWORD));
+        manager.setRole(Role.MANAGER);
+        manager.setActive(true);
+        manager.setFirstLogin(false);
+        manager = userRepository.save(manager);
+
+        ManagerProfile managerProfile = managerProfileRepository.findByUserId(manager.getId())
+                .orElseGet(() -> ManagerProfile.builder().user(manager).build());
+        managerProfile.setDesignation("Operations Manager");
+        managerProfile.setPgIds(String.valueOf(pg.getId()));
+        managerProfileRepository.save(managerProfile);
+
+        Room tenantRoom = roomRepository.findByPgId(pg.getId()).stream()
+                .filter(room -> !"103".equals(room.getRoomNumber()))
+                .findFirst()
+                .orElse(null);
+        if (tenantRoom == null) return;
+
+        if (tenantRoom.getStatus() != RoomStatus.OCCUPIED) {
+            tenantRoom.setStatus(RoomStatus.OCCUPIED);
+            tenantRoom.setCleaningStatus(CleaningStatus.CLEAN);
+            tenantRoom = roomRepository.save(tenantRoom);
+        }
+
+        User tenant = userRepository.findByEmail("tenant@pgms.com")
+                .orElseGet(() -> User.builder().email("tenant@pgms.com").build());
+        tenant.setName("Seed Tenant");
+        tenant.setPhone("9999999997");
+        tenant.setPasswordHash(passwordEncoder.encode(AuthService.DEFAULT_USER_PASSWORD));
+        tenant.setRole(Role.TENANT);
+        tenant.setActive(true);
+        tenant.setFirstLogin(false);
+        tenant = userRepository.save(tenant);
+
+        Room finalTenantRoom = tenantRoom;
+        TenantProfile tenantProfile = tenantProfileRepository.findByUserId(tenant.getId())
+                .orElseGet(() -> TenantProfile.builder().user(tenant).build());
+        tenantProfile.setPg(pg);
+        tenantProfile.setRoom(finalTenantRoom);
+        tenantProfile.setJoiningDate(LocalDate.now().minusMonths(2));
+        tenantProfile.setAdvanceAmountPaid(finalTenantRoom.getDepositAmount());
+        tenantProfile.setStatus(TenantStatus.ACTIVE);
+        if (tenantProfile.getCreditWalletBalance() == null) {
+            tenantProfile.setCreditWalletBalance(0.0);
+        }
+        tenantProfile = tenantProfileRepository.save(tenantProfile);
+
+        String billingMonth = YearMonth.now().toString();
+        if (rentRecordRepository.findByTenantProfileIdAndBillingMonth(tenantProfile.getId(), billingMonth).isEmpty()) {
+            rentRecordRepository.save(RentRecord.builder()
+                    .tenantProfile(tenantProfile)
+                    .billingMonth(billingMonth)
+                    .rentAmount(finalTenantRoom.getMonthlyRent())
+                    .ebAmount(350.0)
+                    .fineAccrued(150.0)
+                    .amountPaid(0.0)
+                    .totalDue(finalTenantRoom.getMonthlyRent() + 350.0 + 150.0)
+                    .dueDate(LocalDate.now().withDayOfMonth(Math.min(pg.getPaymentDeadlineDay(), LocalDate.now().lengthOfMonth())))
+                    .status(RentStatus.PENDING)
+                    .createdAt(LocalDateTime.now())
+                    .build());
+        }
     }
 
     private void syncRoomStatusEnumIfNeeded(JdbcTemplate jdbcTemplate) {

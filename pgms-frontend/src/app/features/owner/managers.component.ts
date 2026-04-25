@@ -5,11 +5,12 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/api.service';
 import { Manager, PG } from '../../core/models';
+import { PopupShellComponent } from '../../shared/popup-shell.component';
 
 @Component({
   selector: 'app-managers',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatIconModule],
+  imports: [CommonModule, FormsModule, MatIconModule, PopupShellComponent],
   template: `
   <section class="fade-up managers">
     <header class="head">
@@ -28,7 +29,6 @@ import { Manager, PG } from '../../core/models';
         <label class="fld"><span>Name</span><input [(ngModel)]="form.name" name="name" /></label>
         <label class="fld"><span>Email</span><input [(ngModel)]="form.email" name="email" type="email" /></label>
         <label class="fld"><span>Phone</span><input [(ngModel)]="form.phone" name="phone" /></label>
-        <label class="fld"><span>Designation</span><input [(ngModel)]="form.designation" name="designation" /></label>
         <label class="fld wide"><span>Assigned PGs</span>
           <select multiple [(ngModel)]="form.pgIds" name="pgIds">
             @for (pg of pgs(); track pg.id) { <option [ngValue]="pg.id">{{ pg.name }}</option> }
@@ -47,7 +47,7 @@ import { Manager, PG } from '../../core/models';
               {{ m.name }}
               <span class="pill dot" [class.pill--occupied]="m.isActive" [class.pill--vacating]="!m.isActive">{{ m.isActive ? 'Active' : 'Inactive' }}</span>
             </div>
-            <div class="meta">{{ m.designation }} · {{ m.email }} · {{ m.phone }}</div>
+            <div class="meta">{{ m.email }} · {{ m.phone }}</div>
           </div>
           <div class="assigned">
             <div class="lbl">Assigned PGs</div>
@@ -67,6 +67,33 @@ import { Manager, PG } from '../../core/models';
       }
     </div>
   </section>
+
+  <app-popup-shell
+    [open]="assignmentOpen()"
+    eyebrow="Managers"
+    title="Assign PGs"
+    subtitle="Choose the properties this manager should handle."
+    (closed)="closeAssignment()"
+  >
+    <div class="assignment-list">
+      @for (pg of pgs(); track pg.id) {
+        <label class="assignment-option">
+          <input type="checkbox" [checked]="selectedPgIds().includes(pg.id)" (change)="togglePg(pg.id, $any($event.target).checked)" />
+          <div>
+            <div class="assignment-name">{{ pg.name }}</div>
+            <div class="assignment-meta">{{ pg.address }}</div>
+          </div>
+        </label>
+      }
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn--ghost" type="button" (click)="closeAssignment()">Cancel</button>
+      <button class="btn btn--primary" type="button" (click)="saveAssignment()" [disabled]="savingAssignment()">
+        <mat-icon>check</mat-icon>
+        <span>{{ savingAssignment() ? 'Saving...' : 'Save assignment' }}</span>
+      </button>
+    </div>
+  </app-popup-shell>
   `,
   styles: [`
     .managers { display: flex; flex-direction: column; gap: 18px; }
@@ -93,6 +120,11 @@ import { Manager, PG } from '../../core/models';
     .mini { display: inline-flex; align-items: center; gap: 4px; font: inherit; font-size: 11px; color: var(--text-muted); background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; cursor: pointer; }
     .mini:hover { color: var(--primary); border-color: var(--primary); }
     .mini mat-icon { font-size: 14px; width: 14px; height: 14px; }
+    .assignment-list { display: flex; flex-direction: column; gap: 10px; max-height: 340px; overflow: auto; }
+    .assignment-option { display: grid; grid-template-columns: 18px 1fr; gap: 12px; align-items: start; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); cursor: pointer; }
+    .assignment-name { font-weight: 600; }
+    .assignment-meta { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
     @media (max-width: 980px) { .row, .form { grid-template-columns: 1fr; } .assigned { text-align: left; } .chips, .tools { justify-content: flex-start; } .fld.wide { grid-column: auto; } }
   `]
 })
@@ -103,7 +135,11 @@ export class ManagersComponent {
   pgs = signal<PG[]>([]);
   showForm = signal(false);
   saving = signal(false);
+  assignmentOpen = signal(false);
+  savingAssignment = signal(false);
+  selectedPgIds = signal<number[]>([]);
   form = this.blankForm();
+  private selectedManagerId: number | null = null;
 
   constructor() {
     this.load();
@@ -132,14 +168,9 @@ export class ManagersComponent {
   }
 
   assign(manager: Manager) {
-    const current = manager.assignedPgs.map(pg => pg.id).join(',');
-    const raw = window.prompt('Enter comma-separated PG IDs', current);
-    if (raw === null) return;
-    const pgIds = raw.split(',').map(id => Number(id.trim())).filter(Number.isFinite);
-    this.api.assignManagerPgs(manager.id, pgIds).subscribe({
-      next: () => { this.snack.open('Assignments updated', 'OK', { duration: 2200, panelClass: 'pgms-snack' }); this.load(); },
-      error: err => this.snack.open(err?.message || 'Assignment failed', 'Dismiss', { duration: 3000, panelClass: 'pgms-snack' })
-    });
+    this.selectedManagerId = manager.id;
+    this.selectedPgIds.set(manager.assignedPgs.map(pg => pg.id));
+    this.assignmentOpen.set(true);
   }
 
   toggleActive(manager: Manager) {
@@ -149,8 +180,36 @@ export class ManagersComponent {
     });
   }
 
-  blankForm() {
-    return { name: '', email: '', phone: '', designation: '', pgIds: [] as number[] };
+  blankForm() { return { name: '', email: '', phone: '', designation: '', pgIds: [] as number[] }; }
+
+  closeAssignment() {
+    this.assignmentOpen.set(false);
+    this.savingAssignment.set(false);
+    this.selectedPgIds.set([]);
+    this.selectedManagerId = null;
+  }
+
+  togglePg(pgId: number, checked: boolean) {
+    const next = new Set(this.selectedPgIds());
+    if (checked) next.add(pgId);
+    else next.delete(pgId);
+    this.selectedPgIds.set([...next]);
+  }
+
+  saveAssignment() {
+    if (!this.selectedManagerId) return;
+    this.savingAssignment.set(true);
+    this.api.assignManagerPgs(this.selectedManagerId, this.selectedPgIds()).subscribe({
+      next: () => {
+        this.snack.open('Assignments updated', 'OK', { duration: 2200, panelClass: 'pgms-snack' });
+        this.closeAssignment();
+        this.load();
+      },
+      error: err => {
+        this.savingAssignment.set(false);
+        this.snack.open(err?.message || 'Assignment failed', 'Dismiss', { duration: 3000, panelClass: 'pgms-snack' });
+      }
+    });
   }
 
   initials(n: string) { return n.split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase(); }

@@ -9,6 +9,8 @@ import java.time.LocalTime;
 
 @Data
 public class AmenitySlotCreateRequest {
+    @NotNull(message = "PG is required")
+    private Long pgId;
     @NotNull(message = "Amenity type is required")
     private AmenityType amenityType;
     @NotNull(message = "Slot date is required")

@@ -17,5 +17,5 @@ public class ManagerResponse {
     private boolean active;
     private boolean firstLogin;
     private List<Long> pgIds;
-    private List<String> assignedPgs;
+    private List<AssignedPgResponse> assignedPgs;
 }

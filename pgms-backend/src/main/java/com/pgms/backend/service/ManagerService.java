@@ -1,6 +1,7 @@
 package com.pgms.backend.service;
 
 import com.pgms.backend.dto.manager.ManagerCreateRequest;
+import com.pgms.backend.dto.manager.AssignedPgResponse;
 import com.pgms.backend.dto.manager.ManagerResponse;
 import com.pgms.backend.entity.ManagerProfile;
 import com.pgms.backend.entity.Pg;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -51,7 +53,7 @@ public class ManagerService {
                 .build());
         ManagerProfile profile = managerProfileRepository.save(ManagerProfile.builder()
                 .user(user)
-                .designation(request.getDesignation())
+                .designation(request.getDesignation() == null || request.getDesignation().isBlank() ? "Manager" : request.getDesignation())
                 .pgIds(joinPgIds(request.getPgIds()))
                 .build());
         return toResponse(profile);
@@ -63,8 +65,7 @@ public class ManagerService {
 
     @Transactional
     public ManagerResponse assignPgs(Long managerId, List<Long> pgIds) {
-        ManagerProfile profile = managerProfileRepository.findByUserId(managerId)
-                .orElseThrow(() -> new NotFoundException("Manager not found"));
+        ManagerProfile profile = findProfile(managerId);
         profile.setPgIds(joinPgIds(pgIds));
         return toResponse(managerProfileRepository.save(profile));
     }
@@ -85,8 +86,7 @@ public class ManagerService {
 
     @Transactional
     public void deleteManagerPermanently(Long managerId) {
-        ManagerProfile profile = managerProfileRepository.findByUserId(managerId)
-                .orElseThrow(() -> new NotFoundException("Manager not found"));
+        ManagerProfile profile = findProfile(managerId);
         User user = getManagerUser(managerId);
         managerProfileRepository.delete(profile);
         userRepository.delete(user);
@@ -102,7 +102,13 @@ public class ManagerService {
     public ManagerResponse toResponse(ManagerProfile profile) {
         User user = profile.getUser();
         List<Long> pgIds = parsePgIds(profile.getPgIds());
-        List<String> pgNames = pgRepository.findAllById(pgIds).stream().map(Pg::getName).toList();
+        Map<Long, Pg> pgMap = pgRepository.findAllById(pgIds).stream()
+                .collect(Collectors.toMap(Pg::getId, pg -> pg));
+        List<AssignedPgResponse> assignedPgs = pgIds.stream()
+                .map(pgMap::get)
+                .filter(pg -> pg != null)
+                .map(pg -> new AssignedPgResponse(pg.getId(), pg.getName()))
+                .toList();
         return ManagerResponse.builder()
                 .id(profile.getId())
                 .userId(user.getId())
@@ -113,8 +119,14 @@ public class ManagerService {
                 .active(user.isActive())
                 .firstLogin(user.isFirstLogin())
                 .pgIds(pgIds)
-                .assignedPgs(pgNames)
+                .assignedPgs(assignedPgs)
                 .build();
+    }
+
+    private ManagerProfile findProfile(Long managerId) {
+        return managerProfileRepository.findByUserId(managerId)
+                .or(() -> managerProfileRepository.findById(managerId))
+                .orElseThrow(() -> new NotFoundException("Manager not found"));
     }
 
     private void validateUniqueUser(String email, String phone) {
@@ -139,6 +151,7 @@ public class ManagerService {
 
     private User getManagerUser(Long managerId) {
         User user = userRepository.findById(managerId)
+                .or(() -> findProfile(managerId).getUser() == null ? java.util.Optional.empty() : java.util.Optional.of(findProfile(managerId).getUser()))
                 .orElseThrow(() -> new NotFoundException("Manager not found"));
         if (user.getRole() != Role.MANAGER) {
             throw new NotFoundException("Manager not found");

@@ -89,6 +89,8 @@ export interface ManagerSummary {
   occupancyRate: number;
   totalRooms: number;
   occupiedRooms: number;
+  occupiedBeds?: number;
+  totalBeds?: number;
   paymentCollectedThisMonth: number;
   paymentPendingThisMonth: number;
   openComplaints: number;
@@ -105,7 +107,7 @@ export type ServiceType = 'ROOM_CLEANING' | 'LINEN_CHANGE' | 'PEST_CONTROL' | 'P
 export type AmenityType = 'WASHING_MACHINE' | 'GAME_ROOM' | 'TT' | 'CARROM' | 'BADMINTON';
 export type BookingStatus = 'AVAILABLE' | 'BOOKED' | 'CANCELLED' | 'COMPLETED';
 export type SubletStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
-export type NoticeTargetType = 'ALL_TENANTS' | 'PG_TENANTS' | 'ALL_MANAGERS' | 'SPECIFIC_MANAGER' | 'SPECIFIC_TENANT';
+export type NoticeTargetType = 'ALL_PGS' | 'SPECIFIC_PG' | 'ALL_MANAGERS' | 'SPECIFIC_TENANT';
 export type MealType = 'BREAKFAST' | 'LUNCH' | 'DINNER';
 
 export interface RentRecord {
@@ -150,6 +152,13 @@ export interface Notice {
   createdAt?: string;
   read?: boolean;
   readCount?: number;
+}
+
+export interface NoticeReadReceipt {
+  userId: number;
+  userName: string;
+  role: Role;
+  readAt: string;
 }
 
 export interface VacateNotice {

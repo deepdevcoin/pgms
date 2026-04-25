@@ -52,6 +52,12 @@ public class PaymentController {
         return BaseResponse.success("Payments fetched successfully", paymentService.getManagerPayments());
     }
 
+    @GetMapping("/api/owner/payments")
+    @PreAuthorize("hasRole('OWNER')")
+    public BaseResponse<List<RentRecordResponse>> ownerPayments() {
+        return BaseResponse.success("Payments fetched successfully", paymentService.getOwnerPayments());
+    }
+
     @PostMapping("/api/manager/payments/cash")
     @PreAuthorize("hasRole('MANAGER')")
     public BaseResponse<RentRecordResponse> cashPayment(@Valid @RequestBody CashPaymentRequest request) {

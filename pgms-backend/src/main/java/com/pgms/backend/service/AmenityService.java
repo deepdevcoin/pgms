@@ -39,8 +39,8 @@ public class AmenityService {
 
     @Transactional
     public AmenityBookingResponse createSlot(AmenitySlotCreateRequest request) {
-        Long pgId = accessControlService.getPrimaryPgIdForCurrentManager();
-        Pg pg = pgService.getPgOrThrow(pgId);
+        accessControlService.ensureManagerAssignedToPg(request.getPgId());
+        Pg pg = pgService.getPgOrThrow(request.getPgId());
         AmenitySlot slot = amenitySlotRepository.save(AmenitySlot.builder()
                 .pg(pg)
                 .amenityType(request.getAmenityType())
@@ -54,14 +54,19 @@ public class AmenityService {
     }
 
     public List<AmenityBookingResponse> getManagerBookings() {
-        Long pgId = accessControlService.getPrimaryPgIdForCurrentManager();
-        return amenityBookingRepository.findBySlotPgIdOrderByCreatedAtDesc(pgId).stream().map(this::toResponse).toList();
+        return accessControlService.getAssignedPgIdsForCurrentManager().stream()
+                .flatMap(pgId -> amenityBookingRepository.findBySlotPgIdOrderByCreatedAtDesc(pgId).stream())
+                .sorted((left, right) -> right.getCreatedAt().compareTo(left.getCreatedAt()))
+                .map(this::toResponse)
+                .toList();
     }
 
     public List<AmenityBookingResponse> getTenantAvailableSlots() {
         Long pgId = accessControlService.getCurrentTenantProfile().getPg().getId();
-        return amenitySlotRepository.findByPgIdAndSlotDateBetweenOrderBySlotDateAscStartTimeAsc(pgId, LocalDate.now(), LocalDate.now().plusDays(3))
-                .stream().map(slot -> toResponse(slot, null)).toList();
+        return amenitySlotRepository.findByPgIdOrderBySlotDateAscStartTimeAsc(pgId).stream()
+                .filter(slot -> !slot.getSlotDate().isBefore(LocalDate.now()))
+                .map(slot -> toResponse(slot, null))
+                .toList();
     }
 
     @Transactional

@@ -44,6 +44,17 @@ public class PaymentService {
         return rentRecordRepository.findByTenantProfilePgIdOrderByBillingMonthDesc(pgId).stream().map(this::toResponse).toList();
     }
 
+    public List<RentRecordResponse> getOwnerPayments() {
+        return rentRecordRepository.findAll().stream()
+                .map(this::toResponse)
+                .sorted((left, right) -> {
+                    int monthCompare = String.valueOf(right.getBillingMonth()).compareTo(String.valueOf(left.getBillingMonth()));
+                    if (monthCompare != 0) return monthCompare;
+                    return String.valueOf(left.getTenantName()).compareToIgnoreCase(String.valueOf(right.getTenantName()));
+                })
+                .toList();
+    }
+
     @Transactional
     public RentRecordResponse payByTenant(Long recordId, Double amount) {
         RentRecord record = rentRecordRepository.findById(recordId)

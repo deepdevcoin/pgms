@@ -6,7 +6,7 @@ import { AuthService } from './auth.service';
 import { MockDataService } from './mock-data.service';
 import {
   AmenityBooking, Complaint, LoginResponse, Manager, ManagerSummary, MenuItem,
-  Notice, OwnerSummary, PG, RentRecord, Room, RoomStatus, ServiceBooking,
+  Notice, NoticeReadReceipt, OwnerSummary, PG, RentRecord, Room, RoomStatus, ServiceBooking,
   SubletRequest, Tenant, VacateNotice
 } from './models';
 import {
@@ -169,6 +169,15 @@ export class ApiService {
   }
 
   createManager(payload: { name: string; email: string; phone: string; designation: string; pgIds: number[] }): Observable<Manager> {
+    if (this.isDemo()) return of({
+      id: Date.now(),
+      name: payload.name,
+      email: payload.email,
+      phone: payload.phone,
+      designation: payload.designation || 'Manager',
+      assignedPgs: [],
+      isActive: true
+    });
     return this.post<unknown>(environment.endpoints.managers.create, payload).pipe(map(mapManager));
   }
 
@@ -181,15 +190,22 @@ export class ApiService {
   }
 
   listPayments(): Observable<RentRecord[]> {
-    const path = this.role() === 'TENANT' ? environment.endpoints.payments.tenant : environment.endpoints.payments.manager;
+    if (this.isDemo()) return this.mock.listPayments(this.role());
+    const path = this.role() === 'TENANT'
+      ? environment.endpoints.payments.tenant
+      : this.role() === 'OWNER'
+        ? environment.endpoints.payments.owner
+        : environment.endpoints.payments.manager;
     return this.get<unknown>(path).pipe(map(response => asCollection(response) as RentRecord[]));
   }
 
   payRent(recordId: number, amount: number): Observable<RentRecord> {
+    if (this.isDemo()) return this.mock.payRent(recordId, amount);
     return this.post<RentRecord>(environment.endpoints.payments.tenantPay, { recordId, amount });
   }
 
   applyCredit(rentRecordId: number): Observable<RentRecord> {
+    if (this.isDemo()) return this.mock.applyCredit(rentRecordId);
     return this.post<RentRecord>(environment.endpoints.payments.applyCredit, { rentRecordId });
   }
 
@@ -202,6 +218,7 @@ export class ApiService {
   }
 
   listComplaints(): Observable<Complaint[]> {
+    if (this.isDemo()) return this.mock.listComplaints(this.role());
     const role = this.role();
     const path = role === 'OWNER'
       ? environment.endpoints.complaints.owner
@@ -212,24 +229,42 @@ export class ApiService {
   }
 
   createComplaint(payload: { category: string; description: string; attachmentPath?: string }): Observable<Complaint> {
+    if (this.isDemo()) return this.mock.createComplaint(payload);
     return this.post<Complaint>(environment.endpoints.complaints.tenant, payload);
   }
 
   updateComplaint(id: number, status: string, notes?: string): Observable<Complaint> {
+    if (this.isDemo()) return this.mock.updateComplaint(id, status, notes);
     const endpoint = this.role() === 'OWNER' ? environment.endpoints.complaints.ownerUpdate : environment.endpoints.complaints.managerUpdate;
     return this.put<Complaint>(this.path(endpoint, { id }), { status, notes });
   }
 
   listNotices(): Observable<Notice[]> {
-    return this.get<unknown>(environment.endpoints.notices.list).pipe(map(response => asCollection(response) as Notice[]));
+    if (this.isDemo()) return this.mock.listNotices(this.role());
+    const path = this.role() === 'OWNER' ? environment.endpoints.notices.ownerList : environment.endpoints.notices.list;
+    return this.get<unknown>(path).pipe(map(response => asCollection(response) as Notice[]));
   }
 
   createNotice(payload: { title: string; content: string; targetType: string; targetPgId?: number; targetUserId?: number }): Observable<Notice> {
-    return this.post<Notice>(environment.endpoints.notices.create, payload);
+    if (this.isDemo()) return this.mock.createNotice(payload, this.auth.user()?.name || 'Owner');
+    const path = this.role() === 'OWNER' ? environment.endpoints.notices.ownerCreate : environment.endpoints.notices.create;
+    return this.post<Notice>(path, payload);
   }
 
   markNoticeRead(id: number): Observable<void> {
-    return this.put<unknown>(this.path(environment.endpoints.notices.read, { id }), {}).pipe(map(() => void 0));
+    if (this.isDemo()) return this.mock.markNoticeRead(id).pipe(map(() => void 0));
+    const path = this.role() === 'OWNER'
+      ? this.path(environment.endpoints.notices.ownerRead, { id })
+      : this.path(environment.endpoints.notices.read, { id });
+    return this.put<unknown>(path, {}).pipe(map(() => void 0));
+  }
+
+  noticeReceipts(id: number): Observable<NoticeReadReceipt[]> {
+    if (this.isDemo()) return this.mock.noticeReceipts(id);
+    const path = this.role() === 'OWNER'
+      ? this.path(environment.endpoints.notices.ownerReceipts, { id })
+      : this.path(environment.endpoints.notices.receipts, { id });
+    return this.get<NoticeReadReceipt[]>(path);
   }
 
   listVacates(): Observable<VacateNotice[]> {
@@ -272,34 +307,43 @@ export class ApiService {
   }
 
   listAmenities(): Observable<AmenityBooking[]> {
+    if (this.isDemo()) return this.mock.listAmenities(this.role());
     const path = this.role() === 'MANAGER' ? environment.endpoints.amenities.managerBookings : environment.endpoints.amenities.tenantSlots;
     return this.get<unknown>(path).pipe(map(response => asCollection(response) as AmenityBooking[]));
   }
 
-  createAmenitySlot(payload: { amenityType: string; slotDate: string; startTime: string; endTime: string; capacity: number; facilityName?: string }): Observable<AmenityBooking> {
+  createAmenitySlot(payload: { pgId: number; amenityType: string; slotDate: string; startTime: string; endTime: string; capacity: number; facilityName?: string }): Observable<AmenityBooking> {
+    if (this.isDemo()) return this.mock.createAmenitySlot(payload);
     return this.post<AmenityBooking>(environment.endpoints.amenities.managerSlots, payload);
   }
 
   bookAmenity(slotId: number, isOpenInvite: boolean): Observable<AmenityBooking> {
+    if (this.isDemo()) return this.mock.bookAmenity(slotId, isOpenInvite);
     return this.post<AmenityBooking>(environment.endpoints.amenities.tenantBook, { slotId, isOpenInvite });
   }
 
   cancelAmenity(bookingId: number): Observable<void> {
+    if (this.isDemo()) return this.mock.cancelAmenity(bookingId).pipe(map(() => void 0));
     return this.delete<unknown>(this.path(environment.endpoints.amenities.tenantCancel, { id: bookingId })).pipe(map(() => void 0));
   }
 
   joinAmenityInvite(slotId: number): Observable<AmenityBooking> {
+    if (this.isDemo()) return this.mock.joinAmenityInvite(slotId);
     return this.post<AmenityBooking>(this.path(environment.endpoints.amenities.joinInvite, { slotId }), {});
   }
 
   listMenu(pgId: number, weekLabel: string): Observable<MenuItem[]> {
-    return this.get<unknown>(environment.endpoints.menu.list, { params: { pgId, weekLabel } }).pipe(
+    if (this.isDemo()) return this.mock.listMenu(pgId, weekLabel);
+    const path = this.role() === 'OWNER' ? environment.endpoints.menu.ownerList : environment.endpoints.menu.list;
+    return this.get<unknown>(path, { params: { pgId, weekLabel } }).pipe(
       map(response => asCollection(response) as MenuItem[])
     );
   }
 
   saveMenu(items: MenuItem[]): Observable<MenuItem[]> {
-    return this.post<unknown>(environment.endpoints.menu.save, items).pipe(map(response => asCollection(response) as MenuItem[]));
+    if (this.isDemo()) return this.mock.saveMenu(items);
+    const path = this.role() === 'OWNER' ? environment.endpoints.menu.ownerSave : environment.endpoints.menu.save;
+    return this.post<unknown>(path, items).pipe(map(response => asCollection(response) as MenuItem[]));
   }
 
   listSublets(): Observable<SubletRequest[]> {

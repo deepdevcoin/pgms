@@ -24,7 +24,8 @@ export const environment = {
     },
     managers: {
       list: '/owner/managers',
-      create: '/owner/managers'
+      create: '/owner/managers',
+      delete: '/owner/managers/:id'
     },
     tenants: {
       list: '/manager/tenants',
@@ -41,6 +42,7 @@ export const environment = {
       tenantPay: '/tenant/payments/pay',
       applyCredit: '/tenant/payments/apply-credit',
       manager: '/manager/payments',
+      owner: '/owner/payments',
       cash: '/manager/payments/cash',
       waiveFine: '/manager/payments/:id/waive-fine'
     },
@@ -53,8 +55,13 @@ export const environment = {
     },
     notices: {
       list: '/notices',
+      ownerList: '/notices/owner',
       create: '/notices',
-      read: '/notices/:id/read'
+      ownerCreate: '/notices/owner',
+      read: '/notices/:id/read',
+      ownerRead: '/notices/owner/:id/read',
+      receipts: '/notices/:id/receipts',
+      ownerReceipts: '/notices/owner/:id/receipts'
     },
     vacate: {
       tenant: '/tenant/vacate',
@@ -79,7 +86,9 @@ export const environment = {
     },
     menu: {
       list: '/menu',
-      save: '/menu'
+      ownerList: '/menu/owner',
+      save: '/menu',
+      ownerSave: '/menu/owner'
     },
     sublets: {
       tenant: '/tenant/sublet',
