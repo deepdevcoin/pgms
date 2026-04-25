@@ -13,6 +13,7 @@ const COLUMN_LABELS: Record<string, string> = {
   remainingAmountDue: 'Pending',
   dueDate: 'Due Date',
   bookingCount: 'Booked',
+  resourceName: 'Unit',
   createdAt: 'Time',
   transactionType: 'Type',
   paymentMethod: 'Method',

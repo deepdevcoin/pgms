@@ -4,6 +4,7 @@ import com.pgms.backend.dto.BaseResponse;
 import com.pgms.backend.dto.amenity.AmenityBookingRequest;
 import com.pgms.backend.dto.amenity.AmenityBookingResponse;
 import com.pgms.backend.dto.amenity.AmenitySlotCreateRequest;
+import com.pgms.backend.dto.amenity.AmenitySlotUpdateRequest;
 import com.pgms.backend.service.AmenityService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -31,10 +33,23 @@ public class AmenityController {
         return BaseResponse.success("Amenity slot created successfully", amenityService.createSlot(request));
     }
 
-    @GetMapping("/api/manager/amenities/bookings")
+    @GetMapping({"/api/manager/amenities/slots", "/api/manager/amenities/bookings"})
     @PreAuthorize("hasRole('MANAGER')")
     public BaseResponse<List<AmenityBookingResponse>> managerBookings() {
-        return BaseResponse.success("Amenity bookings fetched successfully", amenityService.getManagerBookings());
+        return BaseResponse.success("Amenity slots fetched successfully", amenityService.getManagerSlots());
+    }
+
+    @DeleteMapping("/api/manager/amenities/slots/{id}")
+    @PreAuthorize("hasRole('MANAGER')")
+    public BaseResponse<Void> deleteSlot(@PathVariable Long id) {
+        amenityService.deleteSlot(id);
+        return BaseResponse.success("Amenity slot deleted successfully", null);
+    }
+
+    @PutMapping("/api/manager/amenities/slots/{id}")
+    @PreAuthorize("hasRole('MANAGER')")
+    public BaseResponse<AmenityBookingResponse> updateSlot(@PathVariable Long id, @Valid @RequestBody AmenitySlotUpdateRequest request) {
+        return BaseResponse.success("Amenity slot updated successfully", amenityService.updateSlot(id, request));
     }
 
     @GetMapping("/api/tenant/amenities/slots")

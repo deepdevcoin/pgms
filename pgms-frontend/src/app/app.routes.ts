@@ -45,7 +45,7 @@ export const routes: Routes = [
       { path: 'vacate', loadComponent: () => import('./features/operations/operations.component').then(m => m.OperationsComponent), data: { module: 'vacate' } },
       { path: 'notices', loadComponent: () => import('./features/operations/operations.component').then(m => m.OperationsComponent), data: { module: 'notices' } },
       { path: 'services', loadComponent: () => import('./features/operations/operations.component').then(m => m.OperationsComponent), data: { module: 'services' } },
-      { path: 'amenities', loadComponent: () => import('./features/operations/operations.component').then(m => m.OperationsComponent), data: { module: 'amenities' } },
+      { path: 'amenities', loadComponent: () => import('./features/manager/manager-amenities.component').then(m => m.ManagerAmenitiesComponent) },
       { path: 'menu', loadComponent: () => import('./features/operations/operations.component').then(m => m.OperationsComponent), data: { module: 'menu' } },
       { path: 'sublets', loadComponent: () => import('./features/operations/operations.component').then(m => m.OperationsComponent), data: { module: 'sublets' } }
     ]

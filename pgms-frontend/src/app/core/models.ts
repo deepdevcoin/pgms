@@ -244,14 +244,19 @@ export interface AmenityBooking {
   slotId: number;
   pgId?: number;
   tenantName?: string;
+  hostName?: string;
+  bookedByName?: string;
   amenityType: AmenityType;
   facilityName?: string;
+  resourceName?: string;
   slotDate: string;
   startTime: string;
   endTime: string;
   capacity: number;
   bookingCount?: number;
   openInvite?: boolean;
+  joinable?: boolean;
+  shareable?: boolean;
   status?: BookingStatus;
 }
 

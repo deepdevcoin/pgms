@@ -80,6 +80,8 @@ export const environment = {
     },
     amenities: {
       managerSlots: '/manager/amenities/slots',
+      managerUpdateSlot: '/manager/amenities/slots/:id',
+      managerDeleteSlot: '/manager/amenities/slots/:id',
       managerBookings: '/manager/amenities/bookings',
       tenantSlots: '/tenant/amenities/slots',
       tenantBook: '/tenant/amenities/book',

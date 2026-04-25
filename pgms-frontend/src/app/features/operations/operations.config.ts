@@ -19,6 +19,7 @@ export interface OperationsActionHandlers {
   amenityOpenInvite: (row: Record<string, any>) => void;
   amenityJoin: (row: Record<string, any>) => void;
   amenityCancel: (row: Record<string, any>) => void;
+  amenityDeleteSlot: (row: Record<string, any>) => void;
   subletApprove: (row: Record<string, any>) => void;
   subletComplete: (row: Record<string, any>) => void;
 }
@@ -91,19 +92,21 @@ export function buildModuleConfig(role: Role | null, pgOptions: string[], pgName
     amenities: {
       crumb: 'Bookings',
       title: 'Amenities',
-      subtitle: role === 'TENANT' ? 'Book shared slots and join open invites.' : 'Configure slots and monitor utilization.',
+      subtitle: role === 'TENANT'
+        ? 'Reserve machines for personal use or join hosted game sessions in your PG.'
+        : 'Publish amenity availability as machine units or shared sessions and manage upcoming slots.',
       columns: role === 'TENANT'
         ? ['facilityName', 'amenityType', 'slotDate', 'startTime', 'endTime', 'capacity', 'bookingCount']
-        : ['pgId', 'amenityType', 'facilityName', 'slotDate', 'startTime', 'endTime', 'capacity', 'bookingCount', 'status'],
+        : ['pgId', 'slotDate', 'startTime', 'endTime', 'amenityType', 'resourceName', 'facilityName', 'capacity', 'bookingCount'],
       createLabel: role === 'MANAGER' ? 'Create slot' : undefined,
       fields: role === 'MANAGER' ? [
         { key: 'pgId', label: 'PG', type: 'select', options: pgOptions, optionLabel: option => pgName(option) },
         { key: 'amenityType', label: 'Amenity', type: 'select', options: ['WASHING_MACHINE', 'TABLE_TENNIS', 'CARROM', 'BADMINTON'] },
-        { key: 'facilityName', label: 'Facility name', type: 'text' },
+        { key: 'facilityName', label: 'Location', type: 'text' },
         { key: 'slotDate', label: 'Date', type: 'date' },
         { key: 'startTime', label: 'Start', type: 'time' },
         { key: 'endTime', label: 'End', type: 'time' },
-        { key: 'capacity', label: 'Capacity', type: 'number' }
+        { key: 'capacity', label: 'Units / seats', type: 'number' }
       ] : []
     },
     menu: {
@@ -164,9 +167,10 @@ export function buildModuleActions(role: Role | null, handlers: OperationsAction
     ],
     amenities: [
       { label: 'Book', icon: 'event', show: row => role === 'TENANT' && !row['bookingId'], run: handlers.amenityBook },
-      { label: 'Open invite', icon: 'groups', show: row => role === 'TENANT' && !row['bookingId'], run: handlers.amenityOpenInvite },
+      { label: 'Open invite', icon: 'groups', show: row => role === 'TENANT' && !row['bookingId'] && !!row['shareable'], run: handlers.amenityOpenInvite },
       { label: 'Join', icon: 'group_add', show: row => role === 'TENANT' && row['openInvite'], run: handlers.amenityJoin },
-      { label: 'Cancel', icon: 'event_busy', show: row => role === 'TENANT' && row['bookingId'], run: handlers.amenityCancel }
+      { label: 'Cancel', icon: 'event_busy', show: row => role === 'TENANT' && row['bookingId'], run: handlers.amenityCancel },
+      { label: 'Delete', icon: 'delete', show: row => role === 'MANAGER' && Number(row['bookingCount'] || 0) === 0, run: handlers.amenityDeleteSlot }
     ],
     menu: [],
     sublets: [

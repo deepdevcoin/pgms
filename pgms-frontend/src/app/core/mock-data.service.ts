@@ -320,47 +320,164 @@ export class MockDataService {
   }
 
   listAmenities(role: Role | null): Observable<AmenityBooking[]> {
-    const base = role === 'MANAGER'
-      ? this.amenities.filter(item => item.bookingId)
-      : this.amenities.filter(item => !item.bookingId);
-    return of(this.clone(base)).pipe(delay(120));
+    if (role === 'MANAGER') {
+      const baseSlots = this.amenities.filter(item => !item.bookingId);
+      const bookings = this.amenities.filter(item => item.bookingId && item.status === 'BOOKED');
+      const merged = baseSlots.map(slot => {
+        const slotBookings = bookings.filter(item => item.slotId === slot.slotId);
+        const firstBooking = slotBookings[0];
+        const hostBooking = slotBookings.find(item => item.openInvite);
+        const effectiveCapacity = slot.amenityType === 'WASHING_MACHINE' ? 1 : slot.capacity;
+        return {
+          ...slot,
+          tenantName: firstBooking?.tenantName,
+          hostName: hostBooking?.tenantName,
+          bookedByName: firstBooking?.tenantName,
+          openInvite: !!hostBooking?.openInvite,
+          joinable: false,
+          shareable: slot.amenityType !== 'WASHING_MACHINE',
+          bookingCount: slotBookings.length,
+          capacity: effectiveCapacity,
+          status: slotBookings.length ? 'BOOKED' as const : 'AVAILABLE' as const
+        };
+      });
+      return of(this.clone(merged)).pipe(delay(120));
+    }
+
+    const currentTenant = this.tenants[0]?.name || 'Devika Rao';
+    const baseSlots = this.amenities.filter(item => !item.bookingId);
+    const bookings = this.amenities.filter(item => item.bookingId && item.status === 'BOOKED');
+
+    const merged = baseSlots.map(slot => {
+      const slotBookings = bookings.filter(item => item.slotId === slot.slotId);
+      const ownBooking = slotBookings.find(item => item.tenantName === currentTenant);
+      const hostBooking = ownBooking ? undefined : slotBookings.find(item => item.openInvite);
+      const effectiveCapacity = slot.amenityType === 'WASHING_MACHINE' ? 1 : slot.capacity;
+      return {
+        ...slot,
+        bookingId: ownBooking?.bookingId,
+        tenantName: ownBooking?.tenantName,
+        hostName: hostBooking?.tenantName,
+        bookedByName: ownBooking?.tenantName || hostBooking?.tenantName || slotBookings[0]?.tenantName,
+        openInvite: !!ownBooking?.openInvite || !!hostBooking?.openInvite,
+        joinable: slot.amenityType !== 'WASHING_MACHINE' && !ownBooking && !!hostBooking && slotBookings.length < effectiveCapacity,
+        shareable: slot.amenityType !== 'WASHING_MACHINE',
+        bookingCount: slotBookings.length,
+        capacity: effectiveCapacity,
+        status: ownBooking ? 'BOOKED' as const : 'AVAILABLE' as const
+      };
+    });
+
+    return of(this.clone(merged)).pipe(delay(120));
   }
 
-  createAmenitySlot(payload: { pgId: number; amenityType: string; slotDate: string; startTime: string; endTime: string; capacity: number; facilityName?: string }): Observable<AmenityBooking> {
-    const slot: AmenityBooking = {
-      slotId: Date.now(),
+  createAmenitySlot(payload: { pgId: number; amenityType: string; slotDate: string; startTime: string; endTime: string; capacity: number; facilityName?: string; resourceName?: string }): Observable<AmenityBooking> {
+    const amenityType = payload.amenityType as AmenityBooking['amenityType'];
+    const location = payload.facilityName?.trim() || (amenityType === 'WASHING_MACHINE' ? 'Laundry Room' : 'Common Area');
+    const resourceLabel = payload.resourceName?.trim() || this.defaultAmenityResourceName(amenityType);
+    const slots: AmenityBooking[] = this.splitAmenityWindow(payload).flatMap((slot, index): AmenityBooking[] => {
+      if (amenityType === 'WASHING_MACHINE') {
+        return Array.from({ length: Math.max(1, payload.capacity) }, (_, unitIndex): AmenityBooking => ({
+          slotId: Date.now() + (index * 100) + unitIndex,
+          pgId: payload.pgId,
+          amenityType,
+          facilityName: location,
+          resourceName: `${resourceLabel} ${unitIndex + 1}`,
+          slotDate: payload.slotDate,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          capacity: 1,
+          bookingCount: 0,
+          shareable: false,
+          status: 'AVAILABLE' as const
+        }));
+      }
+      return [{
+        slotId: Date.now() + index,
+        pgId: payload.pgId,
+        amenityType,
+        facilityName: location,
+        resourceName: resourceLabel,
+        slotDate: payload.slotDate,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        capacity: Math.max(1, payload.capacity),
+        bookingCount: 0,
+        shareable: true,
+        status: 'AVAILABLE' as const
+      }] as AmenityBooking[];
+    });
+    this.amenities.unshift(...slots);
+    return of(this.clone(slots[0])).pipe(delay(120));
+  }
+
+  updateAmenitySlot(slotId: number, payload: { pgId: number; amenityType: string; slotDate: string; startTime: string; endTime: string; capacity: number; facilityName?: string; resourceName?: string }): Observable<AmenityBooking> {
+    const index = this.amenities.findIndex(item => item.slotId === slotId && !item.bookingId);
+    if (index < 0) return throwError(() => new Error('Amenity slot not found'));
+    const hasBooking = this.amenities.some(item => item.slotId === slotId && !!item.bookingId && item.status === 'BOOKED');
+    if (hasBooking) return throwError(() => new Error('Booked slots cannot be edited'));
+    const amenityType = payload.amenityType as AmenityBooking['amenityType'];
+    const resourceLabel = payload.resourceName?.trim() || this.defaultAmenityResourceName(amenityType);
+    this.amenities[index] = {
+      ...this.amenities[index],
       pgId: payload.pgId,
-      amenityType: payload.amenityType as AmenityBooking['amenityType'],
-      facilityName: payload.facilityName,
+      amenityType,
+      facilityName: payload.facilityName?.trim() || (amenityType === 'WASHING_MACHINE' ? 'Laundry Room' : 'Common Area'),
+      resourceName: amenityType === 'WASHING_MACHINE' ? resourceLabel : resourceLabel,
       slotDate: payload.slotDate,
       startTime: payload.startTime,
       endTime: payload.endTime,
-      capacity: payload.capacity,
-      bookingCount: 0,
-      status: 'AVAILABLE'
+      capacity: amenityType === 'WASHING_MACHINE' ? 1 : Math.max(1, payload.capacity),
+      shareable: amenityType !== 'WASHING_MACHINE'
     };
-    this.amenities.unshift(slot);
-    return of(this.clone(slot)).pipe(delay(120));
+    return of(this.clone(this.amenities[index])).pipe(delay(120));
   }
 
   bookAmenity(slotId: number, isOpenInvite: boolean): Observable<AmenityBooking> {
     const slot = this.amenities.find(item => item.slotId === slotId && !item.bookingId);
     if (!slot) return throwError(() => new Error('Amenity slot not found'));
-    slot.bookingCount = (slot.bookingCount || 0) + 1;
-    return of(this.clone({
+    const effectiveCapacity = slot.amenityType === 'WASHING_MACHINE' ? 1 : slot.capacity;
+    const bookingCount = this.amenities.filter(item => item.slotId === slotId && item.bookingId && item.status === 'BOOKED').length;
+    const currentTenant = this.tenants[0]?.name || 'Tenant';
+    const overlaps = this.amenities
+      .filter(item => !!item.bookingId && item.status === 'BOOKED' && item.tenantName === currentTenant && item.slotDate === slot.slotDate)
+      .some(item => this.timeToMinutes(item.startTime) < this.timeToMinutes(slot.endTime)
+        && this.timeToMinutes(slot.startTime) < this.timeToMinutes(item.endTime));
+    if (overlaps) return throwError(() => new Error('You already have another amenity booking that overlaps with this time'));
+    if (bookingCount >= effectiveCapacity) return throwError(() => new Error('Slot is full'));
+    if (isOpenInvite && slot.amenityType === 'WASHING_MACHINE') {
+      return throwError(() => new Error('Washing machines cannot be opened as shared invites'));
+    }
+    const booking = {
       ...slot,
       bookingId: Date.now(),
-      tenantName: this.tenants[0]?.name || 'Tenant',
+      tenantName: currentTenant,
       openInvite: isOpenInvite,
+      shareable: slot.amenityType !== 'WASHING_MACHINE',
+      capacity: effectiveCapacity,
       status: 'BOOKED' as const
-    })).pipe(delay(120));
+    };
+    this.amenities.push(booking);
+    return of(this.clone(booking)).pipe(delay(120));
   }
 
-  cancelAmenity(_bookingId: number): Observable<void> {
+  cancelAmenity(bookingId: number): Observable<void> {
+    this.amenities = this.amenities.filter(item => item.bookingId !== bookingId);
+    return of(void 0).pipe(delay(100));
+  }
+
+  deleteAmenitySlot(slotId: number): Observable<void> {
+    const hasBooking = this.amenities.some(item => item.slotId === slotId && !!item.bookingId && item.status === 'BOOKED');
+    if (hasBooking) return throwError(() => new Error('Booked slots cannot be deleted'));
+    this.amenities = this.amenities.filter(item => item.slotId !== slotId);
     return of(void 0).pipe(delay(100));
   }
 
   joinAmenityInvite(slotId: number): Observable<AmenityBooking> {
+    const slot = this.amenities.find(item => item.slotId === slotId && !item.bookingId);
+    if (slot?.amenityType === 'WASHING_MACHINE') {
+      return throwError(() => new Error('Washing machines cannot be joined as shared bookings'));
+    }
     return this.bookAmenity(slotId, false);
   }
 
@@ -579,11 +696,49 @@ export class MockDataService {
 
   private buildAmenities(): AmenityBooking[] {
     return [
-      { slotId: 7001, pgId: 1, amenityType: 'WASHING_MACHINE', facilityName: 'Laundry Room', slotDate: '2026-04-26', startTime: '07:00', endTime: '08:00', capacity: 4, bookingCount: 1, status: 'AVAILABLE' },
-      { slotId: 7002, pgId: 1, amenityType: 'TABLE_TENNIS', facilityName: 'Common Lounge', slotDate: '2026-04-26', startTime: '19:00', endTime: '20:00', capacity: 8, bookingCount: 3, status: 'AVAILABLE' },
-      { slotId: 7003, pgId: 2, amenityType: 'BADMINTON', facilityName: 'Terrace Court', slotDate: '2026-04-27', startTime: '18:00', endTime: '19:00', capacity: 6, bookingCount: 2, status: 'AVAILABLE' },
-      { bookingId: 8101, slotId: 7001, pgId: 1, tenantName: 'Devika Rao', amenityType: 'WASHING_MACHINE', facilityName: 'Laundry Room', slotDate: '2026-04-26', startTime: '07:00', endTime: '08:00', capacity: 4, bookingCount: 1, status: 'BOOKED' }
+      { slotId: 7001, pgId: 1, amenityType: 'WASHING_MACHINE', facilityName: 'Laundry Room', resourceName: 'Machine 1', slotDate: '2026-04-26', startTime: '07:00', endTime: '07:30', capacity: 1, shareable: false, status: 'AVAILABLE' },
+      { slotId: 7002, pgId: 1, amenityType: 'WASHING_MACHINE', facilityName: 'Laundry Room', resourceName: 'Machine 2', slotDate: '2026-04-26', startTime: '07:00', endTime: '07:30', capacity: 1, shareable: false, status: 'AVAILABLE' },
+      { slotId: 7003, pgId: 1, amenityType: 'WASHING_MACHINE', facilityName: 'Laundry Room', resourceName: 'Machine 1', slotDate: '2026-04-26', startTime: '07:30', endTime: '08:00', capacity: 1, shareable: false, status: 'AVAILABLE' },
+      { slotId: 7004, pgId: 1, amenityType: 'TABLE_TENNIS', facilityName: 'Common Lounge', resourceName: 'Table', slotDate: '2026-04-26', startTime: '19:00', endTime: '19:30', capacity: 2, shareable: true, status: 'AVAILABLE' },
+      { slotId: 7005, pgId: 1, amenityType: 'TABLE_TENNIS', facilityName: 'Common Lounge', resourceName: 'Table', slotDate: '2026-04-26', startTime: '19:30', endTime: '20:00', capacity: 2, shareable: true, status: 'AVAILABLE' },
+      { slotId: 7006, pgId: 1, amenityType: 'CARROM', facilityName: 'Rec Room', resourceName: 'Board', slotDate: '2026-04-27', startTime: '20:00', endTime: '20:30', capacity: 4, shareable: true, status: 'AVAILABLE' },
+      { slotId: 7007, pgId: 1, amenityType: 'CARROM', facilityName: 'Rec Room', resourceName: 'Board', slotDate: '2026-04-27', startTime: '20:30', endTime: '21:00', capacity: 4, shareable: true, status: 'AVAILABLE' },
+      { bookingId: 8101, slotId: 7001, pgId: 1, tenantName: 'Devika Rao', amenityType: 'WASHING_MACHINE', facilityName: 'Laundry Room', resourceName: 'Machine 1', slotDate: '2026-04-26', startTime: '07:00', endTime: '07:30', capacity: 1, shareable: false, status: 'BOOKED' },
+      { bookingId: 8102, slotId: 7004, pgId: 1, tenantName: 'Arjun Nair', amenityType: 'TABLE_TENNIS', facilityName: 'Common Lounge', resourceName: 'Table', slotDate: '2026-04-26', startTime: '19:00', endTime: '19:30', capacity: 2, shareable: true, openInvite: true, status: 'BOOKED' },
+      { bookingId: 8103, slotId: 7005, pgId: 1, tenantName: 'Praveen K', amenityType: 'TABLE_TENNIS', facilityName: 'Common Lounge', resourceName: 'Table', slotDate: '2026-04-26', startTime: '19:30', endTime: '20:00', capacity: 2, shareable: true, status: 'BOOKED' }
     ];
+  }
+
+  private splitAmenityWindow(payload: { startTime: string; endTime: string }): Array<{ startTime: string; endTime: string }> {
+    const parts: Array<{ startTime: string; endTime: string }> = [];
+    let cursor = this.timeToMinutes(payload.startTime);
+    const end = this.timeToMinutes(payload.endTime);
+    while (cursor < end) {
+      const next = Math.min(cursor + 30, end);
+      parts.push({ startTime: this.minutesToTime(cursor), endTime: this.minutesToTime(next) });
+      cursor = next;
+    }
+    return parts;
+  }
+
+  private timeToMinutes(value: string): number {
+    const [hours, minutes] = value.split(':').map(Number);
+    return (hours || 0) * 60 + (minutes || 0);
+  }
+
+  private minutesToTime(value: number): string {
+    const hours = Math.floor(value / 60);
+    const minutes = value % 60;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  }
+
+  private defaultAmenityResourceName(type: AmenityBooking['amenityType']): string {
+    switch (type) {
+      case 'WASHING_MACHINE': return 'Machine';
+      case 'TABLE_TENNIS': return 'Table';
+      case 'CARROM': return 'Board';
+      case 'BADMINTON': return 'Court';
+    }
   }
 
   private recomputePgCounts() {

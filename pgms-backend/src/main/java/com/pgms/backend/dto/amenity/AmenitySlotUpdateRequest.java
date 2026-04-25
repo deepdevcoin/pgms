@@ -8,7 +8,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 
 @Data
-public class AmenitySlotCreateRequest {
+public class AmenitySlotUpdateRequest {
     @NotNull(message = "PG is required")
     private Long pgId;
     @NotNull(message = "Amenity type is required")

@@ -7,8 +7,10 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { Observable } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
-import { MenuItem, NoticeReadReceipt, PaymentSummary, PaymentTransaction, PG, Role, Tenant } from '../../core/models';
+import { AmenityBooking, MenuItem, NoticeReadReceipt, PaymentSummary, PaymentTransaction, PG, Role, Tenant } from '../../core/models';
+import { MenuBoardComponent } from '../../shared/menu-board.component';
 import { PopupShellComponent } from '../../shared/popup-shell.component';
+import { AmenitySlotBoardComponent } from './amenity-slot-board.component';
 import { buildModuleActions, buildModuleConfig, OperationsActionHandlers } from './operations.config';
 import { buildPaymentSummaryCards, formatRowValue, formatTransactionValue, isMoneyColumn, isStatusColumn, labelForColumn, pillClassForStatus, transactionColumns } from './operations.formatters';
 import { OperationsFormComponent } from './operations-form.component';
@@ -25,6 +27,8 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
     FormsModule,
     MatIconModule,
     PopupShellComponent,
+    MenuBoardComponent,
+    AmenitySlotBoardComponent,
     OperationsHeaderComponent,
     OperationsFormComponent,
     OperationsTableComponent,
@@ -90,37 +94,21 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
     } @else if (error()) {
       <div class="state card err"><mat-icon>error</mat-icon><span>{{ error() }}</span></div>
     } @else if (moduleKey() === 'menu' && auth.role() === 'TENANT') {
-      @if (weeklyTenantMenu().length === 0) {
-        <div class="state card"><mat-icon>restaurant_menu</mat-icon><span>Weekly menu is not available for your PG yet.</span></div>
-      } @else {
-        <section class="menu-board">
-          @for (day of weeklyTenantMenu(); track day.day) {
-            <article class="menu-day card" [class.menu-day--today]="day.isToday">
-              <div class="menu-day-head">
-                <div>
-                  <div class="menu-day-name">{{ day.day }}</div>
-                  <div class="menu-day-week">{{ day.weekLabel }}</div>
-                </div>
-                @if (day.isToday) {
-                  <span class="menu-day-tag">Today</span>
-                }
-              </div>
-
-              <div class="menu-meals">
-                @for (meal of day.meals; track meal.id || (meal.dayOfWeek + '-' + meal.mealType + '-' + meal.itemNames)) {
-                  <div class="menu-meal">
-                    <div class="menu-meal-copy">
-                      <div class="menu-meal-name">{{ meal.mealType }}</div>
-                      <div class="menu-meal-items">{{ meal.itemNames }}</div>
-                    </div>
-                    <span class="menu-meal-tag" [class.menu-meal-tag--veg]="meal.isVeg">{{ meal.isVeg ? 'Veg' : 'Mixed' }}</span>
-                  </div>
-                }
-              </div>
-            </article>
-          }
-        </section>
-      }
+      <app-menu-board
+        [items]="tenantMenuItems()"
+        mode="week"
+        [showWeekLabel]="true"
+        emptyLabel="Weekly menu is not available for your PG yet."
+      />
+    } @else if (moduleKey() === 'amenities' && auth.role() === 'TENANT') {
+      <app-amenity-slot-board
+        [rows]="tenantAmenityRows()"
+        emptyLabel="No amenity slots available right now."
+        [book]="runAmenityBook.bind(this)"
+        [openInvite]="runAmenityOpenInvite.bind(this)"
+        [joinInvite]="runAmenityJoin.bind(this)"
+        [cancel]="runAmenityCancel.bind(this)"
+      />
     } @else if (filteredRows().length === 0) {
       <div class="state card"><mat-icon>inbox</mat-icon><span>No records found.</span></div>
     } @else {
@@ -130,7 +118,7 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
         [actions]="actions()"
         [role]="auth.role()"
         [moduleKey]="moduleKey()"
-        [compact]="moduleKey() === 'payments'"
+        [compact]="compactTable()"
         [minWidth]="moduleKey() === 'payments' ? '100%' : ''"
         [label]="label.bind(this)"
         [value]="value.bind(this)"
@@ -237,41 +225,6 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
     .receipt-name { font-weight: 600; }
     .receipt-meta, .receipt-time { color: var(--text-muted); font-size: 12px; }
     .receipt-time { text-align: right; }
-    .menu-board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-    .menu-day { padding: 16px; display: grid; gap: 14px; }
-    .menu-day--today {
-      background:
-        linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.02)),
-        linear-gradient(135deg, rgba(96,165,250,0.12), transparent 44%);
-    }
-    .menu-day-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
-    .menu-day-name { font-size: 16px; font-weight: 700; }
-    .menu-day-week { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
-    .menu-day-tag, .menu-meal-tag {
-      padding: 6px 10px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 700;
-      white-space: nowrap;
-      background: rgba(255,255,255,0.06);
-      color: var(--text-muted);
-    }
-    .menu-meal-tag--veg { background: rgba(34,197,94,0.12); color: #86efac; }
-    .menu-meals { display: grid; gap: 10px; }
-    .menu-meal {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 10px;
-      align-items: start;
-      padding-top: 10px;
-      border-top: 1px solid rgba(255,255,255,0.06);
-    }
-    .menu-meal:first-child { padding-top: 0; border-top: 0; }
-    .menu-meal-copy { display: grid; gap: 4px; }
-    .menu-meal-name { font-size: 11px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; }
-    .menu-meal-items { line-height: 1.5; }
-    @media (max-width: 900px) { .menu-board { grid-template-columns: 1fr; } }
-    @media (max-width: 640px) { .menu-meal { grid-template-columns: 1fr; } }
   `],
   host: {}
 })
@@ -335,6 +288,7 @@ export class OperationsComponent {
     amenityOpenInvite: row => this.mutate(this.api.bookAmenity(row['slotId'], true)),
     amenityJoin: row => this.mutate(this.api.joinAmenityInvite(row['slotId'])),
     amenityCancel: row => this.mutate(this.api.cancelAmenity(row['bookingId'])),
+    amenityDeleteSlot: row => this.mutate(this.api.deleteAmenitySlot(row['slotId'])),
     subletApprove: row => this.mutate(this.api.approveSublet(row['id'])),
     subletComplete: row => this.openTextDialog('Complete sublet', 'Add the guest name to finish the check-in.', 'Guest name', 'Complete', guestName => this.api.completeSublet(row['id'], { guestName, guestPhone: '9000000000', checkInDate: new Date().toISOString().slice(0, 10) }))
   };
@@ -362,23 +316,6 @@ export class OperationsComponent {
     if (fromProfile > 0) return fromProfile;
     const fromRows = this.rows().find(row => Number(row['pgId']) > 0);
     return Number(fromRows?.['pgId'] || 0);
-  });
-  weeklyTenantMenu = computed(() => {
-    const order: Record<string, number> = { BREAKFAST: 0, LUNCH: 1, DINNER: 2 };
-    const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
-    const today = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date()).toUpperCase();
-    const menuRows = (this.rows() as MenuItem[]).filter(row => !!row.dayOfWeek && !!row.mealType);
-
-    return days
-      .map(day => ({
-        day,
-        isToday: day === today,
-        weekLabel: menuRows.find(item => item.dayOfWeek === day)?.weekLabel || this.form['weekLabel'] || this.weekLabel(),
-        meals: menuRows
-          .filter(item => item.dayOfWeek === day)
-          .sort((a, b) => (order[a.mealType] ?? 9) - (order[b.mealType] ?? 9))
-      }))
-      .filter(day => day.meals.length > 0);
   });
 
   constructor() {
@@ -506,6 +443,7 @@ export class OperationsComponent {
       targetType: 'ALL_PGS',
       serviceType: 'ROOM_CLEANING',
       amenityType: 'WASHING_MACHINE',
+      capacity: 1,
       weekLabel: this.weekLabel(),
       dayOfWeek: 'MONDAY',
       mealType: 'BREAKFAST',
@@ -674,5 +612,33 @@ export class OperationsComponent {
 
   private money(value: number): string {
     return `₹${value.toLocaleString('en-IN')}`;
+  }
+
+  tenantMenuItems(): MenuItem[] {
+    return (this.rows() as MenuItem[]).filter(row => !!row.dayOfWeek && !!row.mealType);
+  }
+
+  tenantAmenityRows(): AmenityBooking[] {
+    return this.filteredRows() as AmenityBooking[];
+  }
+
+  compactTable(): boolean {
+    return ['payments', 'complaints', 'services', 'vacate', 'sublets'].includes(this.moduleKey());
+  }
+
+  runAmenityBook(row: Row) {
+    this.actionHandlers.amenityBook(row);
+  }
+
+  runAmenityOpenInvite(row: Row) {
+    this.actionHandlers.amenityOpenInvite(row);
+  }
+
+  runAmenityJoin(row: Row) {
+    this.actionHandlers.amenityJoin(row);
+  }
+
+  runAmenityCancel(row: Row) {
+    this.actionHandlers.amenityCancel(row);
   }
 }

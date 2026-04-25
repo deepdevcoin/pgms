@@ -4,11 +4,12 @@ import { MatIconModule } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AmenityBooking, Complaint, MenuItem, Notice, RentRecord, ServiceBooking, Tenant, VacateNotice } from '../../core/models';
+import { MenuBoardComponent } from '../../shared/menu-board.component';
 
 @Component({
   selector: 'app-tenant-dashboard',
   standalone: true,
-  imports: [CommonModule, MatIconModule, RouterLink],
+  imports: [CommonModule, MatIconModule, RouterLink, MenuBoardComponent],
   template: `
   <section class="tenant-dashboard fade-up" data-testid="tenant-dashboard">
     <header class="hero surface">
@@ -184,21 +185,11 @@ import { AmenityBooking, Complaint, MenuItem, Notice, RentRecord, ServiceBooking
             <a routerLink="/tenant/menu">Open menu</a>
           </div>
 
-          @if (todayMenu().length) {
-            <div class="today-menu-grid">
-              @for (meal of todayMenu(); track mealTrack(meal)) {
-                <article class="menu-card">
-                  <div class="menu-top">
-                    <strong>{{ meal.mealType }}</strong>
-                    <span class="food-tag" [class.food-tag--veg]="meal.isVeg">{{ meal.isVeg ? 'Veg' : 'Mixed' }}</span>
-                  </div>
-                  <p>{{ meal.itemNames }}</p>
-                </article>
-              }
-            </div>
-          } @else {
-            <div class="empty-state">Menu is not available for today yet.</div>
-          }
+          <app-menu-board
+            [items]="menu()"
+            mode="today"
+            emptyLabel="Menu is not available for today yet."
+          />
         </section>
 
         <section class="split-grid">
@@ -283,19 +274,32 @@ import { AmenityBooking, Complaint, MenuItem, Notice, RentRecord, ServiceBooking
           <div class="section-head">
             <div>
               <div class="eyebrow">Amenities</div>
-              <h2>Next bookable slots</h2>
+              <h2>Amenity plan</h2>
             </div>
             <a routerLink="/tenant/amenities">Open amenities</a>
           </div>
+          @if (nextBookedAmenity()) {
+            <article class="booking-focus">
+              <div class="booking-focus__head">
+                <div>
+                  <div class="booking-focus__label">Your next booking</div>
+                  <strong>{{ nextBookedAmenity()!.resourceName || nextBookedAmenity()!.facilityName || pretty(nextBookedAmenity()!.amenityType) }}</strong>
+                </div>
+                <span class="slot-pill slot-pill--active">{{ nextBookedAmenity()!.amenityType === 'WASHING_MACHINE' ? 'Reserved' : 'Booked' }}</span>
+              </div>
+              <p>{{ pretty(nextBookedAmenity()!.amenityType) }} · {{ nextBookedAmenity()!.slotDate }} · {{ nextBookedAmenity()!.startTime }} to {{ nextBookedAmenity()!.endTime }}</p>
+              <div class="row-meta">{{ nextBookedAmenity()!.facilityName || 'Common area' }}</div>
+            </article>
+          }
           <div class="list-stack">
             @for (slot of nextAmenities(); track slot.slotId + '-' + slot.startTime) {
               <article class="list-row compact">
                 <div class="list-copy">
-                  <strong>{{ slot.facilityName || slot.amenityType }}</strong>
-                  <p>{{ slot.slotDate }} · {{ slot.startTime }} to {{ slot.endTime }}</p>
-                  <div class="row-meta">{{ slot.bookingCount || 0 }}/{{ slot.capacity }} booked</div>
+                  <strong>{{ slot.resourceName || pretty(slot.amenityType) }}</strong>
+                  <p>{{ pretty(slot.amenityType) }} · {{ slot.slotDate }} · {{ slot.startTime }} to {{ slot.endTime }}</p>
+                  <div class="row-meta">{{ slot.facilityName || 'Common area' }} · {{ slot.bookingCount || 0 }}/{{ slot.capacity }} booked</div>
                 </div>
-                <span class="slot-pill">{{ slot.openInvite ? 'Open invite' : 'Bookable' }}</span>
+                <span class="slot-pill">{{ slot.openInvite ? 'Joinable' : 'Bookable' }}</span>
               </article>
             } @empty {
               <div class="empty-state">No upcoming amenity slots visible yet.</div>
@@ -405,8 +409,7 @@ import { AmenityBooking, Complaint, MenuItem, Notice, RentRecord, ServiceBooking
     .chip,
     .detail-tile,
     .finance-tile,
-    .metric-card,
-    .menu-card {
+    .metric-card {
       border: 1px solid var(--border);
       border-radius: 14px;
       background: rgba(255,255,255,0.03);
@@ -558,32 +561,6 @@ import { AmenityBooking, Complaint, MenuItem, Notice, RentRecord, ServiceBooking
       gap: 16px;
     }
 
-    .today-menu-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .menu-card {
-      padding: 16px;
-      display: grid;
-      gap: 10px;
-    }
-
-    .menu-top {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .menu-card p {
-      margin: 0;
-      line-height: 1.45;
-      color: var(--text);
-    }
-
-    .food-tag,
     .slot-pill {
       padding: 6px 10px;
       border-radius: 999px;
@@ -593,10 +570,30 @@ import { AmenityBooking, Complaint, MenuItem, Notice, RentRecord, ServiceBooking
       background: rgba(255,255,255,0.06);
       color: var(--text-muted);
     }
-
-    .food-tag--veg {
-      background: rgba(34,197,94,0.12);
+    .slot-pill--active {
+      background: rgba(34,197,94,0.14);
       color: #86efac;
+    }
+    .booking-focus {
+      border: 1px solid rgba(34,197,94,0.28);
+      border-radius: 14px;
+      background: rgba(34,197,94,0.07);
+      padding: 14px;
+      display: grid;
+      gap: 6px;
+    }
+    .booking-focus__head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .booking-focus__label {
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
     }
 
     .list-stack {
@@ -662,7 +659,6 @@ import { AmenityBooking, Complaint, MenuItem, Notice, RentRecord, ServiceBooking
     @media (max-width: 980px) {
       .details-grid,
       .finance-stats,
-      .today-menu-grid,
       .split-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
@@ -680,7 +676,6 @@ import { AmenityBooking, Complaint, MenuItem, Notice, RentRecord, ServiceBooking
       .metrics-grid,
       .details-grid,
       .finance-stats,
-      .today-menu-grid,
       .split-grid,
       .vacate-grid {
         grid-template-columns: 1fr;
@@ -713,8 +708,14 @@ export class TenantDashboardComponent {
   recentNotices = computed(() => this.notices().slice(0, 4));
   activeServices = computed(() => this.services().filter(item => item.status !== 'COMPLETED').slice(0, 4));
   currentVacate = computed(() => this.vacates()[0] || null);
+  nextBookedAmenity = computed(() =>
+    [...this.amenities()]
+      .filter(item => Number(item.bookingId || 0) > 0)
+      .sort((a, b) => `${a.slotDate} ${a.startTime}`.localeCompare(`${b.slotDate} ${b.startTime}`))[0] || null
+  );
   nextAmenities = computed(() =>
     [...this.amenities()]
+      .filter(item => !item.bookingId)
       .sort((a, b) => `${a.slotDate} ${a.startTime}`.localeCompare(`${b.slotDate} ${b.startTime}`))
       .slice(0, 4)
   );
@@ -723,14 +724,6 @@ export class TenantDashboardComponent {
   activeServiceCount = computed(() => this.services().filter(item => item.status !== 'COMPLETED' && item.status !== 'REJECTED').length);
   unreadNoticeCount = computed(() => this.notices().filter(item => !item.read).length);
   attentionCount = computed(() => this.openComplaintCount() + this.activeServiceCount() + this.unreadNoticeCount());
-
-  todayMenu = computed(() => {
-    const today = this.dayName();
-    const order: Record<string, number> = { BREAKFAST: 0, LUNCH: 1, DINNER: 2 };
-    return this.menu()
-      .filter(item => item.dayOfWeek === today)
-      .sort((a, b) => (order[a.mealType] ?? 9) - (order[b.mealType] ?? 9));
-  });
 
   firstName = computed(() => (this.profile()?.name || 'there').split(' ')[0]);
   greeting = computed(() => {
@@ -765,12 +758,12 @@ export class TenantDashboardComponent {
     return `pill--${String(status || '').toLowerCase()}`;
   }
 
-  fallbackRoom(): string {
-    return this.profile()?.roomId ? `#${this.profile()!.roomId}` : '-';
+  pretty(value: string): string {
+    return value.toLowerCase().split('_').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
   }
 
-  mealTrack(item: MenuItem): string {
-    return `${item.dayOfWeek}-${item.mealType}-${item.itemNames}`;
+  fallbackRoom(): string {
+    return this.profile()?.roomId ? `#${this.profile()!.roomId}` : '-';
   }
 
   private weekLabel(): string {
@@ -781,9 +774,5 @@ export class TenantDashboardComponent {
     const yearStart = new Date(Date.UTC(utcDate.getUTCFullYear(), 0, 1));
     const week = Math.ceil((((utcDate.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
     return `${utcDate.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
-  }
-
-  private dayName(): string {
-    return new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date()).toUpperCase();
   }
 }

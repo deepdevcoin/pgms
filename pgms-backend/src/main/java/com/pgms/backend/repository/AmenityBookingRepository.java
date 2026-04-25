@@ -10,7 +10,11 @@ import java.util.Optional;
 public interface AmenityBookingRepository extends JpaRepository<AmenityBooking, Long> {
     List<AmenityBooking> findBySlotPgIdOrderByCreatedAtDesc(Long pgId);
     List<AmenityBooking> findByTenantProfileUserIdOrderByCreatedAtDesc(Long userId);
+    List<AmenityBooking> findByTenantProfileIdAndStatusOrderByCreatedAtDesc(Long tenantProfileId, BookingStatus status);
     List<AmenityBooking> findByOpenInviteTrueAndStatusOrderByCreatedAtDesc(BookingStatus status);
     long countBySlotIdAndStatus(Long slotId, BookingStatus status);
     Optional<AmenityBooking> findBySlotIdAndTenantProfileIdAndStatus(Long slotId, Long tenantProfileId, BookingStatus status);
+    Optional<AmenityBooking> findFirstBySlotIdAndOpenInviteTrueAndStatusOrderByCreatedAtAsc(Long slotId, BookingStatus status);
+    Optional<AmenityBooking> findFirstBySlotIdAndStatusOrderByCreatedAtAsc(Long slotId, BookingStatus status);
+    List<AmenityBooking> findBySlotIdAndStatusOrderByCreatedAtAsc(Long slotId, BookingStatus status);
 }

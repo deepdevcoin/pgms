@@ -15,13 +15,18 @@ public class AmenityBookingResponse {
     private Long slotId;
     private Long pgId;
     private String tenantName;
+    private String hostName;
+    private String bookedByName;
     private AmenityType amenityType;
     private String facilityName;
+    private String resourceName;
     private LocalDate slotDate;
     private LocalTime startTime;
     private LocalTime endTime;
     private Integer capacity;
     private Long bookingCount;
     private boolean openInvite;
+    private boolean joinable;
+    private boolean shareable;
     private BookingStatus status;
 }

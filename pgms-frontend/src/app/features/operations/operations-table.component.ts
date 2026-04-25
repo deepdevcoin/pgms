@@ -16,6 +16,7 @@ import { ActionConfig, CellClassValue, ModuleKey, Row } from './operations.types
         [style.min-width]="resolvedMinWidth()"
         [class.thead--payments]="moduleKey === 'payments'"
         [class.thead--compact]="compact"
+        [class.thead--ops-compact]="compact && moduleKey !== 'payments'"
       >
         @for (col of columns; track col) {
           <div [class.head-cell--right]="alignRight(col)">{{ label(col) }}</div>
@@ -31,6 +32,7 @@ import { ActionConfig, CellClassValue, ModuleKey, Row } from './operations.types
           [style.min-width]="resolvedMinWidth()"
           [class.tr--payments]="moduleKey === 'payments'"
           [class.tr--compact]="compact"
+          [class.tr--ops-compact]="compact && moduleKey !== 'payments'"
         >
           @for (col of columns; track col) {
             <div
@@ -69,10 +71,12 @@ import { ActionConfig, CellClassValue, ModuleKey, Row } from './operations.types
     .thead { padding: 14px 18px; color: var(--text-muted); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; border-bottom: 1px solid var(--border); }
     .thead--payments { padding-top: 14px; padding-bottom: 14px; background: rgba(255,255,255,0.02); }
     .thead--compact { padding: 11px 14px; gap: 10px; }
+    .thead--ops-compact { padding: 9px 12px; gap: 8px; font-size: 10px; letter-spacing: 0.08em; }
     .tr { padding: 16px 18px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px; }
     .tr--payments { min-height: 64px; }
     .tr--payments:hover { background: rgba(255,255,255,0.02); }
     .tr--compact { padding: 12px 14px; font-size: 12px; gap: 10px; }
+    .tr--ops-compact { padding: 10px 12px; font-size: 12px; gap: 8px; min-height: 52px; }
     .tr:last-child { border-bottom: 0; }
     .money { font-family: var(--font-mono); }
     .cell--status { display: flex; align-items: center; }
@@ -80,11 +84,13 @@ import { ActionConfig, CellClassValue, ModuleKey, Row } from './operations.types
     .head-cell--compact-actions { padding-right: 2px; }
     .cell--wrap { white-space: normal; line-height: 1.45; }
     .actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: nowrap; align-items: center; min-height: 32px; }
-    .actions--compact { gap: 4px; }
+    .actions--compact { gap: 4px; min-height: 28px; }
     .actions--payments-compact { justify-content: flex-end; }
     .icon { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px; border: 1px solid var(--border); background: var(--bg-elev); color: var(--text-muted); cursor: pointer; transition: border-color 120ms ease, color 120ms ease, background 120ms ease; }
+    .tr--ops-compact .icon { width: 28px; height: 28px; border-radius: 8px; }
     .icon:hover { color: var(--primary); border-color: var(--primary); }
     .icon mat-icon { font-size: 17px; width: 17px; height: 17px; }
+    .tr--ops-compact .icon mat-icon { font-size: 15px; width: 15px; height: 15px; }
     .action-pill { width: auto; height: 34px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 999px; }
     .action-pill span { font-size: 12px; font-weight: 600; }
     .pill--paid, .pill--resolved, .pill--completed, .pill--approved { background: var(--status-vacant-bg); border-color: var(--status-vacant-border); color: var(--status-vacant-text); }
@@ -115,6 +121,9 @@ export class OperationsTableComponent {
     if (this.moduleKey === 'payments' && this.compact) {
       return this.compactPaymentTemplate();
     }
+    if (this.compact && this.moduleKey === 'complaints') {
+      return this.compactComplaintTemplate();
+    }
     const cells = this.columns.map(col => this.columnWidth(col));
     if (this.showActions) cells.push(this.moduleKey === 'payments' ? (this.compact ? 'minmax(118px, 136px)' : 'minmax(156px, 190px)') : 'minmax(92px, 132px)');
     return cells.join(' ');
@@ -124,6 +133,9 @@ export class OperationsTableComponent {
     if (this.minWidth) return this.minWidth;
     if (this.moduleKey === 'payments' && this.compact) {
       return this.columns.includes('tenantName') ? '980px' : '760px';
+    }
+    if (this.compact && this.moduleKey === 'complaints') {
+      return '860px';
     }
     const base = this.showActions ? 170 : 0;
     return `${Math.max(680, this.columns.length * (this.compact ? (this.moduleKey === 'payments' ? 88 : 112) : 128) + base)}px`;
@@ -156,6 +168,21 @@ export class OperationsTableComponent {
       if (this.statusColumn(col)) return 'minmax(84px, 0.82fr)';
       if (this.moneyColumn(col)) return 'minmax(74px, 0.76fr)';
       return 'minmax(72px, 0.8fr)';
+    });
+    if (this.showActions) cells.push('44px');
+    return cells.join(' ');
+  }
+
+  private compactComplaintTemplate(): string {
+    const cells: string[] = this.columns.map(col => {
+      if (col === 'id') return '56px';
+      if (col === 'tenantName') return 'minmax(112px, 1fr)';
+      if (col === 'roomNumber') return '72px';
+      if (col === 'category') return 'minmax(98px, 0.9fr)';
+      if (this.statusColumn(col)) return 'minmax(92px, 0.85fr)';
+      if (col === 'createdAt') return 'minmax(108px, 0.95fr)';
+      if (col === 'notes') return 'minmax(190px, 1.45fr)';
+      return 'minmax(84px, 0.85fr)';
     });
     if (this.showActions) cells.push('44px');
     return cells.join(' ');

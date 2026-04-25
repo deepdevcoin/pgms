@@ -53,4 +53,6 @@ public class AmenitySlot {
     private Integer capacity;
 
     private String facilityName;
+
+    private String resourceName;
 }

@@ -9,4 +9,5 @@ import java.util.List;
 public interface AmenitySlotRepository extends JpaRepository<AmenitySlot, Long> {
     List<AmenitySlot> findByPgIdAndSlotDateBetweenOrderBySlotDateAscStartTimeAsc(Long pgId, LocalDate start, LocalDate end);
     List<AmenitySlot> findByPgIdOrderBySlotDateAscStartTimeAsc(Long pgId);
+    List<AmenitySlot> findByPgIdInOrderBySlotDateAscStartTimeAsc(List<Long> pgIds);
 }

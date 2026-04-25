@@ -320,13 +320,18 @@ export class ApiService {
 
   listAmenities(): Observable<AmenityBooking[]> {
     if (this.isDemo()) return this.mock.listAmenities(this.role());
-    const path = this.role() === 'MANAGER' ? environment.endpoints.amenities.managerBookings : environment.endpoints.amenities.tenantSlots;
+    const path = this.role() === 'MANAGER' ? environment.endpoints.amenities.managerSlots : environment.endpoints.amenities.tenantSlots;
     return this.get<unknown>(path).pipe(map(response => asCollection(response) as AmenityBooking[]));
   }
 
-  createAmenitySlot(payload: { pgId: number; amenityType: string; slotDate: string; startTime: string; endTime: string; capacity: number; facilityName?: string }): Observable<AmenityBooking> {
+  createAmenitySlot(payload: { pgId: number; amenityType: string; slotDate: string; startTime: string; endTime: string; capacity: number; facilityName?: string; resourceName?: string }): Observable<AmenityBooking> {
     if (this.isDemo()) return this.mock.createAmenitySlot(payload);
     return this.post<AmenityBooking>(environment.endpoints.amenities.managerSlots, payload);
+  }
+
+  updateAmenitySlot(slotId: number, payload: { pgId: number; amenityType: string; slotDate: string; startTime: string; endTime: string; capacity: number; facilityName?: string; resourceName?: string }): Observable<AmenityBooking> {
+    if (this.isDemo()) return this.mock.updateAmenitySlot(slotId, payload);
+    return this.put<AmenityBooking>(this.path(environment.endpoints.amenities.managerUpdateSlot, { id: slotId }), payload);
   }
 
   bookAmenity(slotId: number, isOpenInvite: boolean): Observable<AmenityBooking> {
@@ -337,6 +342,11 @@ export class ApiService {
   cancelAmenity(bookingId: number): Observable<void> {
     if (this.isDemo()) return this.mock.cancelAmenity(bookingId).pipe(map(() => void 0));
     return this.delete<unknown>(this.path(environment.endpoints.amenities.tenantCancel, { id: bookingId })).pipe(map(() => void 0));
+  }
+
+  deleteAmenitySlot(slotId: number): Observable<void> {
+    if (this.isDemo()) return this.mock.deleteAmenitySlot(slotId).pipe(map(() => void 0));
+    return this.delete<unknown>(this.path(environment.endpoints.amenities.managerDeleteSlot, { id: slotId })).pipe(map(() => void 0));
   }
 
   joinAmenityInvite(slotId: number): Observable<AmenityBooking> {

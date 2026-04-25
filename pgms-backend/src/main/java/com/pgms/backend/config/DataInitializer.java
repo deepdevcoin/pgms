@@ -38,8 +38,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.YearMonth;
 import java.time.temporal.WeekFields;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -264,31 +266,75 @@ public class DataInitializer {
     }
 
     private void seedAmenitySlotsIfMissing(Pg pg, AmenitySlotRepository amenitySlotRepository) {
-        boolean hasUpcomingSlots = amenitySlotRepository.findByPgIdOrderBySlotDateAscStartTimeAsc(pg.getId()).stream()
-                .anyMatch(slot -> !slot.getSlotDate().isBefore(LocalDate.now()));
+        List<AmenitySlot> existingSlots = amenitySlotRepository.findByPgIdOrderBySlotDateAscStartTimeAsc(pg.getId());
+        backfillAmenityResourceNames(existingSlots, amenitySlotRepository);
+        boolean hasUpcomingSlots = existingSlots.stream().anyMatch(slot -> !slot.getSlotDate().isBefore(LocalDate.now()));
         if (hasUpcomingSlots) {
             return;
         }
-        List<AmenitySlot> slots = List.of(
-                amenitySlot(pg, AmenityType.WASHING_MACHINE, LocalDate.now().plusDays(1), 7, 0, 8, 0, 4, "Laundry Room"),
-                amenitySlot(pg, AmenityType.WASHING_MACHINE, LocalDate.now().plusDays(1), 8, 0, 9, 0, 4, "Laundry Room"),
-                amenitySlot(pg, AmenityType.TABLE_TENNIS, LocalDate.now().plusDays(1), 19, 0, 20, 0, 8, "Common Lounge"),
-                amenitySlot(pg, AmenityType.BADMINTON, LocalDate.now().plusDays(2), 18, 0, 19, 0, 6, "Terrace Court"),
-                amenitySlot(pg, AmenityType.CARROM, LocalDate.now().plusDays(2), 20, 0, 21, 0, 4, "Rec Room")
-        );
+        List<AmenitySlot> slots = new ArrayList<>();
+        addAmenityWindow(slots, pg, AmenityType.WASHING_MACHINE, LocalDate.now().plusDays(1), LocalTime.of(7, 0), LocalTime.of(9, 0), 2, "Laundry Room", "Machine");
+        addAmenityWindow(slots, pg, AmenityType.TABLE_TENNIS, LocalDate.now().plusDays(1), LocalTime.of(19, 0), LocalTime.of(21, 0), 2, "Common Lounge", "Table");
+        addAmenityWindow(slots, pg, AmenityType.BADMINTON, LocalDate.now().plusDays(2), LocalTime.of(18, 0), LocalTime.of(20, 0), 4, "Terrace Court", "Court");
+        addAmenityWindow(slots, pg, AmenityType.CARROM, LocalDate.now().plusDays(2), LocalTime.of(20, 0), LocalTime.of(21, 30), 4, "Rec Room", "Board");
         amenitySlotRepository.saveAll(slots);
     }
 
-    private AmenitySlot amenitySlot(Pg pg, AmenityType amenityType, LocalDate date, int startHour, int startMinute, int endHour, int endMinute, int capacity, String facilityName) {
+    private void backfillAmenityResourceNames(List<AmenitySlot> existingSlots, AmenitySlotRepository amenitySlotRepository) {
+        List<AmenitySlot> missing = existingSlots.stream()
+                .filter(slot -> slot.getResourceName() == null || slot.getResourceName().isBlank())
+                .toList();
+        if (missing.isEmpty()) {
+            return;
+        }
+        for (AmenitySlot slot : missing) {
+            slot.setResourceName(defaultAmenityResourceName(slot.getAmenityType()));
+        }
+        amenitySlotRepository.saveAll(missing);
+    }
+
+    private void addAmenityWindow(List<AmenitySlot> slots, Pg pg, AmenityType amenityType, LocalDate date, LocalTime start, LocalTime end, int capacity, String facilityName, String resourceName) {
+        LocalTime cursor = start;
+        while (cursor.isBefore(end)) {
+            LocalTime next = cursor.plusMinutes(30);
+            if (next.isAfter(end)) {
+                next = end;
+            }
+            if (amenityType == AmenityType.WASHING_MACHINE) {
+                for (int unit = 1; unit <= capacity; unit++) {
+                    slots.add(amenitySlot(pg, amenityType, date, cursor, next, 1, facilityName, resourceName + " " + unit));
+                }
+            } else {
+                slots.add(amenitySlot(pg, amenityType, date, cursor, next, capacity, facilityName, resourceName));
+            }
+            cursor = next;
+        }
+    }
+
+    private AmenitySlot amenitySlot(Pg pg, AmenityType amenityType, LocalDate date, int startHour, int startMinute, int endHour, int endMinute, int capacity, String facilityName, String resourceName) {
+        return amenitySlot(pg, amenityType, date, LocalTime.of(startHour, startMinute), LocalTime.of(endHour, endMinute), capacity, facilityName, resourceName);
+    }
+
+    private AmenitySlot amenitySlot(Pg pg, AmenityType amenityType, LocalDate date, LocalTime startTime, LocalTime endTime, int capacity, String facilityName, String resourceName) {
         return AmenitySlot.builder()
                 .pg(pg)
                 .amenityType(amenityType)
                 .slotDate(date)
-                .startTime(java.time.LocalTime.of(startHour, startMinute))
-                .endTime(java.time.LocalTime.of(endHour, endMinute))
+                .startTime(startTime)
+                .endTime(endTime)
                 .capacity(capacity)
                 .facilityName(facilityName)
+                .resourceName(resourceName)
                 .build();
+    }
+
+    private String defaultAmenityResourceName(AmenityType amenityType) {
+        return switch (amenityType) {
+            case WASHING_MACHINE -> "Machine";
+            case TABLE_TENNIS -> "Table";
+            case BADMINTON -> "Court";
+            case CARROM -> "Board";
+        };
     }
 
     private List<MenuItem> createSampleMenu(Pg pg) {
