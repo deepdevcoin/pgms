@@ -83,8 +83,11 @@ public class TenantService {
     }
 
     public List<TenantResponse> getTenantsForCurrentManager() {
-        Long pgId = accessControlService.getPrimaryPgIdForCurrentManager();
-        return tenantProfileRepository.findByPgId(pgId).stream().map(this::toResponse).toList();
+        List<Long> pgIds = accessControlService.getAssignedPgIdsForCurrentManager();
+        if (pgIds.isEmpty()) {
+            return List.of();
+        }
+        return tenantProfileRepository.findByPgIdIn(pgIds).stream().map(this::toResponse).toList();
     }
 
     public List<TenantResponse> getAllTenants() {

@@ -38,6 +38,7 @@ export interface Room {
   isAC: boolean;
   sharingType: SharingType;
   monthlyRent: number;
+  depositAmount?: number;
   status: RoomStatus;
   occupants?: Tenant[];
   capacity?: number;
@@ -52,6 +53,7 @@ export interface Tenant {
   roomId?: number;
   roomNumber?: string;
   pgId?: number;
+  pgName?: string;
   joiningDate?: string;
   advanceAmountPaid?: number;
   kycDocType?: string;

@@ -134,6 +134,7 @@ export function mapRoom(source: unknown): Room {
     isAC: typeof acValue === 'string' ? acValue.toLowerCase().includes('ac') : booleanValue(source, ['isAC', 'isAc', 'ac', 'airConditioned'], false),
     sharingType: enumValue(source, ['sharingType', 'sharing', 'type', 'occupancyType'], sharingTypes, 'SINGLE'),
     monthlyRent: numberValue(source, ['monthlyRent', 'rent', 'price'], 0),
+    depositAmount: optionalNumber(source, ['depositAmount', 'deposit']),
     status,
     capacity: optionalNumber(source, ['capacity', 'beds', 'bedCount']),
     occupants
@@ -160,12 +161,15 @@ export function mapLayoutRooms(response: unknown, pgId: number): Room[] {
 
 export function mapTenant(source: unknown): Tenant {
   return {
+    tenantProfileId: optionalNumber(source, ['tenantProfileId', 'profileId']),
     userId: numberValue(source, ['userId', 'id', 'tenantId']),
     name: text(source, ['name', 'fullName', 'tenantName'], 'Unnamed tenant'),
     email: text(source, ['email'], ''),
     phone: text(source, ['phone', 'mobile'], ''),
     roomId: numberValue(source, ['roomId', 'room.id', 'allocatedRoomId']),
+    roomNumber: text(source, ['roomNumber', 'room.number', 'roomNo'], ''),
     pgId: numberValue(source, ['pgId', 'propertyId', 'pg.id', 'property.id']),
+    pgName: text(source, ['pgName', 'pg.name', 'propertyName'], ''),
     joiningDate: text(source, ['joiningDate', 'joinedOn', 'moveInDate'], ''),
     advanceAmountPaid: numberValue(source, ['advanceAmountPaid', 'advance', 'deposit'], 0),
     creditWalletBalance: numberValue(source, ['creditWalletBalance', 'walletBalance', 'credits'], 0),

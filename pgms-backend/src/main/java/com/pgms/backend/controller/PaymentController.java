@@ -50,7 +50,7 @@ public class PaymentController {
     @PostMapping("/api/tenant/payments/apply-credit")
     @PreAuthorize("hasRole('TENANT')")
     public BaseResponse<RentRecordResponse> applyCredit(@Valid @RequestBody ApplyCreditRequest request) {
-        return BaseResponse.success("Wallet credit applied successfully", paymentService.applyWalletCredit(request.getRentRecordId()));
+        return BaseResponse.success("Wallet credit applied successfully", paymentService.applyWalletCredit(request.getRentRecordId(), request.getAmount()));
     }
 
     @GetMapping("/api/manager/payments")

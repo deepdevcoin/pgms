@@ -42,12 +42,19 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
       (toggleCreate)="showForm.set(!showForm())"
     />
 
-    @if (moduleKey() === 'sublets' && auth.role() === 'TENANT') {
+    @if (auth.role() === 'TENANT' && (moduleKey() === 'payments' || moduleKey() === 'sublets')) {
       <div class="wallet card">
         <mat-icon>account_balance_wallet</mat-icon>
         <div>
           <div class="wallet-label">Credit wallet</div>
           <div class="wallet-value">₹{{ walletBalance() | number:'1.0-0' }}</div>
+          <div class="wallet-meta">
+            @if (moduleKey() === 'payments') {
+              Use wallet against pending rent. It applies only what is needed.
+            } @else {
+              Wallet credit from sublets is available here.
+            }
+          </div>
         </div>
       </div>
     }
@@ -55,11 +62,7 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
     @if (moduleKey() === 'payments') {
       <app-operations-payment-overview
         [summaryCards]="paymentSummaryCards()"
-        [transactions]="filteredTransactions()"
-        [columns]="transactionColumns()"
-        [label]="label.bind(this)"
-        [transactionValue]="transactionValue.bind(this)"
-        [moneyColumn]="moneyColumn.bind(this)"
+        [showLedger]="false"
       />
     }
 
@@ -95,6 +98,8 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
         [actions]="actions()"
         [role]="auth.role()"
         [moduleKey]="moduleKey()"
+        [compact]="moduleKey() === 'payments'"
+        [minWidth]="moduleKey() === 'payments' ? '100%' : ''"
         [label]="label.bind(this)"
         [value]="value.bind(this)"
         [rowKey]="rowKey.bind(this)"
@@ -102,6 +107,17 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
         [statusColumn]="statusColumn.bind(this)"
         [pillClass]="pillClass.bind(this)"
       />
+
+      @if (moduleKey() === 'payments') {
+        <app-operations-payment-overview
+          [showSummary]="false"
+          [transactions]="filteredTransactions()"
+          [columns]="transactionColumns()"
+          [label]="label.bind(this)"
+          [transactionValue]="transactionValue.bind(this)"
+          [moneyColumn]="moneyColumn.bind(this)"
+        />
+      }
     }
   </section>
 
@@ -161,6 +177,7 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
     .wallet mat-icon { color: var(--primary); }
     .wallet-label { color: var(--text-muted); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
     .wallet-value { font-size: 26px; font-weight: 800; font-family: var(--font-mono); }
+    .wallet-meta { margin-top: 4px; color: var(--text-muted); font-size: 12px; line-height: 1.45; max-width: 320px; }
     .toolbar { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
     .search { display: flex; align-items: center; gap: 8px; min-width: 280px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0 12px; }
     .search mat-icon { color: var(--text-muted); font-size: 18px; width: 18px; height: 18px; }
@@ -169,6 +186,19 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
     .state.err { color: var(--danger); }
     .spinner { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.9s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .fld { display: flex; flex-direction: column; gap: 8px; }
+    .fld span { color: var(--text-muted); font-size: 12px; font-weight: 600; }
+    .fld input, .fld textarea {
+      width: 100%;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-family: inherit;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+    }
+    .fld textarea { min-height: 108px; resize: vertical; line-height: 1.5; }
     .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
     .receipt-list { display: flex; flex-direction: column; gap: 10px; }
     .receipt-row { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
@@ -211,7 +241,17 @@ export class OperationsComponent {
   private numberActionFactory: ((value: number) => { subscribe: (handlers: { next: () => void; error: (err: any) => void }) => void }) | null = null;
   private actionHandlers: OperationsActionHandlers = {
     payRent: row => this.openNumberDialog('Pay rent', 'Submit your rent payment from your tenant account.', 'Amount', 'Pay now', amount => this.api.payRent(row['id'], amount)),
-    applyCredit: row => this.mutate(this.api.applyCredit(row['id'])),
+    applyCredit: row => {
+      const maxWalletUse = Math.min(Number(row['walletAvailable'] || 0), Number(row['remainingAmountDue'] || 0));
+      this.openNumberDialog(
+        'Use wallet credit',
+        `Available to use now: ${this.money(maxWalletUse)}. We will apply only the amount you enter.`,
+        'Wallet amount',
+        'Apply wallet',
+        amount => this.api.applyCredit(row['id'], amount),
+        maxWalletUse
+      );
+    },
     waiveFine: row => this.openTextDialog('Waive fine', 'Add a short reason for the waiver.', 'Reason', 'Waive fine', reason => this.api.waiveFine(row['id'], reason)),
     complaintInProgress: row => this.mutate(this.api.updateComplaint(row['id'], 'IN_PROGRESS', 'Work started')),
     complaintResolve: row => this.openTextDialog('Resolve complaint', 'Share the resolution details for the tenant.', 'Resolution notes', 'Resolve', notes => this.api.updateComplaint(row['id'], 'RESOLVED', notes)),
@@ -269,7 +309,7 @@ export class OperationsComponent {
     if (key === 'payments') {
       this.api.paymentOverview().subscribe({
         next: overview => {
-          this.rows.set(overview.records);
+          this.rows.set(overview.records.map(record => ({ ...record, walletAvailable: overview.summary.walletBalance || 0 })));
           this.paymentSummary.set(overview.summary);
           this.paymentTransactions.set(overview.transactions);
           this.loading.set(false);
@@ -429,7 +469,7 @@ export class OperationsComponent {
     this.actionDialogOpen.set(true);
   }
 
-  private openNumberDialog(title: string, subtitle: string, label: string, confirmLabel: string, factory: (value: number) => { subscribe: (handlers: { next: () => void; error: (err: any) => void }) => void }) {
+  private openNumberDialog(title: string, subtitle: string, label: string, confirmLabel: string, factory: (value: number) => { subscribe: (handlers: { next: () => void; error: (err: any) => void }) => void }, initialValue?: number) {
     this.numberActionFactory = factory;
     this.textActionFactory = null;
     this.actionDialogEyebrow.set(this.config().title);
@@ -438,7 +478,7 @@ export class OperationsComponent {
     this.actionDialogLabel.set(label);
     this.actionDialogConfirmLabel.set(confirmLabel);
     this.actionDialogType.set('number');
-    this.actionDialogValue = '';
+    this.actionDialogValue = initialValue && initialValue > 0 ? String(initialValue) : '';
     this.actionDialogOpen.set(true);
   }
 
@@ -522,5 +562,9 @@ export class OperationsComponent {
 
   transactionValue(tx: PaymentTransaction, col: string): string {
     return formatTransactionValue(tx, col, this.rows());
+  }
+
+  private money(value: number): string {
+    return `₹${value.toLocaleString('en-IN')}`;
   }
 }

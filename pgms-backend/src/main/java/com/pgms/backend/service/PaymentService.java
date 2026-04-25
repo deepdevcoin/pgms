@@ -155,7 +155,7 @@ public class PaymentService {
     }
 
     @Transactional
-    public RentRecordResponse applyWalletCredit(Long recordId) {
+    public RentRecordResponse applyWalletCredit(Long recordId, Double amount) {
         RentRecord record = rentRecordRepository.findById(recordId)
                 .orElseThrow(() -> new NotFoundException("Rent record not found"));
         TenantProfile profile = accessControlService.getCurrentTenantProfile();
@@ -171,7 +171,16 @@ public class PaymentService {
         if (walletBefore <= 0) {
             throw new BadRequestException("No wallet balance is available");
         }
-        double deduction = Math.min(profile.getCreditWalletBalance(), remaining);
+        if (amount == null || amount <= 0) {
+            throw new BadRequestException("Wallet amount must be greater than zero");
+        }
+        if (amount > walletBefore) {
+            throw new BadRequestException("Wallet amount cannot exceed the available wallet balance");
+        }
+        if (amount > remaining) {
+            throw new BadRequestException("Wallet amount cannot exceed the remaining due");
+        }
+        double deduction = amount;
         profile.setCreditWalletBalance(profile.getCreditWalletBalance() - deduction);
         record.setAmountPaid(record.getAmountPaid() + deduction);
         updateStatus(record);

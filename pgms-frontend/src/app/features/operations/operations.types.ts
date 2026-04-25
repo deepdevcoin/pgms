@@ -19,6 +19,8 @@ export interface ActionConfig {
   run: (row: Row) => void;
 }
 
+export type CellClassValue = string | string[] | Record<string, boolean> | null | undefined;
+
 export interface ModuleConfig {
   title: string;
   crumb: string;

@@ -155,13 +155,16 @@ export class MockDataService {
     return of(this.clone(record)).pipe(delay(120));
   }
 
-  applyCredit(recordId: number): Observable<RentRecord> {
+  applyCredit(recordId: number, amount: number): Observable<RentRecord> {
     const record = this.payments.find(item => item.id === recordId);
     if (!record) return throwError(() => new Error('Payment not found'));
     const tenant = this.tenants.find(item => item.tenantProfileId === record.tenantProfileId);
     const walletBefore = tenant?.creditWalletBalance || 0;
     if (walletBefore <= 0) return throwError(() => new Error('No wallet balance available'));
-    const deduction = Math.min(walletBefore, record.remainingAmountDue);
+    if (!Number.isFinite(amount) || amount <= 0) return throwError(() => new Error('Wallet amount must be greater than zero'));
+    if (amount > walletBefore) return throwError(() => new Error('Wallet amount cannot exceed the available wallet balance'));
+    if (amount > record.remainingAmountDue) return throwError(() => new Error('Wallet amount cannot exceed the remaining due'));
+    const deduction = amount;
     if (tenant) tenant.creditWalletBalance = walletBefore - deduction;
     const outstandingBefore = record.remainingAmountDue;
     record.amountPaid += deduction;

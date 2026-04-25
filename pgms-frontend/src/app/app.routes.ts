@@ -23,6 +23,7 @@ export const routes: Routes = [
       { path: 'layout/:pgId', loadComponent: () => import('./features/layout-viz/layout-viz.component').then(m => m.LayoutVizComponent) },
       { path: 'pgs', loadComponent: () => import('./features/owner/pgs-list.component').then(m => m.PgsListComponent) },
       { path: 'managers', loadComponent: () => import('./features/owner/managers.component').then(m => m.ManagersComponent) },
+      { path: 'tenants', loadComponent: () => import('./features/manager/tenants.component').then(m => m.TenantsComponent) },
       { path: 'payments', loadComponent: () => import('./features/operations/operations.component').then(m => m.OperationsComponent), data: { module: 'payments' } },
       { path: 'complaints', loadComponent: () => import('./features/operations/operations.component').then(m => m.OperationsComponent), data: { module: 'complaints' } },
       { path: 'notices', loadComponent: () => import('./features/operations/operations.component').then(m => m.OperationsComponent), data: { module: 'notices' } },

@@ -4,11 +4,13 @@ import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { ApiService } from '../../core/api.service';
 import { Complaint, Notice, OwnerSummary, PG, RentRecord } from '../../core/models';
+import { OperationsTableComponent } from '../operations/operations-table.component';
+import { formatRowValue, isMoneyColumn, isStatusColumn, labelForColumn, pillClassForStatus } from '../operations/operations.formatters';
 
 @Component({
   selector: 'app-owner-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatIconModule],
+  imports: [CommonModule, RouterLink, MatIconModule, OperationsTableComponent],
   template: `
   <section class="dash fade-up" data-testid="owner-dashboard">
     <header class="head">
@@ -67,22 +69,20 @@ import { Complaint, Notice, OwnerSummary, PG, RentRecord } from '../../core/mode
         @if (payments().length === 0) {
           <div class="empty">No payment records yet.</div>
         } @else {
-          <table>
-            <thead><tr><th>Tenant</th><th>Room</th><th>Month</th><th class="right">Due</th><th class="right">Paid</th><th class="right">Fine</th><th>Status</th></tr></thead>
-            <tbody>
-              @for (payment of payments(); track payment.id) {
-                <tr>
-                  <td>{{ payment.tenantName }}</td>
-                  <td class="mono">{{ payment.roomNumber }}</td>
-                  <td>{{ payment.billingMonth }}</td>
-                  <td class="right mono">₹{{ payment.totalDue | number:'1.0-0' }}</td>
-                  <td class="right mono">₹{{ payment.amountPaid | number:'1.0-0' }}</td>
-                  <td class="right mono">₹{{ payment.fineAccrued | number:'1.0-0' }}</td>
-                  <td><span class="pill dot" [ngClass]="statusClass(payment.status)">{{ payment.status }}</span></td>
-                </tr>
-              }
-            </tbody>
-          </table>
+          <app-operations-table
+            [columns]="paymentColumns"
+            [rows]="payments()"
+            [showActions]="false"
+            [compact]="true"
+            [moduleKey]="'payments'"
+            [label]="label"
+            [value]="value"
+            [rowKey]="rowKey"
+            [moneyColumn]="moneyColumn"
+            [statusColumn]="statusColumn"
+            [pillClass]="pillClass"
+            [minWidth]="'100%'"
+          />
         }
       </div>
 
@@ -146,16 +146,12 @@ import { Complaint, Notice, OwnerSummary, PG, RentRecord } from '../../core/mode
     .complaint-list { display: flex; flex-direction: column; gap: 10px; }
     .complaint-list .row { display: flex; justify-content: space-between; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; background: var(--bg-elev); }
     .complaint-list .row.warn { color: var(--status-vacating-text); }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; }
-    th { font-size: 11px; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; }
-    .right { text-align: right; }
-    .mono { font-family: var(--font-mono); }
     .empty { padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px; }
   `]
 })
 export class OwnerDashboardComponent {
   private api = inject(ApiService);
+  paymentColumns = ['tenantName', 'roomNumber', 'billingMonth', 'totalDue', 'amountPaid', 'fineAccrued', 'status'];
   summary = signal<OwnerSummary | null>(null);
   pgs = signal<PG[]>([]);
   payments = signal<RentRecord[]>([]);
@@ -173,4 +169,11 @@ export class OwnerDashboardComponent {
   statusClass(status: string | undefined) {
     return `pill--${String(status || '').toLowerCase()}`;
   }
+
+  label = (col: string) => labelForColumn(col);
+  value = (row: Record<string, any>, col: string) => formatRowValue(row, col, value => value);
+  rowKey = (row: Record<string, any>) => String(row['id'] ?? JSON.stringify(row));
+  moneyColumn = (col: string) => isMoneyColumn(col);
+  statusColumn = (col: string) => isStatusColumn(col);
+  pillClass = (status: unknown) => pillClassForStatus(status);
 }

@@ -138,6 +138,7 @@ export class AppShellComponent {
             { icon: 'space_dashboard', label: 'Overview', route: '/owner/dashboard', testId: 'nav-owner-overview' },
             { icon: 'grid_view', label: 'Layout', route: '/owner/layout', testId: 'nav-owner-layout' },
             { icon: 'domain', label: 'Properties', route: '/owner/pgs', testId: 'nav-owner-pgs' },
+            { icon: 'group', label: 'Tenants', route: '/owner/tenants', testId: 'nav-owner-tenants' },
             { icon: 'badge', label: 'Managers', route: '/owner/managers', testId: 'nav-owner-managers' },
             { icon: 'payments', label: 'Payments', route: '/owner/payments', testId: 'nav-owner-payments' },
             { icon: 'report_problem', label: 'Complaints', route: '/owner/complaints', testId: 'nav-owner-complaints' },

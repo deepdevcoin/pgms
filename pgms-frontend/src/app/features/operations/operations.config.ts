@@ -140,7 +140,7 @@ export function buildModuleActions(role: Role | null, handlers: OperationsAction
   return {
     payments: [
       { label: 'Pay', icon: 'payments', show: row => role === 'TENANT' && row['remainingAmountDue'] > 0, run: handlers.payRent },
-      { label: 'Apply credit', icon: 'account_balance_wallet', show: row => role === 'TENANT' && row['remainingAmountDue'] > 0, run: handlers.applyCredit },
+      { label: 'Use wallet', icon: 'account_balance_wallet', show: row => role === 'TENANT' && row['remainingAmountDue'] > 0 && row['walletAvailable'] > 0, run: handlers.applyCredit },
       { label: 'Waive fine', icon: 'money_off', show: row => role === 'MANAGER' && row['fineAccrued'] > 0, run: handlers.waiveFine }
     ],
     complaints: [

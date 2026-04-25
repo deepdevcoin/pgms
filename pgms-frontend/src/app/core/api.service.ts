@@ -214,9 +214,9 @@ export class ApiService {
     return this.post<RentRecord>(environment.endpoints.payments.tenantPay, { recordId, amount });
   }
 
-  applyCredit(rentRecordId: number): Observable<RentRecord> {
-    if (this.isDemo()) return this.mock.applyCredit(rentRecordId);
-    return this.post<RentRecord>(environment.endpoints.payments.applyCredit, { rentRecordId });
+  applyCredit(rentRecordId: number, amount: number): Observable<RentRecord> {
+    if (this.isDemo()) return this.mock.applyCredit(rentRecordId, amount);
+    return this.post<RentRecord>(environment.endpoints.payments.applyCredit, { rentRecordId, amount });
   }
 
   cashPayment(payload: { tenantProfileId: number; billingMonth: string; amount: number }): Observable<RentRecord> {

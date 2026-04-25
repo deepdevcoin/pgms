@@ -8,6 +8,7 @@ import com.pgms.backend.entity.SubletRequest;
 import com.pgms.backend.entity.TenantProfile;
 import com.pgms.backend.entity.enums.RoomStatus;
 import com.pgms.backend.entity.enums.SubletStatus;
+import com.pgms.backend.exception.BadRequestException;
 import com.pgms.backend.exception.NotFoundException;
 import com.pgms.backend.repository.SubletRequestRepository;
 import com.pgms.backend.repository.TenantProfileRepository;
@@ -74,6 +75,12 @@ public class SubletService {
     @Transactional
     public SubletResponse complete(Long id, SubletCompleteRequest request) {
         SubletRequest sublet = getForManager(id);
+        if (sublet.getStatus() == SubletStatus.COMPLETED) {
+            throw new BadRequestException("Wallet credit has already been applied for this sublet");
+        }
+        if (sublet.getStatus() != SubletStatus.APPROVED) {
+            throw new BadRequestException("Only approved sublets can be completed");
+        }
         sublet.setStatus(SubletStatus.COMPLETED);
         sublet.setGuestName(request.getGuestName());
         sublet.setGuestPhone(request.getGuestPhone());
@@ -82,7 +89,8 @@ public class SubletService {
         TenantProfile profile = sublet.getTenantProfile();
         long occupiedDays = Math.max(ChronoUnit.DAYS.between(request.getCheckInDate(), LocalDate.now()), 1);
         double credit = (occupiedDays / (double) YearMonth.now().lengthOfMonth()) * profile.getRoom().getMonthlyRent();
-        profile.setCreditWalletBalance(profile.getCreditWalletBalance() + credit);
+        double walletBefore = profile.getCreditWalletBalance() != null ? profile.getCreditWalletBalance() : 0.0;
+        profile.setCreditWalletBalance(walletBefore + credit);
         profile.getRoom().setStatus(RoomStatus.OCCUPIED);
         tenantProfileRepository.save(profile);
         return toResponse(subletRequestRepository.save(sublet));
