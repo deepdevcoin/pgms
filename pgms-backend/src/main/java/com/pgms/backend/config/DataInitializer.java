@@ -79,26 +79,41 @@ public class DataInitializer {
                                                TenantProfileRepository tenantProfileRepository,
                                                RentRecordRepository rentRecordRepository,
                                                PasswordEncoder passwordEncoder) {
-        User manager = userRepository.findByEmail("manager@pgms.com")
+        User managerCandidate = userRepository.findByEmail("manager@pgms.com")
                 .orElseGet(() -> User.builder().email("manager@pgms.com").build());
-        manager.setName("Seed Manager");
-        manager.setPhone("9999999998");
-        manager.setPasswordHash(passwordEncoder.encode(AuthService.DEFAULT_USER_PASSWORD));
-        manager.setRole(Role.MANAGER);
-        manager.setActive(true);
-        manager.setFirstLogin(false);
-        manager = userRepository.save(manager);
+        managerCandidate.setName("Seed Manager");
+        managerCandidate.setPhone("9999999998");
+        managerCandidate.setPasswordHash(passwordEncoder.encode(AuthService.DEFAULT_USER_PASSWORD));
+        managerCandidate.setRole(Role.MANAGER);
+        managerCandidate.setActive(true);
+        managerCandidate.setFirstLogin(false);
+        User manager = userRepository.save(managerCandidate);
 
+        User finalManager = manager;
         ManagerProfile managerProfile = managerProfileRepository.findByUserId(manager.getId())
-                .orElseGet(() -> ManagerProfile.builder().user(manager).build());
+                .orElseGet(() -> ManagerProfile.builder().user(finalManager).build());
         managerProfile.setDesignation("Operations Manager");
         managerProfile.setPgIds(String.valueOf(pg.getId()));
         managerProfileRepository.save(managerProfile);
 
-        Room tenantRoom = roomRepository.findByPgId(pg.getId()).stream()
-                .filter(room -> !"103".equals(room.getRoomNumber()))
-                .findFirst()
-                .orElse(null);
+        User tenantCandidate = userRepository.findByEmail("tenant@pgms.com")
+                .orElseGet(() -> User.builder().email("tenant@pgms.com").build());
+        tenantCandidate.setName("Seed Tenant");
+        tenantCandidate.setPhone("9999999997");
+        tenantCandidate.setPasswordHash(passwordEncoder.encode(AuthService.DEFAULT_USER_PASSWORD));
+        tenantCandidate.setRole(Role.TENANT);
+        tenantCandidate.setActive(true);
+        tenantCandidate.setFirstLogin(false);
+        User tenant = userRepository.save(tenantCandidate);
+
+        var existingTenantProfile = tenantProfileRepository.findByUserId(tenant.getId());
+        Room tenantRoom = existingTenantProfile
+                .map(TenantProfile::getRoom)
+                .orElseGet(() -> roomRepository.findByPgId(pg.getId()).stream()
+                        .filter(room -> !"103".equals(room.getRoomNumber()))
+                        .filter(room -> tenantProfileRepository.findByRoomId(room.getId()).isEmpty())
+                        .findFirst()
+                        .orElse(null));
         if (tenantRoom == null) return;
 
         if (tenantRoom.getStatus() != RoomStatus.OCCUPIED) {
@@ -107,19 +122,10 @@ public class DataInitializer {
             tenantRoom = roomRepository.save(tenantRoom);
         }
 
-        User tenant = userRepository.findByEmail("tenant@pgms.com")
-                .orElseGet(() -> User.builder().email("tenant@pgms.com").build());
-        tenant.setName("Seed Tenant");
-        tenant.setPhone("9999999997");
-        tenant.setPasswordHash(passwordEncoder.encode(AuthService.DEFAULT_USER_PASSWORD));
-        tenant.setRole(Role.TENANT);
-        tenant.setActive(true);
-        tenant.setFirstLogin(false);
-        tenant = userRepository.save(tenant);
-
+        User finalTenant = tenant;
         Room finalTenantRoom = tenantRoom;
-        TenantProfile tenantProfile = tenantProfileRepository.findByUserId(tenant.getId())
-                .orElseGet(() -> TenantProfile.builder().user(tenant).build());
+        TenantProfile tenantProfile = existingTenantProfile
+                .orElseGet(() -> TenantProfile.builder().user(finalTenant).build());
         tenantProfile.setPg(pg);
         tenantProfile.setRoom(finalTenantRoom);
         tenantProfile.setJoiningDate(LocalDate.now().minusMonths(2));
