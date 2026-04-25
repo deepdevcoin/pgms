@@ -12,8 +12,10 @@ import com.pgms.backend.entity.User;
 import com.pgms.backend.entity.enums.PaymentMethod;
 import com.pgms.backend.entity.enums.PaymentTransactionType;
 import com.pgms.backend.entity.enums.RentStatus;
+import com.pgms.backend.entity.enums.Role;
 import com.pgms.backend.entity.enums.TenantStatus;
 import com.pgms.backend.exception.BadRequestException;
+import com.pgms.backend.exception.ForbiddenException;
 import com.pgms.backend.exception.NotFoundException;
 import com.pgms.backend.repository.PaymentTransactionRepository;
 import com.pgms.backend.repository.RentRecordRepository;
@@ -139,7 +141,12 @@ public class PaymentService {
     public RentRecordResponse waiveFine(Long recordId, String reason) {
         RentRecord record = rentRecordRepository.findById(recordId)
                 .orElseThrow(() -> new NotFoundException("Rent record not found"));
-        accessControlService.ensureManagerAssignedToPg(record.getTenantProfile().getPg().getId());
+        Role currentRole = SecurityUtils.getCurrentUserRole();
+        if (currentRole == Role.MANAGER) {
+            accessControlService.ensureManagerAssignedToPg(record.getTenantProfile().getPg().getId());
+        } else if (currentRole != Role.OWNER) {
+            throw new ForbiddenException("You are not allowed to waive fines");
+        }
         reconcileRecord(record, LocalDate.now());
         double waivedAmount = record.getFineAccrued() != null ? record.getFineAccrued() : 0.0;
         if (waivedAmount <= 0) {

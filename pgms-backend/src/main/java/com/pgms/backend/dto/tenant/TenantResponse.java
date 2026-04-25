@@ -15,6 +15,7 @@ public class TenantResponse {
     private String email;
     private String phone;
     private Long pgId;
+    private String pgName;
     private Long roomId;
     private String roomNumber;
     private LocalDate joiningDate;
@@ -23,4 +24,5 @@ public class TenantResponse {
     private String kycDocPath;
     private Double creditWalletBalance;
     private TenantStatus status;
+    private Boolean isActive;
 }

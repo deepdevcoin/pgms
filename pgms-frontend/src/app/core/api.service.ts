@@ -104,6 +104,16 @@ export class ApiService {
     );
   }
 
+  updateRoomCleaningStatus(id: number, cleaningStatus: 'CLEAN' | 'DIRTY' | 'IN_PROGRESS'): Observable<Room> {
+    if (this.isDemo()) return this.mock.updateRoom(id, { cleaningStatus });
+    const endpoint = this.role() === 'OWNER'
+      ? environment.endpoints.rooms.ownerCleaningStatus
+      : environment.endpoints.rooms.managerCleaningStatus;
+    return this.put<unknown>(this.path(endpoint, { id }), { cleaningStatus }).pipe(
+      map(mapRoom)
+    );
+  }
+
   listManagers(): Observable<Manager[]> {
     const live = this.get<unknown>(environment.endpoints.managers.list).pipe(
       map(response => asCollection(response).map(mapManager))
@@ -165,7 +175,27 @@ export class ApiService {
     joiningDate: string;
     advanceAmountPaid: number;
   }): Observable<Tenant> {
-    return this.post<unknown>(environment.endpoints.tenants.create, payload).pipe(map(mapTenant));
+    if (this.isDemo()) return this.mock.createTenant(payload);
+    const path = this.role() === 'OWNER' ? environment.endpoints.tenants.ownerCreate : environment.endpoints.tenants.create;
+    return this.post<unknown>(path, payload).pipe(map(mapTenant));
+  }
+
+  moveTenant(tenantProfileId: number, roomId: number): Observable<Tenant> {
+    if (this.isDemo()) return this.mock.moveTenant(tenantProfileId, roomId);
+    const path = this.role() === 'OWNER' ? environment.endpoints.tenants.ownerMove : environment.endpoints.tenants.move;
+    return this.put<unknown>(this.path(path, { id: tenantProfileId }), { roomId }).pipe(map(mapTenant));
+  }
+
+  setTenantAccountStatus(tenantProfileId: number, active: boolean): Observable<Tenant> {
+    if (this.isDemo()) return this.mock.setTenantAccountStatus(tenantProfileId, active);
+    const path = this.role() === 'OWNER' ? environment.endpoints.tenants.ownerAccountStatus : environment.endpoints.tenants.accountStatus;
+    return this.put<unknown>(this.path(path, { id: tenantProfileId }), { active }).pipe(map(mapTenant));
+  }
+
+  archiveTenant(tenantProfileId: number): Observable<Tenant> {
+    if (this.isDemo()) return this.mock.archiveTenant(tenantProfileId);
+    const path = this.role() === 'OWNER' ? environment.endpoints.tenants.ownerArchive : environment.endpoints.tenants.archive;
+    return this.delete<unknown>(this.path(path, { id: tenantProfileId })).pipe(map(mapTenant));
   }
 
   createManager(payload: { name: string; email: string; phone: string; designation: string; pgIds: number[] }): Observable<Manager> {
@@ -226,7 +256,10 @@ export class ApiService {
 
   waiveFine(id: number, reason: string): Observable<RentRecord> {
     if (this.isDemo()) return this.mock.waiveFine(id, reason);
-    return this.put<RentRecord>(this.path(environment.endpoints.payments.waiveFine, { id }), { reason });
+    const endpoint = this.role() === 'OWNER'
+      ? environment.endpoints.payments.ownerWaiveFine
+      : environment.endpoints.payments.waiveFine;
+    return this.put<RentRecord>(this.path(endpoint, { id }), { reason });
   }
 
   listComplaints(): Observable<Complaint[]> {
@@ -463,7 +496,7 @@ export class ApiService {
   }
 
   private occupiedStatus(status: RoomStatus): boolean {
-    return status === 'OCCUPIED' || status === 'VACATING' || status === 'SUBLETTING';
+    return status === 'PARTIAL' || status === 'OCCUPIED' || status === 'VACATING' || status === 'SUBLETTING';
   }
 
   private url(path: string): string {

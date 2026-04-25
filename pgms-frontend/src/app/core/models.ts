@@ -1,6 +1,7 @@
 export type Role = 'OWNER' | 'MANAGER' | 'TENANT';
 
-export type RoomStatus = 'VACANT' | 'OCCUPIED' | 'SUBLETTING' | 'VACATING';
+export type RoomStatus = 'VACANT' | 'PARTIAL' | 'OCCUPIED' | 'SUBLETTING' | 'VACATING' | 'MAINTENANCE';
+export type CleaningStatus = 'CLEAN' | 'DIRTY' | 'IN_PROGRESS';
 export type SharingType = 'SINGLE' | 'DOUBLE' | 'TRIPLE' | 'DORM';
 
 export interface LoginResponse {
@@ -40,6 +41,7 @@ export interface Room {
   monthlyRent: number;
   depositAmount?: number;
   status: RoomStatus;
+  cleaningStatus?: CleaningStatus;
   occupants?: Tenant[];
   capacity?: number;
 }
@@ -60,6 +62,7 @@ export interface Tenant {
   kycDocPath?: string;
   creditWalletBalance?: number;
   status?: 'ACTIVE' | 'VACATING' | 'ARCHIVED';
+  isActive?: boolean;
 }
 
 export interface Manager {
@@ -105,7 +108,7 @@ export type PaymentMethod = 'ONLINE' | 'CASH' | 'WALLET' | 'ADJUSTMENT' | 'SYSTE
 export type PaymentTransactionType = 'RENT_CHARGE' | 'TENANT_PAYMENT' | 'MANAGER_CASH_COLLECTION' | 'WALLET_CREDIT_APPLIED' | 'FINE_WAIVER' | 'LATE_FEE_APPLIED';
 export type ComplaintStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'ESCALATED' | 'CLOSED';
 export type ComplaintCategory = 'MAINTENANCE' | 'NOISE' | 'HYGIENE' | 'FOOD' | 'OTHER' | 'AGAINST_MANAGER';
-export type VacateStatus = 'PENDING' | 'REFERRAL_APPROVED' | 'REFERRAL_REJECTED' | 'CHECKED_OUT';
+export type VacateStatus = 'PENDING' | 'REFERRAL_PENDING' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
 export type ServiceStatus = 'REQUESTED' | 'CONFIRMED' | 'COMPLETED' | 'REJECTED';
 export type ServiceType = 'ROOM_CLEANING' | 'LINEN_CHANGE' | 'PEST_CONTROL' | 'PLUMBING_INSPECTION' | 'ELECTRICAL_CHECK';
 export type AmenityType = 'WASHING_MACHINE' | 'TABLE_TENNIS' | 'CARROM' | 'BADMINTON';

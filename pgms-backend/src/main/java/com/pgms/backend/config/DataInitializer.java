@@ -68,6 +68,7 @@ public class DataInitializer {
         return args -> {
             authService.createSeedOwnerIfMissing();
             syncRoomStatusEnumIfNeeded(jdbcTemplate);
+            syncTenantProfileRoomIndexIfNeeded(jdbcTemplate);
             Pg seededPg = resolveOrCreateSamplePg(pgRepository);
             if (seededPg != null) {
                 seedSampleRoomsIfMissing(seededPg, roomRepository);
@@ -124,7 +125,10 @@ public class DataInitializer {
                 .map(profile -> roomRepository.findById(profile.getRoom().getId()).orElse(null))
                 .orElseGet(() -> roomRepository.findByPgId(pg.getId()).stream()
                         .filter(room -> !"103".equals(room.getRoomNumber()))
-                        .filter(room -> tenantProfileRepository.findByRoomId(room.getId()).isEmpty())
+                        .filter(room -> tenantProfileRepository.findByRoomIdAndStatusIn(
+                                room.getId(),
+                                List.of(TenantStatus.ACTIVE, TenantStatus.VACATING)
+                        ).size() < getCapacity(room.getSharingType()))
                         .findFirst()
                         .orElse(null));
         if (tenantRoom == null) return;
@@ -199,6 +203,67 @@ public class DataInitializer {
         }
     }
 
+    private void syncTenantProfileRoomIndexIfNeeded(JdbcTemplate jdbcTemplate) {
+        List<String> uniqueIndexes = jdbcTemplate.query(
+                """
+                SELECT DISTINCT INDEX_NAME
+                FROM INFORMATION_SCHEMA.STATISTICS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'tenant_profiles'
+                  AND COLUMN_NAME = 'room_id'
+                  AND NON_UNIQUE = 0
+                  AND INDEX_NAME <> 'PRIMARY'
+                """,
+                (rs, rowNum) -> rs.getString("INDEX_NAME")
+        );
+
+        if (uniqueIndexes.isEmpty()) {
+            return;
+        }
+
+        List<String> foreignKeys = jdbcTemplate.query(
+                """
+                SELECT DISTINCT CONSTRAINT_NAME
+                FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'tenant_profiles'
+                  AND COLUMN_NAME = 'room_id'
+                  AND REFERENCED_TABLE_NAME = 'rooms'
+                """,
+                (rs, rowNum) -> rs.getString("CONSTRAINT_NAME")
+        );
+
+        for (String foreignKey : foreignKeys) {
+            jdbcTemplate.execute("ALTER TABLE tenant_profiles DROP FOREIGN KEY `" + foreignKey + "`");
+        }
+
+        for (String indexName : uniqueIndexes) {
+            jdbcTemplate.execute("ALTER TABLE tenant_profiles DROP INDEX `" + indexName + "`");
+        }
+
+        Integer roomIndexes = jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM INFORMATION_SCHEMA.STATISTICS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'tenant_profiles'
+                  AND COLUMN_NAME = 'room_id'
+                """,
+                Integer.class
+        );
+
+        if (roomIndexes == null || roomIndexes == 0) {
+            jdbcTemplate.execute("CREATE INDEX idx_tenant_profiles_room_id ON tenant_profiles(room_id)");
+        }
+
+        if (!foreignKeys.isEmpty()) {
+            jdbcTemplate.execute(
+                    "ALTER TABLE tenant_profiles " +
+                            "ADD CONSTRAINT `" + foreignKeys.get(0) + "` FOREIGN KEY (room_id) REFERENCES rooms(id)"
+            );
+        }
+    }
+
     private Pg resolveOrCreateSamplePg(PgRepository pgRepository) {
         if (pgRepository.count() == 0) {
             return pgRepository.save(Pg.builder()
@@ -263,6 +328,15 @@ public class DataInitializer {
                 .status(status)
                 .cleaningStatus(cleaningStatus)
                 .build();
+    }
+
+    private int getCapacity(SharingType sharingType) {
+        return switch (sharingType) {
+            case SINGLE -> 1;
+            case DOUBLE -> 2;
+            case TRIPLE -> 3;
+            case DORM -> 6;
+        };
     }
 
     private void seedAmenitySlotsIfMissing(Pg pg, AmenitySlotRepository amenitySlotRepository) {

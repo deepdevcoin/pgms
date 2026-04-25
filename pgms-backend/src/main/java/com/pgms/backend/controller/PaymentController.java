@@ -85,7 +85,13 @@ public class PaymentController {
 
     @PutMapping("/api/manager/payments/{id}/waive-fine")
     @PreAuthorize("hasRole('MANAGER')")
-    public BaseResponse<RentRecordResponse> waiveFine(@PathVariable Long id, @Valid @RequestBody WaiveFineRequest request) {
+    public BaseResponse<RentRecordResponse> waiveFineManager(@PathVariable Long id, @Valid @RequestBody WaiveFineRequest request) {
+        return BaseResponse.success("Fine waived successfully", paymentService.waiveFine(id, request.getReason()));
+    }
+
+    @PutMapping("/api/owner/payments/{id}/waive-fine")
+    @PreAuthorize("hasRole('OWNER')")
+    public BaseResponse<RentRecordResponse> waiveFineOwner(@PathVariable Long id, @Valid @RequestBody WaiveFineRequest request) {
         return BaseResponse.success("Fine waived successfully", paymentService.waiveFine(id, request.getReason()));
     }
 }

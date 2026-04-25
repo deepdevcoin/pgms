@@ -11,7 +11,8 @@ public interface TenantProfileRepository extends JpaRepository<TenantProfile, Lo
     Optional<TenantProfile> findByUserId(Long userId);
     List<TenantProfile> findByPgId(Long pgId);
     List<TenantProfile> findByPgIdIn(List<Long> pgIds);
-    Optional<TenantProfile> findByRoomId(Long roomId);
+    List<TenantProfile> findByRoomId(Long roomId);
+    List<TenantProfile> findByRoomIdAndStatusIn(Long roomId, List<TenantStatus> statuses);
     List<TenantProfile> findByPgIdAndStatus(Long pgId, TenantStatus status);
     long countByStatus(TenantStatus status);
 }

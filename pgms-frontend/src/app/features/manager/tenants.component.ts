@@ -21,6 +21,11 @@ interface TenantFinanceView extends Tenant {
   overdueRecords: number;
 }
 
+interface TenantMoveForm {
+  pgId: number;
+  roomId: number;
+}
+
 @Component({
   selector: 'app-tenants',
   standalone: true,
@@ -53,10 +58,10 @@ interface TenantFinanceView extends Tenant {
             @for (pg of pgs(); track pg.id) { <option [ngValue]="pg.id">{{ pg.name }}</option> }
           </select>
         </label>
-        <label class="fld wide"><span>Vacant room</span>
+        <label class="fld wide"><span>Available room</span>
           <select [(ngModel)]="form.roomId" name="roomId" required>
             @for (room of vacantRooms(); track room.id) {
-              <option [ngValue]="room.id">{{ room.roomNumber }} · Floor {{ room.floor }} · {{ room.sharingType }} · {{ money(room.monthlyRent) }}</option>
+              <option [ngValue]="room.id">{{ roomLabel(room) }}</option>
             }
           </select>
         </label>
@@ -74,7 +79,7 @@ interface TenantFinanceView extends Tenant {
 
     <div class="list" data-testid="tenants-list">
       @for (t of filteredTenants(); track t.tenantProfileId || t.userId) {
-        <button class="row" (click)="selected.set(t)" [attr.data-testid]="'tenant-row-' + t.userId">
+        <button class="row" (click)="selectTenant(t)" [attr.data-testid]="'tenant-row-' + t.userId">
           <div class="avatar" [style.background]="color(t.name)">{{ initials(t.name) }}</div>
           <div class="info">
             <div class="name">{{ t.name }}</div>
@@ -105,6 +110,7 @@ interface TenantFinanceView extends Tenant {
           </div>
           <div class="right">
             <div class="pill dot" [class.pill--occupied]="t.status === 'ACTIVE'" [class.pill--vacating]="t.status === 'VACATING'">{{ t.status }}</div>
+            <div class="pill dot" [class.pill--occupied]="t.isActive !== false" [class.pill--vacating]="t.isActive === false">{{ t.isActive === false ? 'Login disabled' : 'Login active' }}</div>
             <div class="wallet">
               <span>Wallet</span>
               <strong>{{ money(t.creditWalletBalance || 0) }}</strong>
@@ -117,7 +123,7 @@ interface TenantFinanceView extends Tenant {
     </div>
 
     @if (selected(); as tenant) {
-      <div class="backdrop" (click)="selected.set(null)"></div>
+      <div class="backdrop" (click)="closeSelected()"></div>
       <aside class="drawer card">
         <header>
           <div>
@@ -125,7 +131,7 @@ interface TenantFinanceView extends Tenant {
             <h2>{{ tenant.name }}</h2>
             <p class="sub">{{ tenant.pgName || pgName(tenant.pgId) }} · Room {{ tenant.roomNumber || tenant.roomId || '-' }}</p>
           </div>
-          <button class="icon" (click)="selected.set(null)"><mat-icon>close</mat-icon></button>
+          <button class="icon" (click)="closeSelected()"><mat-icon>close</mat-icon></button>
         </header>
 
         <div class="finance-panel">
@@ -166,9 +172,9 @@ interface TenantFinanceView extends Tenant {
             <span>Wallet balance</span>
             <strong>{{ money(tenant.creditWalletBalance || 0) }}</strong>
           </div>
-          <div class="metric-card">
-            <span>KYC</span>
-            <strong>{{ tenant.kycDocType || 'Pending' }}</strong>
+          <div class="metric-card" [class.metric-card--warn]="tenant.isActive === false">
+            <span>Account access</span>
+            <strong>{{ tenant.isActive === false ? 'Disabled' : 'Active' }}</strong>
           </div>
         </div>
 
@@ -180,6 +186,70 @@ interface TenantFinanceView extends Tenant {
           <div><span>Deposit target</span><strong>{{ money(tenant.depositAmount) }}</strong></div>
           <div><span>Overdue records</span><strong>{{ tenant.overdueRecords }}</strong></div>
         </div>
+
+        @if (canManage()) {
+          <div class="manage">
+            <div class="manage-head">
+              <div class="crumb">Lifecycle</div>
+              <h3>Tenant controls</h3>
+              <p class="sub">Move the tenant, control login access, or archive them when they leave.</p>
+            </div>
+            <div class="control-list">
+              <button class="control-row" type="button" (click)="openMove(tenant)" [disabled]="actionSaving() || tenant.status === 'ARCHIVED'">
+                <span class="control-icon"><mat-icon>swap_horiz</mat-icon></span>
+                <span class="control-copy">
+                  <strong>Move tenant</strong>
+                  <small>Reassign this tenant to another room or PG.</small>
+                </span>
+                <mat-icon class="control-arrow">chevron_right</mat-icon>
+              </button>
+              <button class="control-row" type="button" (click)="toggleTenantAccount(tenant)" [disabled]="actionSaving() || tenant.status === 'ARCHIVED'">
+                <span class="control-icon"><mat-icon>{{ tenant.isActive === false ? 'lock_open' : 'block' }}</mat-icon></span>
+                <span class="control-copy">
+                  <strong>{{ tenant.isActive === false ? 'Activate login' : 'Deactivate login' }}</strong>
+                  <small>{{ tenant.isActive === false ? 'Restore access to the tenant portal.' : 'Temporarily block tenant sign in without removing records.' }}</small>
+                </span>
+                <mat-icon class="control-arrow">chevron_right</mat-icon>
+              </button>
+              <button class="control-row control-row--danger" type="button" (click)="archiveTenant(tenant)" [disabled]="actionSaving() || tenant.status === 'ARCHIVED'">
+                <span class="control-icon"><mat-icon>person_remove</mat-icon></span>
+                <span class="control-copy">
+                  <strong>{{ tenant.status === 'ARCHIVED' ? 'Archived' : 'Archive tenant' }}</strong>
+                  <small>Remove this tenant from the active roster and disable future access.</small>
+                </span>
+                <mat-icon class="control-arrow">chevron_right</mat-icon>
+              </button>
+            </div>
+
+            @if (moveOpen()) {
+              <form class="move-form" (ngSubmit)="saveMove(tenant)">
+                <label class="fld fld--compact">
+                  <span>Target PG</span>
+                  <select [(ngModel)]="moveForm.pgId" name="movePgId" (ngModelChange)="onMovePgChange($event)">
+                    @for (pg of pgs(); track pg.id) {
+                      <option [ngValue]="pg.id">{{ pg.name }}</option>
+                    }
+                  </select>
+                </label>
+                <label class="fld fld--compact">
+                  <span>Target room</span>
+                  <select [(ngModel)]="moveForm.roomId" name="moveRoomId" required>
+                    @for (room of moveRoomOptions(); track room.id) {
+                      <option [ngValue]="room.id">{{ roomLabel(room) }}</option>
+                    }
+                  </select>
+                </label>
+                <div class="move-actions">
+                  <button class="btn btn--ghost" type="button" (click)="moveOpen.set(false)">Cancel</button>
+                  <button class="btn btn--primary" type="submit" [disabled]="actionSaving() || !moveForm.roomId">
+                    <mat-icon>check</mat-icon>
+                    <span>{{ actionSaving() ? 'Moving...' : 'Confirm move' }}</span>
+                  </button>
+                </div>
+              </form>
+            }
+          </div>
+        }
       </aside>
     }
   </section>
@@ -188,13 +258,15 @@ interface TenantFinanceView extends Tenant {
     .tenants { display: flex; flex-direction: column; gap: 18px; }
     .head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
     .crumb { font-size: 11px; color: var(--primary); letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; }
-    h1, h2 { margin: 6px 0 2px; letter-spacing: -0.02em; }
+    h1, h2, h3 { margin: 6px 0 2px; letter-spacing: -0.02em; }
     h1 { font-size: 28px; }
     h2 { font-size: 24px; }
+    h3 { font-size: 20px; }
     .sub { color: var(--text-muted); font-size: 13px; margin: 0; }
     .form { display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 12px; padding: 16px; align-items: end; }
     @media (max-width: 960px) { .form { grid-template-columns: 1fr; } }
     .fld { display: flex; flex-direction: column; gap: 6px; }
+    .fld--compact { gap: 5px; }
     .fld.wide { grid-column: span 2; }
     .fld span { font-size: 11px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; }
     input, select { background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 10px 12px; font-family: inherit; }
@@ -215,7 +287,7 @@ interface TenantFinanceView extends Tenant {
     .finance-pill strong { font-size: 14px; font-family: var(--font-mono); }
     .finance-pill--warn { border-color: rgba(251,191,36,0.24); background: rgba(251,191,36,0.08); }
     .finance-pill--danger { border-color: rgba(248,113,113,0.26); background: rgba(248,113,113,0.08); }
-    .right { display: grid; gap: 10px; justify-items: end; min-width: 120px; }
+    .right { display: grid; gap: 10px; justify-items: end; min-width: 140px; }
     .wallet { display: grid; gap: 3px; text-align: right; }
     .wallet span { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
     .wallet strong { font-family: var(--font-mono); font-size: 14px; }
@@ -234,6 +306,22 @@ interface TenantFinanceView extends Tenant {
     .stats div { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: grid; gap: 4px; }
     .stats span { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
     .stats strong { font-family: var(--font-mono); font-size: 15px; }
+    .manage { margin-top: 18px; padding: 18px; background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)); border: 1px solid var(--border); border-radius: 14px; display: grid; gap: 14px; }
+    .control-list { display: grid; gap: 10px; }
+    .control-row { width: 100%; display: grid; grid-template-columns: 36px 1fr 18px; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: rgba(255,255,255,0.02); color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+    .control-row:hover:not(:disabled) { border-color: rgba(99,102,241,0.35); background: rgba(99,102,241,0.08); }
+    .control-row:disabled { opacity: 0.6; cursor: not-allowed; }
+    .control-row--danger { border-color: rgba(248,113,113,0.16); }
+    .control-row--danger:hover:not(:disabled) { border-color: rgba(248,113,113,0.34); background: rgba(248,113,113,0.08); }
+    .control-icon { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: rgba(255,255,255,0.05); color: var(--text); }
+    .control-copy { min-width: 0; display: grid; gap: 2px; }
+    .control-copy strong { font-size: 13px; }
+    .control-copy small { color: var(--text-muted); font-size: 12px; line-height: 1.4; }
+    .control-arrow { color: var(--text-muted); font-size: 18px; width: 18px; height: 18px; }
+    .move-form { display: grid; grid-template-columns: 1fr; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,0.02); }
+    .move-form select { width: 100%; min-width: 0; }
+    .move-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 4px; }
+    .btn--danger { background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.28); color: #fca5a5; }
     @media (max-width: 1080px) {
       .finance-strip { grid-template-columns: 1fr 1fr; }
     }
@@ -241,7 +329,7 @@ interface TenantFinanceView extends Tenant {
       .row { grid-template-columns: 44px 1fr; }
       .right { grid-column: 2; justify-items: start; min-width: 0; }
       .wallet { text-align: left; }
-      .finance-panel, .stats { grid-template-columns: 1fr; }
+      .finance-panel, .stats, .move-form { grid-template-columns: 1fr; }
     }
   `]
 })
@@ -257,13 +345,21 @@ export class TenantsComponent {
   selected = signal<TenantFinanceView | null>(null);
   showForm = signal(false);
   saving = signal(false);
+  actionSaving = signal(false);
+  moveOpen = signal(false);
   query = '';
   selectedPgId = 0;
   form = this.blankForm();
+  moveForm: TenantMoveForm = { pgId: 0, roomId: 0 };
 
-  canOnboard = computed(() => this.auth.role() === 'MANAGER');
+  canManage = computed(() => this.auth.role() === 'MANAGER' || this.auth.role() === 'OWNER');
+  canOnboard = computed(() => this.canManage());
   subtitle = computed(() => `${this.tenants().length} tenants ${this.auth.role() === 'OWNER' ? 'across your portfolio' : 'across your assigned PGs'}.`);
-  vacantRooms = computed(() => this.rooms().filter(room => room.status === 'VACANT'));
+  vacantRooms = computed(() => this.rooms().filter(room => this.hasAvailableBed(room)));
+  moveRoomOptions = computed(() => this.allRooms()
+    .filter(room => room.pgId === this.moveForm.pgId)
+    .filter(room => room.id !== this.selected()?.roomId)
+    .filter(room => this.hasAvailableBed(room)));
   filteredTenants = computed(() => {
     const q = this.query.toLowerCase().trim();
     return q ? this.tenants().filter(t => JSON.stringify(t).toLowerCase().includes(q)) : this.tenants();
@@ -297,7 +393,27 @@ export class TenantsComponent {
           })
         );
       })
-    ).subscribe({ next: tenants => this.tenants.set(tenants) });
+    ).subscribe({
+      next: tenants => {
+        this.tenants.set(tenants);
+        this.form.roomId = this.vacantRooms()[0]?.id || 0;
+        const selectedId = this.selected()?.tenantProfileId;
+        if (selectedId) {
+          this.selected.set(tenants.find(tenant => tenant.tenantProfileId === selectedId) || null);
+        }
+      }
+    });
+  }
+
+  selectTenant(tenant: TenantFinanceView) {
+    this.selected.set(tenant);
+    this.moveOpen.set(false);
+    this.moveForm = { pgId: tenant.pgId || this.pgs()[0]?.id || 0, roomId: 0 };
+  }
+
+  closeSelected() {
+    this.selected.set(null);
+    this.moveOpen.set(false);
   }
 
   loadRooms(pgId: number) {
@@ -336,6 +452,67 @@ export class TenantsComponent {
     });
   }
 
+  openMove(tenant: TenantFinanceView) {
+    this.moveOpen.set(true);
+    this.moveForm.pgId = tenant.pgId || this.pgs()[0]?.id || 0;
+    this.onMovePgChange(this.moveForm.pgId);
+  }
+
+  onMovePgChange(pgId: number) {
+    this.moveForm.pgId = pgId;
+    this.moveForm.roomId = this.moveRoomOptions()[0]?.id || 0;
+  }
+
+  saveMove(tenant: TenantFinanceView) {
+    if (!tenant.tenantProfileId || !this.moveForm.roomId) return;
+    this.actionSaving.set(true);
+    this.api.moveTenant(tenant.tenantProfileId, this.moveForm.roomId).subscribe({
+      next: () => {
+        this.actionSaving.set(false);
+        this.moveOpen.set(false);
+        this.snack.open('Tenant moved successfully', 'OK', { duration: 2200, panelClass: 'pgms-snack' });
+        this.loadTenants();
+      },
+      error: err => {
+        this.actionSaving.set(false);
+        this.snack.open(err?.message || 'Could not move tenant', 'Dismiss', { duration: 3200, panelClass: 'pgms-snack' });
+      }
+    });
+  }
+
+  toggleTenantAccount(tenant: TenantFinanceView) {
+    if (!tenant.tenantProfileId) return;
+    this.actionSaving.set(true);
+    this.api.setTenantAccountStatus(tenant.tenantProfileId, tenant.isActive === false).subscribe({
+      next: () => {
+        this.actionSaving.set(false);
+        this.snack.open(`Tenant login ${tenant.isActive === false ? 'activated' : 'deactivated'}`, 'OK', { duration: 2200, panelClass: 'pgms-snack' });
+        this.loadTenants();
+      },
+      error: err => {
+        this.actionSaving.set(false);
+        this.snack.open(err?.message || 'Could not update tenant account', 'Dismiss', { duration: 3200, panelClass: 'pgms-snack' });
+      }
+    });
+  }
+
+  archiveTenant(tenant: TenantFinanceView) {
+    if (!tenant.tenantProfileId) return;
+    this.actionSaving.set(true);
+    this.api.archiveTenant(tenant.tenantProfileId).subscribe({
+      next: () => {
+        this.actionSaving.set(false);
+        this.closeSelected();
+        this.snack.open('Tenant archived and removed from the active roster', 'OK', { duration: 2400, panelClass: 'pgms-snack' });
+        this.loadTenants();
+      },
+      error: err => {
+        this.actionSaving.set(false);
+        this.snack.open(err?.message || 'Could not archive tenant', 'Dismiss', { duration: 3200, panelClass: 'pgms-snack' });
+      }
+    });
+  }
+
   blankForm() {
     return {
       name: '',
@@ -349,6 +526,10 @@ export class TenantsComponent {
 
   pgName(pgId?: number): string {
     return this.pgs().find(pg => pg.id === pgId)?.name || 'PG';
+  }
+
+  roomLabel(room: Room): string {
+    return `${room.roomNumber} · Floor ${room.floor} · ${room.sharingType} · ${this.bedOccupancyLabel(room)} · ${this.money(room.monthlyRent)}`;
   }
 
   money(value: number): string {
@@ -380,12 +561,40 @@ export class TenantsComponent {
         currentFine: currentRecord?.fineAccrued || 0,
         totalRentPaid: tenantPayments.reduce((sum, record) => sum + (record.amountPaid || 0), 0),
         totalRentOutstanding: tenantPayments.reduce((sum, record) => sum + (record.remainingAmountDue || 0), 0),
-        overdueRecords: tenantPayments.filter(record => record.status === 'OVERDUE').length
+        overdueRecords: tenantPayments.filter(record => record.status === 'OVERDUE').length,
+        isActive: tenant.isActive !== false
       };
     });
   }
 
   initials(n: string) { return n.split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase(); }
+
+  private hasAvailableBed(room: Room): boolean {
+    const status = room.status;
+    if (status === 'MAINTENANCE' || status === 'VACATING' || status === 'SUBLETTING') {
+      return false;
+    }
+    return this.currentOccupancy(room.id) < this.roomCapacity(room);
+  }
+
+  private bedOccupancyLabel(room: Room): string {
+    return `${this.currentOccupancy(room.id)}/${this.roomCapacity(room)} beds`;
+  }
+
+  private currentOccupancy(roomId: number): number {
+    return this.tenants().filter(tenant =>
+      tenant.roomId === roomId && tenant.status !== 'ARCHIVED'
+    ).length;
+  }
+
+  private roomCapacity(room: Room): number {
+    switch (room.sharingType) {
+      case 'SINGLE': return 1;
+      case 'DOUBLE': return 2;
+      case 'TRIPLE': return 3;
+      case 'DORM': return 6;
+    }
+  }
 
   color(n: string) {
     const colors = ['linear-gradient(135deg,#818cf8,#6366f1)', 'linear-gradient(135deg,#34d399,#10b981)', 'linear-gradient(135deg,#f472b6,#db2777)', 'linear-gradient(135deg,#a78bfa,#7c3aed)', 'linear-gradient(135deg,#fbbf24,#d97706)', 'linear-gradient(135deg,#60a5fa,#2563eb)'];

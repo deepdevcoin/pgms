@@ -1,12 +1,13 @@
 import {
-  LoginResponse, Manager, ManagerSummary, OwnerSummary, PaymentOverview, PaymentSummary,
+  CleaningStatus, LoginResponse, Manager, ManagerSummary, OwnerSummary, PaymentOverview, PaymentSummary,
   PaymentTransaction, PG, Role, Room, RoomStatus, SharingType, Tenant, RentRecord
 } from './models';
 
 type AnyRecord = Record<string, unknown>;
 
 const roles: Role[] = ['OWNER', 'MANAGER', 'TENANT'];
-const roomStatuses: RoomStatus[] = ['VACANT', 'OCCUPIED', 'SUBLETTING', 'VACATING'];
+const roomStatuses: RoomStatus[] = ['VACANT', 'PARTIAL', 'OCCUPIED', 'SUBLETTING', 'VACATING', 'MAINTENANCE'];
+const cleaningStatuses: CleaningStatus[] = ['CLEAN', 'DIRTY', 'IN_PROGRESS'];
 const sharingTypes: SharingType[] = ['SINGLE', 'DOUBLE', 'TRIPLE', 'DORM'];
 const tenantStatuses = ['ACTIVE', 'VACATING', 'ARCHIVED'] as const;
 
@@ -61,8 +62,9 @@ function enumValue<T extends string>(source: unknown, keys: string[], allowed: r
 function roomStatus(source: unknown, occupants: Tenant[]): RoomStatus {
   const raw = text(source, ['status', 'roomStatus', 'availabilityStatus'], '').toUpperCase().replace(/[\s-]+/g, '_');
   if (raw === 'AVAILABLE') return 'VACANT';
-  if (raw === 'FULL' || raw === 'PARTIAL') return occupants.some(tenant => tenant.status === 'VACATING') ? 'VACATING' : 'OCCUPIED';
-  if (raw === 'MAINTENANCE') return 'VACANT';
+  if (raw === 'PARTIAL') return occupants.some(tenant => tenant.status === 'VACATING') ? 'VACATING' : 'PARTIAL';
+  if (raw === 'FULL') return occupants.some(tenant => tenant.status === 'VACATING') ? 'VACATING' : 'OCCUPIED';
+  if (raw === 'MAINTENANCE') return 'MAINTENANCE';
   return roomStatuses.includes(raw as RoomStatus) ? raw as RoomStatus : occupants.length ? 'OCCUPIED' : 'VACANT';
 }
 
@@ -136,6 +138,7 @@ export function mapRoom(source: unknown): Room {
     monthlyRent: numberValue(source, ['monthlyRent', 'rent', 'price'], 0),
     depositAmount: optionalNumber(source, ['depositAmount', 'deposit']),
     status,
+    cleaningStatus: enumValue(source, ['cleaningStatus', 'housekeepingStatus'], cleaningStatuses, 'CLEAN'),
     capacity: optionalNumber(source, ['capacity', 'beds', 'bedCount']),
     occupants
   };
@@ -173,7 +176,8 @@ export function mapTenant(source: unknown): Tenant {
     joiningDate: text(source, ['joiningDate', 'joinedOn', 'moveInDate'], ''),
     advanceAmountPaid: numberValue(source, ['advanceAmountPaid', 'advance', 'deposit'], 0),
     creditWalletBalance: numberValue(source, ['creditWalletBalance', 'walletBalance', 'credits'], 0),
-    status: enumValue(source, ['status', 'tenantStatus'], tenantStatuses, 'ACTIVE')
+    status: enumValue(source, ['status', 'tenantStatus'], tenantStatuses, 'ACTIVE'),
+    isActive: booleanValue(source, ['isActive', 'active', 'enabled'], true)
   };
 }
 

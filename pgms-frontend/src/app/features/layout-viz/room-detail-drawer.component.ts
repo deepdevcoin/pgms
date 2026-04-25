@@ -4,14 +4,13 @@ import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { ApiService } from '../../core/api.service';
-import { Room, RoomStatus, SharingType } from '../../core/models';
+import { CleaningStatus, Room } from '../../core/models';
 
 @Component({
     selector: 'app-room-detail-drawer',
     standalone: true,
-    imports: [CommonModule, FormsModule, MatIconModule, MatSelectModule, MatFormFieldModule, MatSlideToggleModule],
+    imports: [CommonModule, FormsModule, MatIconModule, MatSelectModule, MatFormFieldModule],
     template: `
   @if (room) {
     <div class="backdrop" (click)="close()"></div>
@@ -67,45 +66,28 @@ import { Room, RoomStatus, SharingType } from '../../core/models';
             <div class="stat-label">Capacity</div>
             <div class="stat-value">{{ room.capacity || '-' }}</div>
           </div>
+          <div class="stat">
+            <div class="stat-label">Cleaning</div>
+            <div class="stat-value stat-value--sm">{{ room.cleaningStatus || 'CLEAN' }}</div>
+          </div>
         </div>
       </div>
 
       @if (canEdit) {
         <div class="block edit-block">
-          <div class="block-title">Manager actions</div>
+          <div class="block-title">Manager action</div>
 
           <label class="fld">
-            <span>Status</span>
-            <select [(ngModel)]="editStatus" name="status" data-testid="edit-status">
-              <option value="VACANT">VACANT</option>
-              <option value="OCCUPIED">OCCUPIED</option>
-              <option value="VACATING">VACATING</option>
-              <option value="SUBLETTING">SUBLETTING</option>
+            <span>Cleaning status</span>
+            <select [(ngModel)]="editCleaningStatus" name="cleaningStatus" data-testid="edit-cleaning-status">
+              <option value="CLEAN">CLEAN</option>
+              <option value="DIRTY">DIRTY</option>
+              <option value="IN_PROGRESS">IN PROGRESS</option>
             </select>
-          </label>
-
-          <label class="fld">
-            <span>Sharing type</span>
-            <select [(ngModel)]="editSharing" name="sharing" data-testid="edit-sharing">
-              <option value="SINGLE">SINGLE</option>
-              <option value="DOUBLE">DOUBLE</option>
-              <option value="TRIPLE">TRIPLE</option>
-              <option value="DORM">DORM</option>
-            </select>
-          </label>
-
-          <label class="fld">
-            <span>Monthly rent (₹)</span>
-            <input type="number" [(ngModel)]="editRent" name="rent" data-testid="edit-rent"/>
-          </label>
-
-          <label class="fld toggle">
-            <span>Air-conditioned</span>
-            <mat-slide-toggle [(ngModel)]="editAc" name="ac" data-testid="edit-ac"></mat-slide-toggle>
           </label>
 
           <button class="btn btn--primary" (click)="save()" [disabled]="saving()" data-testid="drawer-save">
-            {{ saving() ? 'Saving…' : 'Save changes' }}
+            {{ saving() ? 'Saving…' : 'Update cleaning status' }}
           </button>
         </div>
       }
@@ -129,6 +111,7 @@ import { Room, RoomStatus, SharingType } from '../../core/models';
     .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .stat-label { font-size: 11px; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
     .stat-value { font-size: 22px; font-weight: 700; font-family: var(--font-mono); }
+    .stat-value--sm { font-size: 16px; }
     .occ-list { display: flex; flex-direction: column; gap: 8px; }
     .occ { display: flex; align-items: center; gap: 12px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; }
     .avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg,#818cf8,#6366f1); color: white; display: grid; place-items: center; font-weight: 700; font-size: 12px; }
@@ -139,7 +122,6 @@ import { Room, RoomStatus, SharingType } from '../../core/models';
     .fld span { font-size: 12px; color: var(--text-muted); font-weight: 500; }
     .fld input, .fld select { background: var(--bg); border: 1px solid var(--border); color: var(--text); font-family: inherit; padding: 10px 12px; border-radius: 10px; font-size: 13px; outline: none; }
     .fld input:focus, .fld select:focus { border-color: var(--primary); }
-    .fld.toggle { flex-direction: row; align-items: center; justify-content: space-between; }
     .edit-block button { margin-top: 6px; }
     .pill--active { background: var(--status-occupied-bg); color: var(--status-occupied-text); border-color: var(--status-occupied-border); }
   `]
@@ -151,18 +133,12 @@ export class RoomDetailDrawerComponent {
     @Output() closed = new EventEmitter<void>();
     @Output() updated = new EventEmitter<Room>();
 
-    editStatus: RoomStatus = 'VACANT';
-    editSharing: SharingType = 'SINGLE';
-    editRent = 0;
-    editAc = false;
+    editCleaningStatus: CleaningStatus = 'CLEAN';
     saving = signal(false);
 
     ngOnChanges() {
         if (this.room) {
-            this.editStatus = this.room.status;
-            this.editSharing = this.room.sharingType;
-            this.editRent = this.room.monthlyRent;
-            this.editAc = this.room.isAC;
+            this.editCleaningStatus = this.room.cleaningStatus || 'CLEAN';
         }
     }
 
@@ -171,9 +147,7 @@ export class RoomDetailDrawerComponent {
     save() {
         if (!this.room) return;
         this.saving.set(true);
-        this.api.updateRoom(this.room.id, {
-            status: this.editStatus, sharingType: this.editSharing, monthlyRent: this.editRent, isAC: this.editAc
-        }).subscribe({
+        this.api.updateRoomCleaningStatus(this.room.id, this.editCleaningStatus).subscribe({
             next: (r) => { this.saving.set(false); this.updated.emit(r); },
             error: () => { this.saving.set(false); }
         });

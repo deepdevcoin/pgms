@@ -144,25 +144,24 @@ export function buildModuleActions(role: Role | null, handlers: OperationsAction
     payments: [
       { label: 'Pay', icon: 'payments', show: row => role === 'TENANT' && row['remainingAmountDue'] > 0, run: handlers.payRent },
       { label: 'Use wallet', icon: 'account_balance_wallet', show: row => role === 'TENANT' && row['remainingAmountDue'] > 0 && row['walletAvailable'] > 0, run: handlers.applyCredit },
-      { label: 'Waive fine', icon: 'money_off', show: row => role === 'MANAGER' && row['fineAccrued'] > 0, run: handlers.waiveFine }
+      { label: 'Waive fine', icon: 'money_off', show: row => (role === 'MANAGER' || role === 'OWNER') && row['fineAccrued'] > 0, run: handlers.waiveFine }
     ],
     complaints: [
-      { label: 'In progress', icon: 'hourglass_top', show: row => role !== 'TENANT' && row['status'] !== 'RESOLVED', run: handlers.complaintInProgress },
-      { label: 'Resolve', icon: 'task_alt', show: row => role !== 'TENANT' && row['status'] !== 'RESOLVED', run: handlers.complaintResolve },
-      { label: 'Read', icon: 'visibility', show: () => false, run: () => undefined }
+      { label: 'In progress', icon: 'hourglass_top', show: row => role !== 'TENANT' && (row['status'] === 'OPEN' || row['status'] === 'ESCALATED'), run: handlers.complaintInProgress },
+      { label: 'Resolve', icon: 'task_alt', show: row => role !== 'TENANT' && row['status'] !== 'RESOLVED', run: handlers.complaintResolve }
     ],
     notices: [
       { label: 'Mark read', icon: 'done_all', show: row => !row['read'], run: handlers.noticeMarkRead },
       { label: 'Receipts', icon: 'visibility', show: () => role !== 'TENANT', run: handlers.noticeReceipts }
     ],
     vacate: [
-      { label: 'Approve referral', icon: 'how_to_reg', show: row => role === 'MANAGER' && row['referralName'] && row['status'] === 'PENDING', run: handlers.vacateApprove },
-      { label: 'Reject referral', icon: 'person_remove', show: row => role === 'MANAGER' && row['referralName'] && row['status'] === 'PENDING', run: handlers.vacateReject },
-      { label: 'Checkout', icon: 'logout', show: row => role === 'MANAGER' && row['status'] !== 'CHECKED_OUT', run: handlers.vacateCheckout }
+      { label: 'Approve referral', icon: 'how_to_reg', show: row => role === 'MANAGER' && row['referralName'] && row['status'] === 'REFERRAL_PENDING', run: handlers.vacateApprove },
+      { label: 'Reject referral', icon: 'person_remove', show: row => role === 'MANAGER' && row['referralName'] && row['status'] === 'REFERRAL_PENDING', run: handlers.vacateReject },
+      { label: 'Checkout', icon: 'logout', show: row => role === 'MANAGER' && row['status'] !== 'COMPLETED' && row['status'] !== 'REFERRAL_PENDING', run: handlers.vacateCheckout }
     ],
     services: [
       { label: 'Confirm', icon: 'event_available', show: row => role === 'MANAGER' && row['status'] === 'REQUESTED', run: handlers.serviceConfirm },
-      { label: 'Complete', icon: 'task_alt', show: row => role === 'MANAGER' && row['status'] !== 'COMPLETED', run: handlers.serviceComplete },
+      { label: 'Complete', icon: 'task_alt', show: row => role === 'MANAGER' && row['status'] === 'CONFIRMED', run: handlers.serviceComplete },
       { label: 'Rate', icon: 'star', show: row => role === 'TENANT' && row['status'] === 'COMPLETED' && !row['rating'], run: handlers.serviceRate }
     ],
     amenities: [

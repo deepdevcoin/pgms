@@ -25,6 +25,10 @@
   --status-occupied-border: rgba(129, 140, 248, 0.5);
   --status-occupied-text: #a5b4fc;
 
+  --status-partial-bg: rgba(56, 189, 248, 0.12);
+  --status-partial-border: rgba(56, 189, 248, 0.48);
+  --status-partial-text: #7dd3fc;
+
   --status-vacating-bg: rgba(251, 191, 36, 0.14);
   --status-vacating-border: rgba(251, 191, 36, 0.55);
   --status-vacating-text: #fcd34d;
@@ -92,6 +96,7 @@ a { color: inherit; text-decoration: none; }
   background: currentColor;
 }
 .pill--vacant { background: var(--status-vacant-bg); border-color: var(--status-vacant-border); color: var(--status-vacant-text); }
+.pill--partial { background: var(--status-partial-bg); border-color: var(--status-partial-border); color: var(--status-partial-text); }
 .pill--occupied { background: var(--status-occupied-bg); border-color: var(--status-occupied-border); color: var(--status-occupied-text); }
 .pill--vacating { background: var(--status-vacating-bg); border-color: var(--status-vacating-border); color: var(--status-vacating-text); }
 .pill--subletting { background: var(--status-subletting-bg); border-color: var(--status-subletting-border); color: var(--status-subletting-text); }

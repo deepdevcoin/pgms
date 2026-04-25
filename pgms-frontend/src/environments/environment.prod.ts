@@ -20,6 +20,8 @@ export const environment = {
       ownerLayoutByPg: '/owner/pgs/:pgId/layout',
       managerLayoutByPg: '/manager/pgs/:pgId/layout',
       update: '/manager/rooms/:id',
+      managerCleaningStatus: '/manager/rooms/:id/cleaning-status',
+      ownerCleaningStatus: '/owner/rooms/:id/cleaning-status',
       create: '/owner/pgs/:pgId/rooms'
     },
     managers: {
@@ -31,7 +33,14 @@ export const environment = {
       list: '/manager/tenants',
       ownerList: '/owner/tenants',
       profile: '/tenant/profile',
-      create: '/manager/tenants'
+      create: '/manager/tenants',
+      ownerCreate: '/owner/tenants',
+      move: '/manager/tenants/:id/move',
+      ownerMove: '/owner/tenants/:id/move',
+      accountStatus: '/manager/tenants/:id/account-status',
+      ownerAccountStatus: '/owner/tenants/:id/account-status',
+      archive: '/manager/tenants/:id',
+      ownerArchive: '/owner/tenants/:id'
     },
     analytics: {
       ownerSummary: '/analytics/owner-summary',
@@ -47,7 +56,8 @@ export const environment = {
       owner: '/owner/payments',
       ownerOverview: '/owner/payments/overview',
       cash: '/manager/payments/cash',
-      waiveFine: '/manager/payments/:id/waive-fine'
+      waiveFine: '/manager/payments/:id/waive-fine',
+      ownerWaiveFine: '/owner/payments/:id/waive-fine'
     },
     complaints: {
       tenant: '/tenant/complaints',

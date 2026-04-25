@@ -62,8 +62,12 @@ type ACFilter = 'ALL' | 'AC' | 'NON_AC';
         <div class="kpi-label">Vacant rooms</div>
         <div class="kpi-value big vacant">{{ count('VACANT') }}</div>
       </div>
+      <div class="kpi" data-testid="kpi-partial">
+        <div class="kpi-label">Partial</div>
+        <div class="kpi-value big partial">{{ count('PARTIAL') }}</div>
+      </div>
       <div class="kpi" data-testid="kpi-occupied">
-        <div class="kpi-label">Occupied</div>
+        <div class="kpi-label">Full rooms</div>
         <div class="kpi-value big occupied">{{ count('OCCUPIED') }}</div>
       </div>
       <div class="kpi" data-testid="kpi-vacating">
@@ -104,6 +108,7 @@ type ACFilter = 'ALL' | 'AC' | 'NON_AC';
         <div class="legend" data-testid="legend">
           <div class="rail-title">Legend</div>
           <div class="lg"><span class="dot s-vacant"></span>Vacant</div>
+          <div class="lg"><span class="dot s-partial"></span>Partial</div>
           <div class="lg"><span class="dot s-occupied"></span>Occupied</div>
           <div class="lg"><span class="dot s-vacating"></span>Vacating</div>
           <div class="lg"><span class="dot s-subletting"></span>Subletting</div>
@@ -225,7 +230,7 @@ type ACFilter = 'ALL' | 'AC' | 'NON_AC';
     .pg-count { margin-left: 4px; font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); }
     .pg-chip.active .pg-count { color: var(--primary); }
 
-    .kpi-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+    .kpi-strip { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
     @media (max-width: 960px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } }
     .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
     .kpi-label { font-size: 11px; letter-spacing: 0.12em; color: var(--text-muted); text-transform: uppercase; font-weight: 600; }
@@ -234,6 +239,7 @@ type ACFilter = 'ALL' | 'AC' | 'NON_AC';
     .kpi-value .num { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
     .kpi-value .num small { font-size: 14px; color: var(--text-muted); font-weight: 500; margin-left: 3px; }
     .kpi-value.vacant { color: var(--status-vacant-text); }
+    .kpi-value.partial { color: var(--status-partial-text); }
     .kpi-value.occupied { color: var(--status-occupied-text); }
     .kpi-value.vacating { color: var(--status-vacating-text); }
     .kpi-value.subletting { color: var(--status-subletting-text); }
@@ -253,17 +259,21 @@ type ACFilter = 'ALL' | 'AC' | 'NON_AC';
     .floor-viz { grid-column: 1 / -1; display: flex; gap: 2px; margin-bottom: 6px; }
     .mini-cell { flex: 1; height: 10px; border-radius: 2px; }
     .mini-cell.s-vacant { background: var(--status-vacant-border); }
+    .mini-cell.s-partial { background: var(--status-partial-border); }
     .mini-cell.s-occupied { background: var(--status-occupied-border); }
     .mini-cell.s-vacating { background: var(--status-vacating-border); }
     .mini-cell.s-subletting { background: var(--status-subletting-border); }
+    .mini-cell.s-maintenance { background: rgba(148,163,184,0.45); }
 
     .legend { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
     .lg { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); padding: 0 6px; }
     .lg .dot { width: 10px; height: 10px; border-radius: 3px; }
     .dot.s-vacant { background: var(--status-vacant-text); }
+    .dot.s-partial { background: var(--status-partial-text); }
     .dot.s-occupied { background: var(--status-occupied-text); }
     .dot.s-vacating { background: var(--status-vacating-text); }
     .dot.s-subletting { background: var(--status-subletting-text); }
+    .dot.s-maintenance { background: #cbd5e1; }
 
     .canvas-wrap { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
     .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -290,9 +300,11 @@ type ACFilter = 'ALL' | 'AC' | 'NON_AC';
     .room::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: currentColor; opacity: 0.8; }
     .room:hover { transform: translateY(-2px); border-color: var(--border-soft); box-shadow: 0 12px 32px -16px rgba(0,0,0,0.6); }
     .room--vacant { color: var(--status-vacant-text); background: linear-gradient(180deg, var(--status-vacant-bg), var(--surface) 60%); border-color: var(--status-vacant-border); }
+    .room--partial { color: var(--status-partial-text); background: linear-gradient(180deg, var(--status-partial-bg), var(--surface) 60%); border-color: var(--status-partial-border); }
     .room--occupied { color: var(--status-occupied-text); background: linear-gradient(180deg, var(--status-occupied-bg), var(--surface) 60%); border-color: var(--status-occupied-border); }
     .room--vacating { color: var(--status-vacating-text); background: linear-gradient(180deg, var(--status-vacating-bg), var(--surface) 60%); border-color: var(--status-vacating-border); }
     .room--subletting { color: var(--status-subletting-text); background: linear-gradient(180deg, var(--status-subletting-bg), var(--surface) 60%); border-color: var(--status-subletting-border); }
+    .room--maintenance { color: #cbd5e1; background: linear-gradient(180deg, rgba(148,163,184,0.16), var(--surface) 60%); border-color: rgba(148,163,184,0.38); }
     .room-head { display: flex; justify-content: space-between; align-items: center; }
     .room-num { font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: var(--text); letter-spacing: 0.02em; }
     .room-ac { color: var(--text-muted); }
@@ -332,9 +344,11 @@ export class LayoutVizComponent {
     statusOpts: { v: StatusFilter; label: string }[] = [
         { v: 'ALL', label: 'All' },
         { v: 'VACANT', label: 'Vacant' },
+        { v: 'PARTIAL', label: 'Partial' },
         { v: 'OCCUPIED', label: 'Occupied' },
         { v: 'VACATING', label: 'Vacating' },
-        { v: 'SUBLETTING', label: 'Subletting' }
+        { v: 'SUBLETTING', label: 'Subletting' },
+        { v: 'MAINTENANCE', label: 'Maintenance' }
     ];
     acOpts: { v: ACFilter; label: string; icon: string }[] = [
         { v: 'ALL', label: 'Any', icon: 'filter_list' },
@@ -436,14 +450,14 @@ export class LayoutVizComponent {
     occupancyRate = computed(() => {
         const total = this.rooms().length;
         if (!total) return 0;
-        const occ = this.rooms().filter(r => r.status === 'OCCUPIED' || r.status === 'SUBLETTING' || r.status === 'VACATING').length;
+        const occ = this.rooms().filter(r => r.status === 'PARTIAL' || r.status === 'OCCUPIED' || r.status === 'SUBLETTING' || r.status === 'VACATING').length;
         return Math.round((occ / total) * 100);
     });
 
     floorOccupiedRate(f: number): number {
         const list = this.floorRooms(f);
         if (!list.length) return 0;
-        const occ = list.filter(r => r.status === 'OCCUPIED' || r.status === 'SUBLETTING' || r.status === 'VACATING').length;
+        const occ = list.filter(r => r.status === 'PARTIAL' || r.status === 'OCCUPIED' || r.status === 'SUBLETTING' || r.status === 'VACATING').length;
         return Math.round((occ / list.length) * 100);
     }
 

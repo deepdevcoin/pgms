@@ -7,11 +7,15 @@ import com.pgms.backend.dto.pg.RoomCreateRequest;
 import com.pgms.backend.dto.pg.RoomCleaningStatusUpdateRequest;
 import com.pgms.backend.dto.pg.PgSummaryResponse;
 import com.pgms.backend.dto.pg.RoomResponse;
+import com.pgms.backend.dto.tenant.TenantAccountStatusRequest;
+import com.pgms.backend.dto.tenant.TenantCreateRequest;
+import com.pgms.backend.dto.tenant.TenantMoveRequest;
 import com.pgms.backend.dto.tenant.TenantResponse;
 import com.pgms.backend.entity.enums.RoomStatus;
 import jakarta.validation.Valid;
 import com.pgms.backend.service.PgService;
 import com.pgms.backend.service.TenantService;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -80,5 +84,29 @@ public class OwnerController {
     @PreAuthorize("hasRole('OWNER')")
     public BaseResponse<List<TenantResponse>> getTenants() {
         return BaseResponse.success("Tenants fetched successfully", tenantService.getAllTenants());
+    }
+
+    @PostMapping("/tenants")
+    @PreAuthorize("hasRole('OWNER')")
+    public BaseResponse<TenantResponse> createTenant(@Valid @RequestBody TenantCreateRequest request) {
+        return BaseResponse.success("Tenant created successfully", tenantService.createTenant(request));
+    }
+
+    @PutMapping("/tenants/{id}/move")
+    @PreAuthorize("hasRole('OWNER')")
+    public BaseResponse<TenantResponse> moveTenant(@PathVariable Long id, @Valid @RequestBody TenantMoveRequest request) {
+        return BaseResponse.success("Tenant moved successfully", tenantService.moveTenant(id, request.getRoomId()));
+    }
+
+    @PutMapping("/tenants/{id}/account-status")
+    @PreAuthorize("hasRole('OWNER')")
+    public BaseResponse<TenantResponse> updateAccountStatus(@PathVariable Long id, @Valid @RequestBody TenantAccountStatusRequest request) {
+        return BaseResponse.success("Tenant account updated successfully", tenantService.updateTenantAccountStatus(id, request.getActive()));
+    }
+
+    @DeleteMapping("/tenants/{id}")
+    @PreAuthorize("hasRole('OWNER')")
+    public BaseResponse<TenantResponse> archiveTenant(@PathVariable Long id) {
+        return BaseResponse.success("Tenant archived successfully", tenantService.archiveTenant(id));
     }
 }

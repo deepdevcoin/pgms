@@ -72,7 +72,7 @@ type AmenityForm = {
 
           <label class="fld">
             <span>Amenity</span>
-            <select [(ngModel)]="form.amenityType" name="amenityType" required>
+            <select [(ngModel)]="form.amenityType" (ngModelChange)="onCreateAmenityTypeChange($event)" name="amenityType" required>
               @for (type of amenityTypes; track type) {
                 <option [value]="type">{{ pretty(type) }}</option>
               }
@@ -235,13 +235,13 @@ type AmenityForm = {
           </select>
         </label>
 
-        <label class="fld">
-          <span>Amenity</span>
-          <select [(ngModel)]="editForm.amenityType" name="editAmenityType" required>
-            @for (type of amenityTypes; track type) {
-              <option [value]="type">{{ pretty(type) }}</option>
-            }
-          </select>
+          <label class="fld">
+            <span>Amenity</span>
+            <select [(ngModel)]="editForm.amenityType" (ngModelChange)="onEditAmenityTypeChange($event)" name="editAmenityType" required>
+              @for (type of amenityTypes; track type) {
+                <option [value]="type">{{ pretty(type) }}</option>
+              }
+            </select>
         </label>
 
         <label class="fld">
@@ -563,6 +563,20 @@ export class ManagerAmenitiesComponent {
 
   pretty(value: string): string {
     return value.toLowerCase().split('_').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+  }
+
+  onCreateAmenityTypeChange(type: AmenityType) {
+    this.form.amenityType = type;
+    this.form.resourceName = this.defaultResourceName(type);
+    this.form.facilityName = type === 'WASHING_MACHINE' ? 'Laundry Room' : 'Common Area';
+    if (type === 'WASHING_MACHINE' && this.form.capacity < 1) this.form.capacity = 1;
+  }
+
+  onEditAmenityTypeChange(type: AmenityType) {
+    this.editForm.amenityType = type;
+    this.editForm.resourceName = this.defaultResourceName(type);
+    this.editForm.facilityName = type === 'WASHING_MACHINE' ? 'Laundry Room' : 'Common Area';
+    if (type === 'WASHING_MACHINE' && this.editForm.capacity < 1) this.editForm.capacity = 1;
   }
 
   private payloadFromForm(form: AmenityForm) {

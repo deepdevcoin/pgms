@@ -47,8 +47,13 @@ export class MockDataService {
 
   listPgs(): Observable<PG[]> { return of(this.clone(this.pgs)).pipe(delay(120)); }
   listManagers(): Observable<Manager[]> { return of(this.clone(this.managers)).pipe(delay(120)); }
-  listTenants(): Observable<Tenant[]> { return of(this.clone(this.tenants)).pipe(delay(120)); }
-  tenantProfile(): Observable<Tenant> { return of({ ...this.tenants[0], creditWalletBalance: 1200 }).pipe(delay(120)); }
+  listTenants(): Observable<Tenant[]> {
+    return of(this.clone(this.tenants.filter(tenant => tenant.status !== 'ARCHIVED'))).pipe(delay(120));
+  }
+  tenantProfile(): Observable<Tenant> {
+    const tenant = this.tenants.find(item => item.status !== 'ARCHIVED') || this.tenants[0];
+    return of({ ...tenant, creditWalletBalance: tenant?.creditWalletBalance ?? 1200 }).pipe(delay(120));
+  }
 
   listRooms(pgId: number, opts?: { status?: RoomStatus; floor?: number }): Observable<Room[]> {
     let list = this.rooms.filter(r => r.pgId === pgId);
@@ -64,6 +69,69 @@ export class MockDataService {
     this.syncTenantsForRoom(this.rooms[index]);
     this.recomputePgCounts();
     return of(this.hydrateRoom(this.rooms[index])).pipe(delay(120));
+  }
+
+  createTenant(payload: { name: string; email: string; phone: string; roomId: number; joiningDate: string; advanceAmountPaid: number }): Observable<Tenant> {
+    const room = this.rooms.find(item => item.id === payload.roomId);
+    if (!room) return throwError(() => new Error('Room not found'));
+    if (this.roomOccupancy(room.id) >= this.roomCapacity(room)) {
+      return throwError(() => new Error('This room is already at full capacity'));
+    }
+    const tenant: Tenant = {
+      tenantProfileId: Date.now(),
+      userId: Date.now(),
+      name: payload.name,
+      email: payload.email,
+      phone: payload.phone,
+      roomId: room.id,
+      roomNumber: room.roomNumber,
+      pgId: room.pgId,
+      pgName: this.pgs.find(pg => pg.id === room.pgId)?.name || '',
+      joiningDate: payload.joiningDate,
+      advanceAmountPaid: payload.advanceAmountPaid,
+      creditWalletBalance: 0,
+      status: 'ACTIVE',
+      isActive: true
+    };
+    this.tenants.unshift(tenant);
+    this.syncTenantsForRoom(room);
+    this.recomputePgCounts();
+    return of(this.clone(tenant)).pipe(delay(120));
+  }
+
+  moveTenant(tenantProfileId: number, roomId: number): Observable<Tenant> {
+    const tenant = this.tenants.find(item => item.tenantProfileId === tenantProfileId);
+    const room = this.rooms.find(item => item.id === roomId);
+    if (!tenant || !room) return throwError(() => new Error('Tenant or room not found'));
+    if (this.roomOccupancy(room.id) >= this.roomCapacity(room)) {
+      return throwError(() => new Error('This room is already at full capacity'));
+    }
+    const previousRoom = this.rooms.find(item => item.id === tenant.roomId);
+    tenant.roomId = room.id;
+    tenant.roomNumber = room.roomNumber;
+    tenant.pgId = room.pgId;
+    tenant.pgName = this.pgs.find(pg => pg.id === room.pgId)?.name || '';
+    if (previousRoom) this.syncTenantsForRoom(previousRoom);
+    this.syncTenantsForRoom(room);
+    this.recomputePgCounts();
+    return of(this.clone(tenant)).pipe(delay(120));
+  }
+
+  setTenantAccountStatus(tenantProfileId: number, active: boolean): Observable<Tenant> {
+    const tenant = this.tenants.find(item => item.tenantProfileId === tenantProfileId);
+    if (!tenant) return throwError(() => new Error('Tenant not found'));
+    tenant.isActive = active;
+    return of(this.clone(tenant)).pipe(delay(120));
+  }
+
+  archiveTenant(tenantProfileId: number): Observable<Tenant> {
+    const tenant = this.tenants.find(item => item.tenantProfileId === tenantProfileId);
+    if (!tenant) return throwError(() => new Error('Tenant not found'));
+    tenant.status = 'ARCHIVED';
+    tenant.isActive = false;
+    const room = this.rooms.find(item => item.id === tenant.roomId);
+    if (room) this.syncTenantsForRoom(room);
+    return of(this.clone(tenant)).pipe(delay(120));
   }
 
   ownerSummary(): Observable<OwnerSummary> {
@@ -756,14 +824,28 @@ export class MockDataService {
   }
 
   private syncTenantsForRoom(room: Room) {
-    if (room.status === 'VACANT') {
-      this.tenants = this.tenants.map(t => t.roomId === room.id ? { ...t, status: 'ARCHIVED' } : t);
-      return;
-    }
     this.tenants = this.tenants.map(t => t.roomId === room.id && t.status !== 'ARCHIVED'
       ? { ...t, status: room.status === 'VACATING' ? 'VACATING' : 'ACTIVE' }
       : t
     );
+    if (room.status === 'MAINTENANCE' || room.status === 'SUBLETTING') {
+      return;
+    }
+    const occupancy = this.roomOccupancy(room.id);
+    room.status = occupancy === 0 ? 'VACANT' : occupancy < this.roomCapacity(room) ? 'PARTIAL' : 'OCCUPIED';
+  }
+
+  private roomCapacity(room: Room): number {
+    switch (room.sharingType) {
+      case 'SINGLE': return 1;
+      case 'DOUBLE': return 2;
+      case 'TRIPLE': return 3;
+      case 'DORM': return 6;
+    }
+  }
+
+  private roomOccupancy(roomId: number): number {
+    return this.tenants.filter(t => t.roomId === roomId && t.status !== 'ARCHIVED').length;
   }
 
   private currentWeekLabel(): string {
