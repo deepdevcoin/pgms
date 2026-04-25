@@ -2,8 +2,8 @@ import { Injectable } from '@angular/core';
 import { Observable, delay, of, throwError } from 'rxjs';
 import {
   AmenityBooking, Complaint, LoginResponse, Manager, ManagerSummary, MenuItem, Notice,
-  NoticeReadReceipt, OwnerSummary, PG, RentRecord, Role, Room, RoomStatus, SharingType,
-  Tenant
+  NoticeReadReceipt, OwnerSummary, PaymentOverview, PaymentTransaction, PG, RentRecord, Role,
+  Room, RoomStatus, SharingType, Tenant
 } from './models';
 
 @Injectable({ providedIn: 'root' })
@@ -13,6 +13,7 @@ export class MockDataService {
   private managers: Manager[];
   private tenants: Tenant[];
   private payments: RentRecord[];
+  private paymentTransactions: PaymentTransaction[];
   private complaints: Complaint[];
   private notices: Notice[];
   private noticeReceiptsById: Record<number, NoticeReadReceipt[]>;
@@ -25,6 +26,7 @@ export class MockDataService {
     this.managers = this.buildManagers();
     this.tenants = this.buildTenants();
     this.payments = this.buildPayments();
+    this.paymentTransactions = this.buildPaymentTransactions();
     this.complaints = this.buildComplaints();
     this.notices = this.buildNotices();
     this.noticeReceiptsById = this.buildNoticeReceipts();
@@ -115,17 +117,133 @@ export class MockDataService {
     return of(all).pipe(delay(120));
   }
 
+  paymentOverview(role: Role | null): Observable<PaymentOverview> {
+    const records = role === 'TENANT'
+      ? this.payments.filter(record => record.tenantName === this.tenants[0]?.name)
+      : this.payments;
+    const transactions = role === 'TENANT'
+      ? this.paymentTransactions.filter(transaction => transaction.tenantName === this.tenants[0]?.name)
+      : this.paymentTransactions;
+    const summary = this.buildPaymentSummary(records, transactions, role);
+    return of(this.clone({ summary, records, transactions })).pipe(delay(120));
+  }
+
   payRent(recordId: number, amount: number): Observable<RentRecord> {
     const record = this.payments.find(item => item.id === recordId);
     if (!record) return throwError(() => new Error('Payment not found'));
+    const outstandingBefore = record.remainingAmountDue;
     record.amountPaid += amount;
     record.remainingAmountDue = Math.max(record.totalDue - record.amountPaid, 0);
     record.status = record.remainingAmountDue <= 0 ? 'PAID' : 'PARTIAL';
+    this.paymentTransactions.unshift({
+      id: Date.now(),
+      rentRecordId: record.id,
+      tenantProfileId: record.tenantProfileId,
+      tenantName: record.tenantName,
+      roomNumber: record.roomNumber,
+      billingMonth: record.billingMonth,
+      transactionType: 'TENANT_PAYMENT',
+      paymentMethod: 'ONLINE',
+      amount,
+      signedAmount: -amount,
+      outstandingBefore,
+      outstandingAfter: record.remainingAmountDue,
+      createdByName: record.tenantName,
+      notes: 'Tenant paid rent online',
+      createdAt: new Date().toISOString()
+    });
     return of(this.clone(record)).pipe(delay(120));
   }
 
   applyCredit(recordId: number): Observable<RentRecord> {
-    return this.payRent(recordId, 1200);
+    const record = this.payments.find(item => item.id === recordId);
+    if (!record) return throwError(() => new Error('Payment not found'));
+    const tenant = this.tenants.find(item => item.tenantProfileId === record.tenantProfileId);
+    const walletBefore = tenant?.creditWalletBalance || 0;
+    if (walletBefore <= 0) return throwError(() => new Error('No wallet balance available'));
+    const deduction = Math.min(walletBefore, record.remainingAmountDue);
+    if (tenant) tenant.creditWalletBalance = walletBefore - deduction;
+    const outstandingBefore = record.remainingAmountDue;
+    record.amountPaid += deduction;
+    record.remainingAmountDue = Math.max(record.totalDue - record.amountPaid, 0);
+    record.status = record.remainingAmountDue <= 0 ? 'PAID' : 'PARTIAL';
+    this.paymentTransactions.unshift({
+      id: Date.now(),
+      rentRecordId: record.id,
+      tenantProfileId: record.tenantProfileId,
+      tenantName: record.tenantName,
+      roomNumber: record.roomNumber,
+      billingMonth: record.billingMonth,
+      transactionType: 'WALLET_CREDIT_APPLIED',
+      paymentMethod: 'WALLET',
+      amount: deduction,
+      signedAmount: -deduction,
+      outstandingBefore,
+      outstandingAfter: record.remainingAmountDue,
+      walletBalanceBefore: walletBefore,
+      walletBalanceAfter: tenant?.creditWalletBalance || 0,
+      createdByName: record.tenantName,
+      notes: 'Wallet credit applied to dues',
+      createdAt: new Date().toISOString()
+    });
+    return of(this.clone(record)).pipe(delay(120));
+  }
+
+  cashPayment(payload: { tenantProfileId: number; billingMonth: string; amount: number }): Observable<RentRecord> {
+    const record = this.payments.find(item => item.tenantProfileId === payload.tenantProfileId && item.billingMonth === payload.billingMonth);
+    if (!record) return throwError(() => new Error('Payment not found'));
+    const outstandingBefore = record.remainingAmountDue;
+    record.amountPaid += payload.amount;
+    record.remainingAmountDue = Math.max(record.totalDue - record.amountPaid, 0);
+    record.status = record.remainingAmountDue <= 0 ? 'PAID' : 'PARTIAL';
+    this.paymentTransactions.unshift({
+      id: Date.now(),
+      rentRecordId: record.id,
+      tenantProfileId: record.tenantProfileId,
+      tenantName: record.tenantName,
+      roomNumber: record.roomNumber,
+      billingMonth: record.billingMonth,
+      transactionType: 'MANAGER_CASH_COLLECTION',
+      paymentMethod: 'CASH',
+      amount: payload.amount,
+      signedAmount: -payload.amount,
+      outstandingBefore,
+      outstandingAfter: record.remainingAmountDue,
+      createdByName: 'Arjun Nair',
+      notes: 'Manager recorded cash collection',
+      createdAt: new Date().toISOString()
+    });
+    return of(this.clone(record)).pipe(delay(120));
+  }
+
+  waiveFine(id: number, reason: string): Observable<RentRecord> {
+    const record = this.payments.find(item => item.id === id);
+    if (!record) return throwError(() => new Error('Payment not found'));
+    const waivedAmount = record.fineAccrued;
+    const outstandingBefore = record.remainingAmountDue;
+    record.fineAccrued = 0;
+    record.totalDue = record.rentAmount + (record.ebAmount || 0);
+    record.remainingAmountDue = Math.max(record.totalDue - record.amountPaid, 0);
+    record.fineWaivedReason = reason;
+    record.status = record.remainingAmountDue <= 0 ? 'PAID' : record.amountPaid > 0 ? 'PARTIAL' : 'PENDING';
+    this.paymentTransactions.unshift({
+      id: Date.now(),
+      rentRecordId: record.id,
+      tenantProfileId: record.tenantProfileId,
+      tenantName: record.tenantName,
+      roomNumber: record.roomNumber,
+      billingMonth: record.billingMonth,
+      transactionType: 'FINE_WAIVER',
+      paymentMethod: 'ADJUSTMENT',
+      amount: waivedAmount,
+      signedAmount: -waivedAmount,
+      outstandingBefore,
+      outstandingAfter: record.remainingAmountDue,
+      createdByName: 'Arjun Nair',
+      notes: reason,
+      createdAt: new Date().toISOString()
+    });
+    return of(this.clone(record)).pipe(delay(120));
   }
 
   listComplaints(role: Role | null): Observable<Complaint[]> {
@@ -321,6 +439,8 @@ export class MockDataService {
       id: index + 1,
       tenantProfileId: tenant.tenantProfileId || index + 1,
       tenantName: tenant.name,
+      pgId: tenant.pgId,
+      pgName: this.pgs.find(pg => pg.id === tenant.pgId)?.name || 'PG',
       roomNumber: this.rooms.find(room => room.id === tenant.roomId)?.roomNumber || `R-${index + 1}`,
       billingMonth: '2026-04',
       rentAmount: 10000 + index * 500,
@@ -333,6 +453,89 @@ export class MockDataService {
       status: index % 3 === 0 ? 'PARTIAL' : index % 2 === 0 ? 'OVERDUE' : 'PENDING',
       fineWaivedReason: ''
     }));
+  }
+
+  private buildPaymentTransactions(): PaymentTransaction[] {
+    return this.payments.flatMap(record => {
+      const items: PaymentTransaction[] = [
+        {
+          id: record.id * 100 + 1,
+          rentRecordId: record.id,
+          tenantProfileId: record.tenantProfileId,
+          tenantName: record.tenantName,
+          roomNumber: record.roomNumber,
+          billingMonth: record.billingMonth,
+          transactionType: 'RENT_CHARGE',
+          paymentMethod: 'SYSTEM',
+          amount: record.totalDue,
+          signedAmount: record.totalDue,
+          outstandingBefore: 0,
+          outstandingAfter: record.totalDue,
+          createdByName: 'System',
+          notes: 'Monthly rent generated',
+          createdAt: '2026-04-01T00:05:00'
+        }
+      ];
+      if (record.fineAccrued > 0) {
+        items.push({
+          id: record.id * 100 + 2,
+          rentRecordId: record.id,
+          tenantProfileId: record.tenantProfileId,
+          tenantName: record.tenantName,
+          roomNumber: record.roomNumber,
+          billingMonth: record.billingMonth,
+          transactionType: 'LATE_FEE_APPLIED',
+          paymentMethod: 'SYSTEM',
+          amount: record.fineAccrued,
+          signedAmount: record.fineAccrued,
+          outstandingBefore: record.totalDue - record.fineAccrued,
+          outstandingAfter: record.totalDue,
+          createdByName: 'System',
+          notes: 'Late fee applied',
+          createdAt: '2026-04-11T00:05:00'
+        });
+      }
+      if (record.amountPaid > 0) {
+        items.push({
+          id: record.id * 100 + 3,
+          rentRecordId: record.id,
+          tenantProfileId: record.tenantProfileId,
+          tenantName: record.tenantName,
+          roomNumber: record.roomNumber,
+          billingMonth: record.billingMonth,
+          transactionType: 'TENANT_PAYMENT',
+          paymentMethod: 'ONLINE',
+          amount: record.amountPaid,
+          signedAmount: -record.amountPaid,
+          outstandingBefore: record.totalDue,
+          outstandingAfter: record.remainingAmountDue,
+          createdByName: record.tenantName,
+          notes: 'Tenant paid part of the due online',
+          createdAt: '2026-04-05T10:00:00'
+        });
+      }
+      return items;
+    }).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  }
+
+  private buildPaymentSummary(records: RentRecord[], transactions: PaymentTransaction[], role: Role | null) {
+    const walletBalance = role === 'TENANT' ? (this.tenants[0]?.creditWalletBalance || 0) : this.tenants.reduce((sum, tenant) => sum + (tenant.creditWalletBalance || 0), 0);
+    return {
+      currentBillingMonth: '2026-04',
+      totalRecords: records.length,
+      paidRecords: records.filter(record => record.status === 'PAID').length,
+      partialRecords: records.filter(record => record.status === 'PARTIAL').length,
+      pendingRecords: records.filter(record => record.status === 'PENDING').length,
+      overdueRecords: records.filter(record => record.status === 'OVERDUE').length,
+      tenantCount: new Set(records.map(record => record.tenantProfileId)).size,
+      transactionCount: transactions.length,
+      totalDue: records.reduce((sum, record) => sum + record.totalDue, 0),
+      totalPaid: records.reduce((sum, record) => sum + record.amountPaid, 0),
+      totalOutstanding: records.reduce((sum, record) => sum + record.remainingAmountDue, 0),
+      overdueAmount: records.filter(record => record.status === 'OVERDUE').reduce((sum, record) => sum + record.remainingAmountDue, 0),
+      fineOutstanding: records.reduce((sum, record) => sum + record.fineAccrued, 0),
+      walletBalance
+    };
   }
 
   private buildComplaints(): Complaint[] {

@@ -1,6 +1,6 @@
 import {
-  LoginResponse, Manager, ManagerSummary, OwnerSummary, PG, Role, Room,
-  RoomStatus, SharingType, Tenant
+  LoginResponse, Manager, ManagerSummary, OwnerSummary, PaymentOverview, PaymentSummary,
+  PaymentTransaction, PG, Role, Room, RoomStatus, SharingType, Tenant, RentRecord
 } from './models';
 
 type AnyRecord = Record<string, unknown>;
@@ -225,5 +225,77 @@ export function mapManagerSummary(source: unknown): ManagerSummary {
       intendedDate: text(item, ['intendedDate', 'vacateDate', 'date'], ''),
       refundEligible: booleanValue(item, ['refundEligible', 'eligibleForRefund'], false)
     }))
+  };
+}
+
+export function mapRentRecord(source: unknown): RentRecord {
+  return {
+    id: numberValue(source, ['id', 'rentRecordId']),
+    tenantProfileId: numberValue(source, ['tenantProfileId', 'tenant.id'], 0),
+    tenantName: text(source, ['tenantName', 'tenant.name'], 'Tenant'),
+    roomNumber: text(source, ['roomNumber', 'room.number', 'roomNo'], ''),
+    pgId: optionalNumber(source, ['pgId', 'pg.id', 'propertyId']),
+    pgName: text(source, ['pgName', 'pg.name', 'propertyName'], ''),
+    billingMonth: text(source, ['billingMonth', 'month'], ''),
+    rentAmount: numberValue(source, ['rentAmount', 'rent'], 0),
+    ebAmount: numberValue(source, ['ebAmount', 'ebCharge', 'electricityAmount'], 0),
+    fineAccrued: numberValue(source, ['fineAccrued', 'fine'], 0),
+    amountPaid: numberValue(source, ['amountPaid', 'paidAmount'], 0),
+    totalDue: numberValue(source, ['totalDue', 'dueAmount'], 0),
+    remainingAmountDue: numberValue(source, ['remainingAmountDue', 'pendingAmount', 'balanceDue'], 0),
+    dueDate: text(source, ['dueDate'], ''),
+    status: enumValue(source, ['status'], ['PENDING', 'PAID', 'PARTIAL', 'OVERDUE'], 'PENDING'),
+    fineWaivedReason: text(source, ['fineWaivedReason'], '')
+  };
+}
+
+export function mapPaymentTransaction(source: unknown): PaymentTransaction {
+  return {
+    id: numberValue(source, ['id', 'transactionId']),
+    rentRecordId: numberValue(source, ['rentRecordId', 'recordId']),
+    tenantProfileId: numberValue(source, ['tenantProfileId', 'tenant.id'], 0),
+    tenantName: text(source, ['tenantName', 'tenant.name'], 'Tenant'),
+    roomNumber: text(source, ['roomNumber', 'room.number'], ''),
+    billingMonth: text(source, ['billingMonth', 'month'], ''),
+    transactionType: enumValue(source, ['transactionType', 'type'], ['RENT_CHARGE', 'TENANT_PAYMENT', 'MANAGER_CASH_COLLECTION', 'WALLET_CREDIT_APPLIED', 'FINE_WAIVER', 'LATE_FEE_APPLIED'], 'TENANT_PAYMENT'),
+    paymentMethod: enumValue(source, ['paymentMethod', 'method'], ['ONLINE', 'CASH', 'WALLET', 'ADJUSTMENT', 'SYSTEM'], 'ONLINE'),
+    amount: numberValue(source, ['amount'], 0),
+    signedAmount: numberValue(source, ['signedAmount', 'netAmount'], 0),
+    outstandingBefore: numberValue(source, ['outstandingBefore'], 0),
+    outstandingAfter: numberValue(source, ['outstandingAfter'], 0),
+    walletBalanceBefore: optionalNumber(source, ['walletBalanceBefore']),
+    walletBalanceAfter: optionalNumber(source, ['walletBalanceAfter']),
+    notes: text(source, ['notes', 'reason', 'description'], ''),
+    createdByName: text(source, ['createdByName', 'actorName', 'createdBy.name'], ''),
+    createdAt: text(source, ['createdAt', 'timestamp'], '')
+  };
+}
+
+export function mapPaymentSummary(source: unknown): PaymentSummary {
+  const payload = unwrapApiPayload(source);
+  return {
+    currentBillingMonth: text(payload, ['currentBillingMonth', 'billingMonth'], ''),
+    totalRecords: numberValue(payload, ['totalRecords'], 0),
+    paidRecords: numberValue(payload, ['paidRecords'], 0),
+    partialRecords: numberValue(payload, ['partialRecords'], 0),
+    pendingRecords: numberValue(payload, ['pendingRecords'], 0),
+    overdueRecords: numberValue(payload, ['overdueRecords'], 0),
+    tenantCount: numberValue(payload, ['tenantCount'], 0),
+    transactionCount: numberValue(payload, ['transactionCount'], 0),
+    totalDue: numberValue(payload, ['totalDue'], 0),
+    totalPaid: numberValue(payload, ['totalPaid'], 0),
+    totalOutstanding: numberValue(payload, ['totalOutstanding'], 0),
+    overdueAmount: numberValue(payload, ['overdueAmount'], 0),
+    fineOutstanding: numberValue(payload, ['fineOutstanding'], 0),
+    walletBalance: numberValue(payload, ['walletBalance'], 0)
+  };
+}
+
+export function mapPaymentOverview(source: unknown): PaymentOverview {
+  const payload = unwrapApiPayload(source);
+  return {
+    summary: mapPaymentSummary(valueAt(payload, ['summary']) ?? {}),
+    records: asCollection(valueAt(payload, ['records', 'items'])).map(mapRentRecord),
+    transactions: asCollection(valueAt(payload, ['transactions', 'ledger', 'history'])).map(mapPaymentTransaction)
   };
 }

@@ -10,6 +10,7 @@ import java.util.Optional;
 public interface TenantProfileRepository extends JpaRepository<TenantProfile, Long> {
     Optional<TenantProfile> findByUserId(Long userId);
     List<TenantProfile> findByPgId(Long pgId);
+    List<TenantProfile> findByPgIdIn(List<Long> pgIds);
     Optional<TenantProfile> findByRoomId(Long roomId);
     List<TenantProfile> findByPgIdAndStatus(Long pgId, TenantStatus status);
     long countByStatus(TenantStatus status);

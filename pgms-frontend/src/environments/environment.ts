@@ -39,10 +39,13 @@ export const environment = {
     },
     payments: {
       tenant: '/tenant/payments',
+      tenantOverview: '/tenant/payments/overview',
       tenantPay: '/tenant/payments/pay',
       applyCredit: '/tenant/payments/apply-credit',
       manager: '/manager/payments',
+      managerOverview: '/manager/payments/overview',
       owner: '/owner/payments',
+      ownerOverview: '/owner/payments/overview',
       cash: '/manager/payments/cash',
       waiveFine: '/manager/payments/:id/waive-fine'
     },

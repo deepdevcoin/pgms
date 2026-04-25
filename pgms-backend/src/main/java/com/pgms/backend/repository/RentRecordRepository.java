@@ -11,6 +11,7 @@ import java.util.Optional;
 public interface RentRecordRepository extends JpaRepository<RentRecord, Long> {
     List<RentRecord> findByTenantProfileUserIdOrderByBillingMonthDesc(Long userId);
     List<RentRecord> findByTenantProfilePgIdOrderByBillingMonthDesc(Long pgId);
+    List<RentRecord> findByTenantProfilePgIdInOrderByBillingMonthDesc(List<Long> pgIds);
     Optional<RentRecord> findByTenantProfileIdAndBillingMonth(Long tenantProfileId, String billingMonth);
     List<RentRecord> findByStatusInAndDueDateBefore(List<RentStatus> statuses, LocalDate date);
     List<RentRecord> findByBillingMonth(String billingMonth);

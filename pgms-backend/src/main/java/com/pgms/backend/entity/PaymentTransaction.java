@@ -1,6 +1,7 @@
 package com.pgms.backend.entity;
 
-import com.pgms.backend.entity.enums.RentStatus;
+import com.pgms.backend.entity.enums.PaymentMethod;
+import com.pgms.backend.entity.enums.PaymentTransactionType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -17,7 +18,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
@@ -25,49 +25,51 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "rent_records")
-public class RentRecord {
+@Table(name = "payment_transactions")
+public class PaymentTransaction {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "rent_record_id", nullable = false)
+    private RentRecord rentRecord;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "tenant_profile_id", nullable = false)
     private TenantProfile tenantProfile;
 
-    @Column(nullable = false)
-    private String billingMonth;
-
-    @Column(nullable = false)
-    private Double rentAmount;
-
-    @Column(nullable = false)
-    @Builder.Default
-    private Double ebAmount = 0.0;
-
-    @Column(nullable = false)
-    @Builder.Default
-    private Double fineAccrued = 0.0;
-
-    @Column(nullable = false)
-    @Builder.Default
-    private Double amountPaid = 0.0;
-
-    @Column(nullable = false)
-    private Double totalDue;
-
-    @Column(nullable = false)
-    private LocalDate dueDate;
-
-    private LocalDate lastFineAppliedDate;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_user_id")
+    private User createdBy;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private RentStatus status;
+    private PaymentTransactionType transactionType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private PaymentMethod paymentMethod;
+
+    @Column(nullable = false)
+    private Double amount;
+
+    @Column(nullable = false)
+    private Double signedAmount;
+
+    @Column(nullable = false)
+    private Double outstandingBefore;
+
+    @Column(nullable = false)
+    private Double outstandingAfter;
+
+    private Double walletBalanceBefore;
+
+    private Double walletBalanceAfter;
+
+    private String notes;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
-
-    private String fineWaivedReason;
 }

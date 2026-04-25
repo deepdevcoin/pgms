@@ -13,6 +13,8 @@ public class RentRecordResponse {
     private Long tenantProfileId;
     private String tenantName;
     private String roomNumber;
+    private Long pgId;
+    private String pgName;
     private String billingMonth;
     private Double rentAmount;
     private Double ebAmount;

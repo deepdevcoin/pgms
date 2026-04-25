@@ -99,6 +99,8 @@ export interface ManagerSummary {
 }
 
 export type RentStatus = 'PENDING' | 'PAID' | 'PARTIAL' | 'OVERDUE';
+export type PaymentMethod = 'ONLINE' | 'CASH' | 'WALLET' | 'ADJUSTMENT' | 'SYSTEM';
+export type PaymentTransactionType = 'RENT_CHARGE' | 'TENANT_PAYMENT' | 'MANAGER_CASH_COLLECTION' | 'WALLET_CREDIT_APPLIED' | 'FINE_WAIVER' | 'LATE_FEE_APPLIED';
 export type ComplaintStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'ESCALATED' | 'CLOSED';
 export type ComplaintCategory = 'MAINTENANCE' | 'NOISE' | 'HYGIENE' | 'FOOD' | 'OTHER' | 'AGAINST_MANAGER';
 export type VacateStatus = 'PENDING' | 'REFERRAL_APPROVED' | 'REFERRAL_REJECTED' | 'CHECKED_OUT';
@@ -115,6 +117,8 @@ export interface RentRecord {
   tenantProfileId: number;
   tenantName: string;
   roomNumber: string;
+  pgId?: number;
+  pgName?: string;
   billingMonth: string;
   rentAmount: number;
   ebAmount?: number;
@@ -125,6 +129,49 @@ export interface RentRecord {
   dueDate?: string;
   status: RentStatus;
   fineWaivedReason?: string;
+}
+
+export interface PaymentSummary {
+  currentBillingMonth: string;
+  totalRecords: number;
+  paidRecords: number;
+  partialRecords: number;
+  pendingRecords: number;
+  overdueRecords: number;
+  tenantCount: number;
+  transactionCount: number;
+  totalDue: number;
+  totalPaid: number;
+  totalOutstanding: number;
+  overdueAmount: number;
+  fineOutstanding: number;
+  walletBalance: number;
+}
+
+export interface PaymentTransaction {
+  id: number;
+  rentRecordId: number;
+  tenantProfileId: number;
+  tenantName: string;
+  roomNumber: string;
+  billingMonth: string;
+  transactionType: PaymentTransactionType;
+  paymentMethod: PaymentMethod;
+  amount: number;
+  signedAmount: number;
+  outstandingBefore: number;
+  outstandingAfter: number;
+  walletBalanceBefore?: number;
+  walletBalanceAfter?: number;
+  notes?: string;
+  createdByName?: string;
+  createdAt: string;
+}
+
+export interface PaymentOverview {
+  summary: PaymentSummary;
+  records: RentRecord[];
+  transactions: PaymentTransaction[];
 }
 
 export interface Complaint {

@@ -28,17 +28,20 @@ public class TenantService {
     private final RoomRepository roomRepository;
     private final PasswordEncoder passwordEncoder;
     private final AccessControlService accessControlService;
+    private final PaymentService paymentService;
 
     public TenantService(TenantProfileRepository tenantProfileRepository,
                          UserRepository userRepository,
                          RoomRepository roomRepository,
                          PasswordEncoder passwordEncoder,
-                         AccessControlService accessControlService) {
+                         AccessControlService accessControlService,
+                         PaymentService paymentService) {
         this.tenantProfileRepository = tenantProfileRepository;
         this.userRepository = userRepository;
         this.roomRepository = roomRepository;
         this.passwordEncoder = passwordEncoder;
         this.accessControlService = accessControlService;
+        this.paymentService = paymentService;
     }
 
     @Transactional
@@ -75,6 +78,7 @@ public class TenantService {
                 .status(TenantStatus.ACTIVE)
                 .creditWalletBalance(0.0)
                 .build());
+        paymentService.ensureCurrentMonthRentRecord(profile);
         return toResponse(profile);
     }
 

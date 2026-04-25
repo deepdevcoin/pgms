@@ -3,6 +3,7 @@ package com.pgms.backend.controller;
 import com.pgms.backend.dto.BaseResponse;
 import com.pgms.backend.dto.payment.ApplyCreditRequest;
 import com.pgms.backend.dto.payment.CashPaymentRequest;
+import com.pgms.backend.dto.payment.PaymentOverviewResponse;
 import com.pgms.backend.dto.payment.PayRentRequest;
 import com.pgms.backend.dto.payment.RentRecordResponse;
 import com.pgms.backend.dto.payment.WaiveFineRequest;
@@ -34,6 +35,12 @@ public class PaymentController {
         return BaseResponse.success("Payments fetched successfully", paymentService.getTenantPayments());
     }
 
+    @GetMapping("/api/tenant/payments/overview")
+    @PreAuthorize("hasRole('TENANT')")
+    public BaseResponse<PaymentOverviewResponse> tenantPaymentOverview() {
+        return BaseResponse.success("Payment overview fetched successfully", paymentService.getTenantPaymentOverview());
+    }
+
     @PostMapping("/api/tenant/payments/pay")
     @PreAuthorize("hasRole('TENANT')")
     public BaseResponse<RentRecordResponse> pay(@Valid @RequestBody PayRentRequest request) {
@@ -52,10 +59,22 @@ public class PaymentController {
         return BaseResponse.success("Payments fetched successfully", paymentService.getManagerPayments());
     }
 
+    @GetMapping("/api/manager/payments/overview")
+    @PreAuthorize("hasRole('MANAGER')")
+    public BaseResponse<PaymentOverviewResponse> managerPaymentOverview() {
+        return BaseResponse.success("Payment overview fetched successfully", paymentService.getManagerPaymentOverview());
+    }
+
     @GetMapping("/api/owner/payments")
     @PreAuthorize("hasRole('OWNER')")
     public BaseResponse<List<RentRecordResponse>> ownerPayments() {
         return BaseResponse.success("Payments fetched successfully", paymentService.getOwnerPayments());
+    }
+
+    @GetMapping("/api/owner/payments/overview")
+    @PreAuthorize("hasRole('OWNER')")
+    public BaseResponse<PaymentOverviewResponse> ownerPaymentOverview() {
+        return BaseResponse.success("Payment overview fetched successfully", paymentService.getOwnerPaymentOverview());
     }
 
     @PostMapping("/api/manager/payments/cash")

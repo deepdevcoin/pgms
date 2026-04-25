@@ -6,12 +6,12 @@ import { AuthService } from './auth.service';
 import { MockDataService } from './mock-data.service';
 import {
   AmenityBooking, Complaint, LoginResponse, Manager, ManagerSummary, MenuItem,
-  Notice, NoticeReadReceipt, OwnerSummary, PG, RentRecord, Room, RoomStatus, ServiceBooking,
+  Notice, NoticeReadReceipt, OwnerSummary, PaymentOverview, PG, RentRecord, Room, RoomStatus, ServiceBooking,
   SubletRequest, Tenant, VacateNotice
 } from './models';
 import {
   asCollection, mapLogin, mapManager, mapManagerSummary, mapOwnerSummary,
-  mapLayoutRooms, mapPg, mapRoom, mapTenant, unwrapApiPayload
+  mapLayoutRooms, mapPaymentOverview, mapPg, mapRentRecord, mapRoom, mapTenant, unwrapApiPayload
 } from './api-adapters';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -196,7 +196,17 @@ export class ApiService {
       : this.role() === 'OWNER'
         ? environment.endpoints.payments.owner
         : environment.endpoints.payments.manager;
-    return this.get<unknown>(path).pipe(map(response => asCollection(response) as RentRecord[]));
+    return this.get<unknown>(path).pipe(map(response => asCollection(response).map(mapRentRecord)));
+  }
+
+  paymentOverview(): Observable<PaymentOverview> {
+    if (this.isDemo()) return this.mock.paymentOverview(this.role());
+    const path = this.role() === 'TENANT'
+      ? environment.endpoints.payments.tenantOverview
+      : this.role() === 'OWNER'
+        ? environment.endpoints.payments.ownerOverview
+        : environment.endpoints.payments.managerOverview;
+    return this.get<unknown>(path).pipe(map(mapPaymentOverview));
   }
 
   payRent(recordId: number, amount: number): Observable<RentRecord> {
@@ -210,10 +220,12 @@ export class ApiService {
   }
 
   cashPayment(payload: { tenantProfileId: number; billingMonth: string; amount: number }): Observable<RentRecord> {
+    if (this.isDemo()) return this.mock.cashPayment(payload);
     return this.post<RentRecord>(environment.endpoints.payments.cash, payload);
   }
 
   waiveFine(id: number, reason: string): Observable<RentRecord> {
+    if (this.isDemo()) return this.mock.waiveFine(id, reason);
     return this.put<RentRecord>(this.path(environment.endpoints.payments.waiveFine, { id }), { reason });
   }
 

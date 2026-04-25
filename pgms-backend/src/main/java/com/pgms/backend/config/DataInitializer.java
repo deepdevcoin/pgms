@@ -3,6 +3,7 @@ package com.pgms.backend.config;
 import com.pgms.backend.entity.ManagerProfile;
 import com.pgms.backend.entity.AmenitySlot;
 import com.pgms.backend.entity.MenuItem;
+import com.pgms.backend.entity.PaymentTransaction;
 import com.pgms.backend.entity.Pg;
 import com.pgms.backend.entity.RentRecord;
 import com.pgms.backend.entity.Room;
@@ -11,6 +12,8 @@ import com.pgms.backend.entity.User;
 import com.pgms.backend.entity.enums.AmenityType;
 import com.pgms.backend.entity.enums.CleaningStatus;
 import com.pgms.backend.entity.enums.MealType;
+import com.pgms.backend.entity.enums.PaymentMethod;
+import com.pgms.backend.entity.enums.PaymentTransactionType;
 import com.pgms.backend.entity.enums.RentStatus;
 import com.pgms.backend.entity.enums.RoomStatus;
 import com.pgms.backend.entity.enums.Role;
@@ -19,6 +22,7 @@ import com.pgms.backend.entity.enums.TenantStatus;
 import com.pgms.backend.repository.AmenitySlotRepository;
 import com.pgms.backend.repository.ManagerProfileRepository;
 import com.pgms.backend.repository.MenuItemRepository;
+import com.pgms.backend.repository.PaymentTransactionRepository;
 import com.pgms.backend.repository.PgRepository;
 import com.pgms.backend.repository.RentRecordRepository;
 import com.pgms.backend.repository.RoomRepository;
@@ -52,6 +56,7 @@ public class DataInitializer {
                                RoomRepository roomRepository,
                                AmenitySlotRepository amenitySlotRepository,
                                MenuItemRepository menuItemRepository,
+                               PaymentTransactionRepository paymentTransactionRepository,
                                JdbcTemplate jdbcTemplate,
                                UserRepository userRepository,
                                ManagerProfileRepository managerProfileRepository,
@@ -64,7 +69,7 @@ public class DataInitializer {
             Pg seededPg = resolveOrCreateSamplePg(pgRepository);
             if (seededPg != null) {
                 seedSampleRoomsIfMissing(seededPg, roomRepository);
-                seedManagerAndTenantIfMissing(seededPg, roomRepository, userRepository, managerProfileRepository, tenantProfileRepository, rentRecordRepository, passwordEncoder);
+                seedManagerAndTenantIfMissing(seededPg, roomRepository, userRepository, managerProfileRepository, tenantProfileRepository, rentRecordRepository, paymentTransactionRepository, passwordEncoder);
                 seedAmenitySlotsIfMissing(seededPg, amenitySlotRepository);
             }
 
@@ -83,6 +88,7 @@ public class DataInitializer {
                                                ManagerProfileRepository managerProfileRepository,
                                                TenantProfileRepository tenantProfileRepository,
                                                RentRecordRepository rentRecordRepository,
+                                               PaymentTransactionRepository paymentTransactionRepository,
                                                PasswordEncoder passwordEncoder) {
         User managerCandidate = userRepository.findByEmail("manager@pgms.com")
                 .orElseGet(() -> User.builder().email("manager@pgms.com").build());
@@ -140,11 +146,12 @@ public class DataInitializer {
             tenantProfile.setCreditWalletBalance(0.0);
         }
         tenantProfile = tenantProfileRepository.save(tenantProfile);
+        TenantProfile finalTenantProfile = tenantProfile;
 
         String billingMonth = YearMonth.now().toString();
-        if (rentRecordRepository.findByTenantProfileIdAndBillingMonth(tenantProfile.getId(), billingMonth).isEmpty()) {
-            rentRecordRepository.save(RentRecord.builder()
-                    .tenantProfile(tenantProfile)
+        RentRecord rentRecord = rentRecordRepository.findByTenantProfileIdAndBillingMonth(finalTenantProfile.getId(), billingMonth)
+                .orElseGet(() -> rentRecordRepository.save(RentRecord.builder()
+                    .tenantProfile(finalTenantProfile)
                     .billingMonth(billingMonth)
                     .rentAmount(finalTenantRoom.getMonthlyRent())
                     .ebAmount(350.0)
@@ -154,8 +161,26 @@ public class DataInitializer {
                     .dueDate(LocalDate.now().withDayOfMonth(Math.min(pg.getPaymentDeadlineDay(), LocalDate.now().lengthOfMonth())))
                     .status(RentStatus.PENDING)
                     .createdAt(LocalDateTime.now())
-                    .build());
+                    .build()));
+        seedPaymentTransactionIfMissing(rentRecord, paymentTransactionRepository);
+    }
+
+    private void seedPaymentTransactionIfMissing(RentRecord rentRecord, PaymentTransactionRepository paymentTransactionRepository) {
+        if (paymentTransactionRepository.countByRentRecordId(rentRecord.getId()) > 0) {
+            return;
         }
+        paymentTransactionRepository.save(PaymentTransaction.builder()
+                .rentRecord(rentRecord)
+                .tenantProfile(rentRecord.getTenantProfile())
+                .transactionType(PaymentTransactionType.RENT_CHARGE)
+                .paymentMethod(PaymentMethod.SYSTEM)
+                .amount(rentRecord.getTotalDue())
+                .signedAmount(rentRecord.getTotalDue())
+                .outstandingBefore(0.0)
+                .outstandingAfter(rentRecord.getTotalDue())
+                .notes("Seeded rent charge")
+                .createdAt(LocalDateTime.now())
+                .build());
     }
 
     private void syncRoomStatusEnumIfNeeded(JdbcTemplate jdbcTemplate) {
