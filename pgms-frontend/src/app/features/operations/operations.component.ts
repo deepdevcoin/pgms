@@ -270,7 +270,7 @@ export class OperationsComponent {
   receipts = signal<NoticeReadReceipt[]>([]);
   query = '';
   form: Row = {};
-  actionDialogValue = '';
+  actionDialogValue: string | number = '';
   private textActionFactory: ((value: string) => { subscribe: (handlers: { next: () => void; error: (err: any) => void }) => void }) | null = null;
   private numberActionFactory: ((value: number) => { subscribe: (handlers: { next: () => void; error: (err: any) => void }) => void }) | null = null;
 
@@ -315,6 +315,7 @@ export class OperationsComponent {
         this.rows.set(Array.isArray(rows) ? rows as Row[] : []);
         this.loading.set(false);
         if (key === 'sublets' && this.auth.role() === 'TENANT') this.loadWallet();
+        if (key === 'notices' && this.auth.role() === 'TENANT') this.autoMarkTenantNotices(this.rows());
       },
       error: (err: { message?: string }) => {
         this.error.set(err?.message || 'Could not load data');
@@ -424,7 +425,9 @@ export class OperationsComponent {
         crumb: 'Communication',
         title: 'Notices',
         subtitle: 'Announcements with read tracking.',
-        columns: ['title', 'targetType', 'createdByName', 'createdAt', 'read', 'readCount'],
+        columns: role === 'TENANT'
+          ? ['title', 'content', 'createdByName', 'createdAt']
+          : ['title', 'targetType', 'createdByName', 'createdAt', 'readCount'],
         createLabel: role === 'OWNER' || role === 'MANAGER' ? 'Compose notice' : undefined,
         fields: role === 'OWNER' || role === 'MANAGER' ? [
           { key: 'title', label: 'Title', type: 'text' },
@@ -470,7 +473,7 @@ export class OperationsComponent {
         createLabel: role === 'MANAGER' ? 'Create slot' : undefined,
         fields: role === 'MANAGER' ? [
           { key: 'pgId', label: 'PG', type: 'select', options: this.pgs().map(pg => String(pg.id)), optionLabel: option => this.pgName(option) },
-          { key: 'amenityType', label: 'Amenity', type: 'select', options: ['WASHING_MACHINE', 'GAME_ROOM', 'TT', 'CARROM', 'BADMINTON'] },
+          { key: 'amenityType', label: 'Amenity', type: 'select', options: ['WASHING_MACHINE', 'TABLE_TENNIS', 'CARROM', 'BADMINTON'] },
           { key: 'facilityName', label: 'Facility name', type: 'text' },
           { key: 'slotDate', label: 'Date', type: 'date' },
           { key: 'startTime', label: 'Start', type: 'time' },
@@ -576,13 +579,13 @@ export class OperationsComponent {
   }
 
   private weekLabel(): string {
-    const now = new Date();
-    const start = new Date(Date.UTC(now.getFullYear(), 0, 1));
-    const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-    const day = start.getUTCDay() || 7;
-    const diff = Math.floor((today.getTime() - start.getTime()) / 86400000);
-    const week = Math.ceil((diff + day) / 7);
-    return `${now.getFullYear()}-W${String(week).padStart(2, '0')}`;
+    const date = new Date();
+    const utcDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const day = utcDate.getUTCDay() || 7;
+    utcDate.setUTCDate(utcDate.getUTCDate() + 4 - day);
+    const yearStart = new Date(Date.UTC(utcDate.getUTCFullYear(), 0, 1));
+    const week = Math.ceil((((utcDate.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    return `${utcDate.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
   }
 
   private loadWallet() {
@@ -641,7 +644,7 @@ export class OperationsComponent {
   }
 
   submitActionDialog() {
-    const raw = this.actionDialogValue.trim();
+    const raw = String(this.actionDialogValue ?? '').trim();
     if (!raw) {
       this.snack.open('Please enter a value.', 'Dismiss', { duration: 2200, panelClass: 'pgms-snack' });
       return;
@@ -691,6 +694,15 @@ export class OperationsComponent {
         this.receiptsLoading.set(false);
         this.snack.open(err?.message || 'Could not load read receipts', 'Dismiss', { duration: 3000, panelClass: 'pgms-snack' });
       }
+    });
+  }
+
+  private autoMarkTenantNotices(rows: Row[]) {
+    const unreadIds = rows.filter(row => !row['read']).map(row => Number(row['id'])).filter(id => id > 0);
+    if (!unreadIds.length) return;
+    this.rows.set(rows.map(row => row['read'] ? row : { ...row, read: true }));
+    unreadIds.forEach(id => {
+      this.api.markNoticeRead(id).subscribe({ error: () => undefined });
     });
   }
 }

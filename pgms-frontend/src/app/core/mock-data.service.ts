@@ -374,7 +374,7 @@ export class MockDataService {
   private buildAmenities(): AmenityBooking[] {
     return [
       { slotId: 7001, pgId: 1, amenityType: 'WASHING_MACHINE', facilityName: 'Laundry Room', slotDate: '2026-04-26', startTime: '07:00', endTime: '08:00', capacity: 4, bookingCount: 1, status: 'AVAILABLE' },
-      { slotId: 7002, pgId: 1, amenityType: 'GAME_ROOM', facilityName: 'Common Lounge', slotDate: '2026-04-26', startTime: '19:00', endTime: '20:00', capacity: 8, bookingCount: 3, status: 'AVAILABLE' },
+      { slotId: 7002, pgId: 1, amenityType: 'TABLE_TENNIS', facilityName: 'Common Lounge', slotDate: '2026-04-26', startTime: '19:00', endTime: '20:00', capacity: 8, bookingCount: 3, status: 'AVAILABLE' },
       { slotId: 7003, pgId: 2, amenityType: 'BADMINTON', facilityName: 'Terrace Court', slotDate: '2026-04-27', startTime: '18:00', endTime: '19:00', capacity: 6, bookingCount: 2, status: 'AVAILABLE' },
       { bookingId: 8101, slotId: 7001, pgId: 1, tenantName: 'Devika Rao', amenityType: 'WASHING_MACHINE', facilityName: 'Laundry Room', slotDate: '2026-04-26', startTime: '07:00', endTime: '08:00', capacity: 4, bookingCount: 1, status: 'BOOKED' }
     ];

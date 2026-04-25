@@ -24,7 +24,17 @@ public class MenuService {
     }
 
     public List<MenuItemResponse> getMenu(Long pgId, String weekLabel) {
-        return menuItemRepository.findByPgIdAndWeekLabelOrderByDayOfWeekAscMealTypeAsc(pgId, weekLabel).stream().map(this::toResponse).toList();
+        List<MenuItem> items = menuItemRepository.findByPgIdAndWeekLabelOrderByDayOfWeekAscMealTypeAsc(pgId, weekLabel);
+        if (items.isEmpty()) {
+            List<MenuItem> available = menuItemRepository.findByPgIdOrderByWeekLabelDescDayOfWeekAscMealTypeAsc(pgId);
+            if (!available.isEmpty()) {
+                String fallbackWeek = available.get(0).getWeekLabel();
+                items = available.stream()
+                        .filter(item -> fallbackWeek.equals(item.getWeekLabel()))
+                        .toList();
+            }
+        }
+        return items.stream().map(this::toResponse).toList();
     }
 
     @Transactional

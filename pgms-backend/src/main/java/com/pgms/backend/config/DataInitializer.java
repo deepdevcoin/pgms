@@ -1,12 +1,14 @@
 package com.pgms.backend.config;
 
 import com.pgms.backend.entity.ManagerProfile;
+import com.pgms.backend.entity.AmenitySlot;
 import com.pgms.backend.entity.MenuItem;
 import com.pgms.backend.entity.Pg;
 import com.pgms.backend.entity.RentRecord;
 import com.pgms.backend.entity.Room;
 import com.pgms.backend.entity.TenantProfile;
 import com.pgms.backend.entity.User;
+import com.pgms.backend.entity.enums.AmenityType;
 import com.pgms.backend.entity.enums.CleaningStatus;
 import com.pgms.backend.entity.enums.MealType;
 import com.pgms.backend.entity.enums.RentStatus;
@@ -14,6 +16,7 @@ import com.pgms.backend.entity.enums.RoomStatus;
 import com.pgms.backend.entity.enums.Role;
 import com.pgms.backend.entity.enums.SharingType;
 import com.pgms.backend.entity.enums.TenantStatus;
+import com.pgms.backend.repository.AmenitySlotRepository;
 import com.pgms.backend.repository.ManagerProfileRepository;
 import com.pgms.backend.repository.MenuItemRepository;
 import com.pgms.backend.repository.PgRepository;
@@ -47,6 +50,7 @@ public class DataInitializer {
     CommandLineRunner seedData(AuthService authService,
                                PgRepository pgRepository,
                                RoomRepository roomRepository,
+                               AmenitySlotRepository amenitySlotRepository,
                                MenuItemRepository menuItemRepository,
                                JdbcTemplate jdbcTemplate,
                                UserRepository userRepository,
@@ -61,6 +65,7 @@ public class DataInitializer {
             if (seededPg != null) {
                 seedSampleRoomsIfMissing(seededPg, roomRepository);
                 seedManagerAndTenantIfMissing(seededPg, roomRepository, userRepository, managerProfileRepository, tenantProfileRepository, rentRecordRepository, passwordEncoder);
+                seedAmenitySlotsIfMissing(seededPg, amenitySlotRepository);
             }
 
             if (menuItemRepository.count() == 0) {
@@ -108,7 +113,7 @@ public class DataInitializer {
 
         var existingTenantProfile = tenantProfileRepository.findByUserId(tenant.getId());
         Room tenantRoom = existingTenantProfile
-                .map(TenantProfile::getRoom)
+                .map(profile -> roomRepository.findById(profile.getRoom().getId()).orElse(null))
                 .orElseGet(() -> roomRepository.findByPgId(pg.getId()).stream()
                         .filter(room -> !"103".equals(room.getRoomNumber()))
                         .filter(room -> tenantProfileRepository.findByRoomId(room.getId()).isEmpty())
@@ -230,6 +235,34 @@ public class DataInitializer {
                 .depositAmount(deposit)
                 .status(status)
                 .cleaningStatus(cleaningStatus)
+                .build();
+    }
+
+    private void seedAmenitySlotsIfMissing(Pg pg, AmenitySlotRepository amenitySlotRepository) {
+        boolean hasUpcomingSlots = amenitySlotRepository.findByPgIdOrderBySlotDateAscStartTimeAsc(pg.getId()).stream()
+                .anyMatch(slot -> !slot.getSlotDate().isBefore(LocalDate.now()));
+        if (hasUpcomingSlots) {
+            return;
+        }
+        List<AmenitySlot> slots = List.of(
+                amenitySlot(pg, AmenityType.WASHING_MACHINE, LocalDate.now().plusDays(1), 7, 0, 8, 0, 4, "Laundry Room"),
+                amenitySlot(pg, AmenityType.WASHING_MACHINE, LocalDate.now().plusDays(1), 8, 0, 9, 0, 4, "Laundry Room"),
+                amenitySlot(pg, AmenityType.TABLE_TENNIS, LocalDate.now().plusDays(1), 19, 0, 20, 0, 8, "Common Lounge"),
+                amenitySlot(pg, AmenityType.BADMINTON, LocalDate.now().plusDays(2), 18, 0, 19, 0, 6, "Terrace Court"),
+                amenitySlot(pg, AmenityType.CARROM, LocalDate.now().plusDays(2), 20, 0, 21, 0, 4, "Rec Room")
+        );
+        amenitySlotRepository.saveAll(slots);
+    }
+
+    private AmenitySlot amenitySlot(Pg pg, AmenityType amenityType, LocalDate date, int startHour, int startMinute, int endHour, int endMinute, int capacity, String facilityName) {
+        return AmenitySlot.builder()
+                .pg(pg)
+                .amenityType(amenityType)
+                .slotDate(date)
+                .startTime(java.time.LocalTime.of(startHour, startMinute))
+                .endTime(java.time.LocalTime.of(endHour, endMinute))
+                .capacity(capacity)
+                .facilityName(facilityName)
                 .build();
     }
 

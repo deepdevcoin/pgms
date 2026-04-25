@@ -62,10 +62,13 @@ public class AmenityService {
     }
 
     public List<AmenityBookingResponse> getTenantAvailableSlots() {
-        Long pgId = accessControlService.getCurrentTenantProfile().getPg().getId();
+        var tenantProfile = accessControlService.getCurrentTenantProfile();
+        Long pgId = tenantProfile.getPg().getId();
         return amenitySlotRepository.findByPgIdOrderBySlotDateAscStartTimeAsc(pgId).stream()
                 .filter(slot -> !slot.getSlotDate().isBefore(LocalDate.now()))
-                .map(slot -> toResponse(slot, null))
+                .map(slot -> toResponse(slot, amenityBookingRepository
+                        .findBySlotIdAndTenantProfileIdAndStatus(slot.getId(), tenantProfile.getId(), BookingStatus.CONFIRMED)
+                        .orElse(null)))
                 .toList();
     }
 
@@ -75,6 +78,13 @@ public class AmenityService {
                 .orElseThrow(() -> new NotFoundException("Slot not found"));
         if (!slot.getPg().getId().equals(accessControlService.getCurrentTenantProfile().getPg().getId())) {
             throw new BadRequestException("Slot does not belong to tenant's PG");
+        }
+        if (amenityBookingRepository.findBySlotIdAndTenantProfileIdAndStatus(
+                slot.getId(),
+                accessControlService.getCurrentTenantProfile().getId(),
+                BookingStatus.CONFIRMED
+        ).isPresent()) {
+            throw new ConflictException("You already have a booking for this slot");
         }
         long count = amenityBookingRepository.countBySlotIdAndStatus(slot.getId(), BookingStatus.CONFIRMED);
         if (count >= slot.getCapacity()) {
