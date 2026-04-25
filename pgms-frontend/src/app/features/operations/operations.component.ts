@@ -7,7 +7,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { Observable } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
-import { MenuItem, NoticeReadReceipt, PaymentSummary, PaymentTransaction, PG, Role } from '../../core/models';
+import { MenuItem, NoticeReadReceipt, PaymentSummary, PaymentTransaction, PG, Role, Tenant } from '../../core/models';
 import { PopupShellComponent } from '../../shared/popup-shell.component';
 import { buildModuleActions, buildModuleConfig, OperationsActionHandlers } from './operations.config';
 import { buildPaymentSummaryCards, formatRowValue, formatTransactionValue, isMoneyColumn, isStatusColumn, labelForColumn, pillClassForStatus, transactionColumns } from './operations.formatters';
@@ -89,6 +89,38 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
       <div class="state card"><div class="spinner"></div><span>Loading {{ config().title.toLowerCase() }}...</span></div>
     } @else if (error()) {
       <div class="state card err"><mat-icon>error</mat-icon><span>{{ error() }}</span></div>
+    } @else if (moduleKey() === 'menu' && auth.role() === 'TENANT') {
+      @if (weeklyTenantMenu().length === 0) {
+        <div class="state card"><mat-icon>restaurant_menu</mat-icon><span>Weekly menu is not available for your PG yet.</span></div>
+      } @else {
+        <section class="menu-board">
+          @for (day of weeklyTenantMenu(); track day.day) {
+            <article class="menu-day card" [class.menu-day--today]="day.isToday">
+              <div class="menu-day-head">
+                <div>
+                  <div class="menu-day-name">{{ day.day }}</div>
+                  <div class="menu-day-week">{{ day.weekLabel }}</div>
+                </div>
+                @if (day.isToday) {
+                  <span class="menu-day-tag">Today</span>
+                }
+              </div>
+
+              <div class="menu-meals">
+                @for (meal of day.meals; track meal.id || (meal.dayOfWeek + '-' + meal.mealType + '-' + meal.itemNames)) {
+                  <div class="menu-meal">
+                    <div class="menu-meal-copy">
+                      <div class="menu-meal-name">{{ meal.mealType }}</div>
+                      <div class="menu-meal-items">{{ meal.itemNames }}</div>
+                    </div>
+                    <span class="menu-meal-tag" [class.menu-meal-tag--veg]="meal.isVeg">{{ meal.isVeg ? 'Veg' : 'Mixed' }}</span>
+                  </div>
+                }
+              </div>
+            </article>
+          }
+        </section>
+      }
     } @else if (filteredRows().length === 0) {
       <div class="state card"><mat-icon>inbox</mat-icon><span>No records found.</span></div>
     } @else {
@@ -205,6 +237,41 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
     .receipt-name { font-weight: 600; }
     .receipt-meta, .receipt-time { color: var(--text-muted); font-size: 12px; }
     .receipt-time { text-align: right; }
+    .menu-board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .menu-day { padding: 16px; display: grid; gap: 14px; }
+    .menu-day--today {
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.02)),
+        linear-gradient(135deg, rgba(96,165,250,0.12), transparent 44%);
+    }
+    .menu-day-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
+    .menu-day-name { font-size: 16px; font-weight: 700; }
+    .menu-day-week { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+    .menu-day-tag, .menu-meal-tag {
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+      background: rgba(255,255,255,0.06);
+      color: var(--text-muted);
+    }
+    .menu-meal-tag--veg { background: rgba(34,197,94,0.12); color: #86efac; }
+    .menu-meals { display: grid; gap: 10px; }
+    .menu-meal {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: start;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .menu-meal:first-child { padding-top: 0; border-top: 0; }
+    .menu-meal-copy { display: grid; gap: 4px; }
+    .menu-meal-name { font-size: 11px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; }
+    .menu-meal-items { line-height: 1.5; }
+    @media (max-width: 900px) { .menu-board { grid-template-columns: 1fr; } }
+    @media (max-width: 640px) { .menu-meal { grid-template-columns: 1fr; } }
   `],
   host: {}
 })
@@ -216,6 +283,7 @@ export class OperationsComponent {
 
   rows = signal<Row[]>([]);
   pgs = signal<PG[]>([]);
+  tenantProfile = signal<Tenant | null>(null);
   loading = signal(false);
   saving = signal(false);
   error = signal<string | null>(null);
@@ -288,8 +356,41 @@ export class OperationsComponent {
   canCreate = computed(() => !!this.config().fields?.length && !!this.config().createLabel);
   actionsMap = computed(() => buildModuleActions(this.auth.role(), this.actionHandlers));
   actions = computed<ActionConfig[]>(() => this.actionsMap()[this.moduleKey()]);
+  tenantMenuPgId = computed(() => {
+    if (this.auth.role() !== 'TENANT') return 0;
+    const fromProfile = Number(this.tenantProfile()?.pgId || 0);
+    if (fromProfile > 0) return fromProfile;
+    const fromRows = this.rows().find(row => Number(row['pgId']) > 0);
+    return Number(fromRows?.['pgId'] || 0);
+  });
+  weeklyTenantMenu = computed(() => {
+    const order: Record<string, number> = { BREAKFAST: 0, LUNCH: 1, DINNER: 2 };
+    const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
+    const today = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date()).toUpperCase();
+    const menuRows = (this.rows() as MenuItem[]).filter(row => !!row.dayOfWeek && !!row.mealType);
+
+    return days
+      .map(day => ({
+        day,
+        isToday: day === today,
+        weekLabel: menuRows.find(item => item.dayOfWeek === day)?.weekLabel || this.form['weekLabel'] || this.weekLabel(),
+        meals: menuRows
+          .filter(item => item.dayOfWeek === day)
+          .sort((a, b) => (order[a.mealType] ?? 9) - (order[b.mealType] ?? 9))
+      }))
+      .filter(day => day.meals.length > 0);
+  });
 
   constructor() {
+    if (this.auth.role() === 'TENANT') {
+      this.api.tenantProfile().subscribe({
+        next: profile => {
+          this.tenantProfile.set(profile);
+          if (this.moduleKey() === 'menu') this.load();
+        },
+        error: () => undefined
+      });
+    }
     this.api.listPgs().subscribe({
       next: pgs => {
         this.pgs.set(pgs);
@@ -328,7 +429,7 @@ export class OperationsComponent {
       : key === 'services' ? this.api.listServices()
       : key === 'amenities' ? this.api.listAmenities()
       : key === 'sublets' ? this.api.listSublets()
-      : this.api.listMenu(this.numberField('pgId') || this.pgs()[0]?.id || 0, this.form['weekLabel'] || this.weekLabel());
+      : this.api.listMenu(this.menuPgId(), this.form['weekLabel'] || this.weekLabel());
     request.subscribe({
       next: rows => {
         this.rows.set(Array.isArray(rows) ? rows as Row[] : []);
@@ -409,13 +510,13 @@ export class OperationsComponent {
       dayOfWeek: 'MONDAY',
       mealType: 'BREAKFAST',
       isVeg: true,
-      pgId: this.pgs()[0]?.id
+      pgId: this.auth.role() === 'TENANT' ? this.tenantProfile()?.pgId : this.pgs()[0]?.id
     };
   }
 
   private menuPayload(): MenuItem[] {
     return [{
-      pgId: this.numberField('pgId') || this.pgs()[0]?.id || 0,
+      pgId: this.menuPgId(),
       weekLabel: this.form['weekLabel'] || this.weekLabel(),
       dayOfWeek: this.form['dayOfWeek'],
       mealType: this.form['mealType'],
@@ -441,6 +542,13 @@ export class OperationsComponent {
   private pgName(value: string): string {
     const id = Number(value);
     return this.pgs().find(pg => pg.id === id)?.name || `PG ${value}`;
+  }
+
+  private menuPgId(): number {
+    if (this.auth.role() === 'TENANT') {
+      return this.tenantMenuPgId();
+    }
+    return this.numberField('pgId') || this.pgs()[0]?.id || 0;
   }
 
   private numberField(key: string): number { return Number(this.form[key] || 0); }

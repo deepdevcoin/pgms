@@ -81,23 +81,44 @@ public class AnalyticsService {
     }
 
     public ManagerSummaryResponse managerSummary() {
-        Long pgId = accessControlService.getPrimaryPgIdForCurrentManager();
+        List<Long> pgIds = accessControlService.getAssignedPgIdsForCurrentManager();
+        if (pgIds.isEmpty()) {
+            return ManagerSummaryResponse.builder()
+                    .occupancyRate(0.0)
+                    .totalRooms(0)
+                    .occupiedRooms(0)
+                    .paymentCollectedThisMonth(0.0)
+                    .paymentPendingThisMonth(0.0)
+                    .openComplaints(0)
+                    .pendingServiceRequests(0)
+                    .vacateNotices(List.of())
+                    .build();
+        }
         String currentMonth = YearMonth.now().toString();
-        List<RentRecord> monthlyRecords = rentRecordRepository.findByTenantProfilePgIdOrderByBillingMonthDesc(pgId).stream()
+        List<RentRecord> monthlyRecords = rentRecordRepository.findByTenantProfilePgIdInOrderByBillingMonthDesc(pgIds).stream()
                 .filter(record -> currentMonth.equals(record.getBillingMonth()))
                 .toList();
-        int totalRooms = roomRepository.findByPgId(pgId).size();
-        int occupiedRooms = (int) roomRepository.countByPgIdAndStatus(pgId, RoomStatus.OCCUPIED);
+        int totalRooms = pgIds.stream()
+                .mapToInt(pgId -> roomRepository.findByPgId(pgId).size())
+                .sum();
+        int occupiedRooms = pgIds.stream()
+                .mapToInt(pgId -> (int) roomRepository.countByPgIdAndStatus(pgId, RoomStatus.OCCUPIED))
+                .sum();
         return ManagerSummaryResponse.builder()
                 .occupancyRate(totalRooms == 0 ? 0 : (occupiedRooms * 100.0) / totalRooms)
                 .totalRooms(totalRooms)
                 .occupiedRooms(occupiedRooms)
                 .paymentCollectedThisMonth(monthlyRecords.stream().mapToDouble(RentRecord::getAmountPaid).sum())
                 .paymentPendingThisMonth(monthlyRecords.stream().mapToDouble(record -> Math.max(record.getTotalDue() - record.getAmountPaid(), 0)).sum())
-                .openComplaints((int) complaintRepository.findByTenantProfilePgIdAndCategoryNotOrderByCreatedAtDesc(pgId, ComplaintCategory.AGAINST_MANAGER)
-                        .stream().filter(c -> c.getStatus() == ComplaintStatus.OPEN || c.getStatus() == ComplaintStatus.IN_PROGRESS).count())
-                .pendingServiceRequests((int) serviceBookingRepository.countByTenantProfilePgIdAndStatus(pgId, ServiceStatus.REQUESTED))
-                .vacateNotices(vacateNoticeRepository.findByTenantProfilePgId(pgId).stream()
+                .openComplaints((int) pgIds.stream()
+                        .flatMap(pgId -> complaintRepository.findByTenantProfilePgIdAndCategoryNotOrderByCreatedAtDesc(pgId, ComplaintCategory.AGAINST_MANAGER).stream())
+                        .filter(c -> c.getStatus() == ComplaintStatus.OPEN || c.getStatus() == ComplaintStatus.IN_PROGRESS)
+                        .count())
+                .pendingServiceRequests((int) pgIds.stream()
+                        .mapToLong(pgId -> serviceBookingRepository.countByTenantProfilePgIdAndStatus(pgId, ServiceStatus.REQUESTED))
+                        .sum())
+                .vacateNotices(pgIds.stream()
+                        .flatMap(pgId -> vacateNoticeRepository.findByTenantProfilePgId(pgId).stream())
                         .filter(notice -> notice.getStatus() != VacateStatus.COMPLETED)
                         .map(notice -> new ManagerVacateItemResponse(
                                 notice.getTenantProfile().getUser().getName(),

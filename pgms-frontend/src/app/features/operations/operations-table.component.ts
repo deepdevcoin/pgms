@@ -21,7 +21,7 @@ import { ActionConfig, CellClassValue, ModuleKey, Row } from './operations.types
           <div [class.head-cell--right]="alignRight(col)">{{ label(col) }}</div>
         }
         @if (showActions) {
-          <div class="head-cell--actions">{{ actionColumnLabel }}</div>
+          <div class="head-cell--actions" [class.head-cell--compact-actions]="moduleKey === 'payments' && compact">{{ actionColumnLabel }}</div>
         }
       </div>
       @for (row of rows; track rowKey(row)) {
@@ -48,12 +48,12 @@ import { ActionConfig, CellClassValue, ModuleKey, Row } from './operations.types
             </div>
           }
           @if (showActions) {
-            <div class="actions" [class.actions--compact]="compact">
+            <div class="actions" [class.actions--compact]="compact" [class.actions--payments-compact]="moduleKey === 'payments' && compact">
               @for (action of actions; track action.label) {
                 @if (action.show(row, role)) {
-                  <button class="icon" type="button" (click)="action.run(row)" [title]="action.label" [class.action-pill]="moduleKey === 'payments'">
+                  <button class="icon" type="button" (click)="action.run(row)" [title]="action.label" [class.action-pill]="moduleKey === 'payments' && !compact">
                     <mat-icon>{{ action.icon }}</mat-icon>
-                    @if (moduleKey === 'payments') { <span>{{ action.label }}</span> }
+                    @if (moduleKey === 'payments' && !compact) { <span>{{ action.label }}</span> }
                   </button>
                 }
               }
@@ -68,18 +68,20 @@ import { ActionConfig, CellClassValue, ModuleKey, Row } from './operations.types
     .thead, .tr { display: grid; gap: 14px; align-items: center; }
     .thead { padding: 14px 18px; color: var(--text-muted); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; border-bottom: 1px solid var(--border); }
     .thead--payments { padding-top: 14px; padding-bottom: 14px; background: rgba(255,255,255,0.02); }
-    .thead--compact { padding: 12px 16px; }
+    .thead--compact { padding: 11px 14px; gap: 10px; }
     .tr { padding: 16px 18px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px; }
     .tr--payments { min-height: 64px; }
     .tr--payments:hover { background: rgba(255,255,255,0.02); }
-    .tr--compact { padding: 13px 16px; font-size: 12px; }
+    .tr--compact { padding: 12px 14px; font-size: 12px; gap: 10px; }
     .tr:last-child { border-bottom: 0; }
     .money { font-family: var(--font-mono); }
     .cell--status { display: flex; align-items: center; }
     .cell--right, .head-cell--right, .head-cell--actions { text-align: right; }
+    .head-cell--compact-actions { padding-right: 2px; }
     .cell--wrap { white-space: normal; line-height: 1.45; }
-    .actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+    .actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: nowrap; align-items: center; min-height: 32px; }
     .actions--compact { gap: 4px; }
+    .actions--payments-compact { justify-content: flex-end; }
     .icon { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px; border: 1px solid var(--border); background: var(--bg-elev); color: var(--text-muted); cursor: pointer; transition: border-color 120ms ease, color 120ms ease, background 120ms ease; }
     .icon:hover { color: var(--primary); border-color: var(--primary); }
     .icon mat-icon { font-size: 17px; width: 17px; height: 17px; }
@@ -110,6 +112,9 @@ export class OperationsTableComponent {
   @Input() cellClass: (row: Row, col: string) => CellClassValue = () => '';
 
   gridTemplate(): string {
+    if (this.moduleKey === 'payments' && this.compact) {
+      return this.compactPaymentTemplate();
+    }
     const cells = this.columns.map(col => this.columnWidth(col));
     if (this.showActions) cells.push(this.moduleKey === 'payments' ? (this.compact ? 'minmax(118px, 136px)' : 'minmax(156px, 190px)') : 'minmax(92px, 132px)');
     return cells.join(' ');
@@ -117,6 +122,9 @@ export class OperationsTableComponent {
 
   resolvedMinWidth(): string {
     if (this.minWidth) return this.minWidth;
+    if (this.moduleKey === 'payments' && this.compact) {
+      return this.columns.includes('tenantName') ? '980px' : '760px';
+    }
     const base = this.showActions ? 170 : 0;
     return `${Math.max(680, this.columns.length * (this.compact ? (this.moduleKey === 'payments' ? 88 : 112) : 128) + base)}px`;
   }
@@ -130,16 +138,26 @@ export class OperationsTableComponent {
   }
 
   private columnWidth(col: string): string {
-    if (this.moduleKey === 'payments' && this.compact) {
-      if (this.statusColumn(col)) return 'minmax(92px, 0.82fr)';
-      if (['billingMonth', 'dueDate', 'roomNumber'].includes(col)) return 'minmax(84px, 0.78fr)';
-      if (this.moneyColumn(col)) return 'minmax(86px, 0.82fr)';
-    }
     if (this.wrapColumn(col)) return 'minmax(190px, 1.45fr)';
     if (this.statusColumn(col)) return 'minmax(112px, 0.88fr)';
     if (['tenantName', 'createdByName', 'pgName', 'targetType'].includes(col)) return 'minmax(136px, 1.1fr)';
     if (['roomNumber', 'billingMonth', 'dueDate', 'slotDate', 'startDate', 'endDate', 'startTime', 'endTime', 'createdAt'].includes(col)) return 'minmax(108px, 0.9fr)';
     if (this.moneyColumn(col)) return 'minmax(108px, 0.88fr)';
     return 'minmax(100px, 1fr)';
+  }
+
+  private compactPaymentTemplate(): string {
+    const cells: string[] = this.columns.map(col => {
+      if (col === 'tenantName') return 'minmax(104px, 1.05fr)';
+      if (col === 'pgName') return 'minmax(96px, 0.95fr)';
+      if (col === 'roomNumber') return 'minmax(66px, 0.66fr)';
+      if (col === 'billingMonth') return 'minmax(74px, 0.78fr)';
+      if (col === 'dueDate') return 'minmax(80px, 0.82fr)';
+      if (this.statusColumn(col)) return 'minmax(84px, 0.82fr)';
+      if (this.moneyColumn(col)) return 'minmax(74px, 0.76fr)';
+      return 'minmax(72px, 0.8fr)';
+    });
+    if (this.showActions) cells.push('44px');
+    return cells.join(' ');
   }
 }

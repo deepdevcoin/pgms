@@ -36,7 +36,7 @@ export const routes: Routes = [
     loadComponent: () => import('./layout/app-shell.component').then(m => m.AppShellComponent),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
-      { path: 'dashboard', loadComponent: () => import('./features/manager/manager-dashboard.component').then(m => m.ManagerDashboardComponent) },
+      { path: 'dashboard', loadComponent: () => import('./features/manager/manager-ops-dashboard.component').then(m => m.ManagerDashboardComponent) },
       { path: 'layout', loadComponent: () => import('./features/layout-viz/layout-viz.component').then(m => m.LayoutVizComponent) },
       { path: 'layout/:pgId', loadComponent: () => import('./features/layout-viz/layout-viz.component').then(m => m.LayoutVizComponent) },
       { path: 'tenants', loadComponent: () => import('./features/manager/tenants.component').then(m => m.TenantsComponent) },
