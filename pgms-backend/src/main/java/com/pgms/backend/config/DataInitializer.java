@@ -385,10 +385,6 @@ public class DataInitializer {
         }
     }
 
-    private AmenitySlot amenitySlot(Pg pg, AmenityType amenityType, LocalDate date, int startHour, int startMinute, int endHour, int endMinute, int capacity, String facilityName, String resourceName) {
-        return amenitySlot(pg, amenityType, date, LocalTime.of(startHour, startMinute), LocalTime.of(endHour, endMinute), capacity, facilityName, resourceName);
-    }
-
     private AmenitySlot amenitySlot(Pg pg, AmenityType amenityType, LocalDate date, LocalTime startTime, LocalTime endTime, int capacity, String facilityName, String resourceName) {
         return AmenitySlot.builder()
                 .pg(pg)

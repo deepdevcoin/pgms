@@ -142,6 +142,7 @@ export class AppShellComponent {
             { icon: 'badge', label: 'Managers', route: '/owner/managers', testId: 'nav-owner-managers' },
             { icon: 'payments', label: 'Payments', route: '/owner/payments', testId: 'nav-owner-payments' },
             { icon: 'report_problem', label: 'Complaints', route: '/owner/complaints', testId: 'nav-owner-complaints' },
+            { icon: 'home_repair_service', label: 'Services', route: '/owner/services', testId: 'nav-owner-services' },
             { icon: 'campaign', label: 'Notices', route: '/owner/notices', testId: 'nav-owner-notices' },
             { icon: 'restaurant_menu', label: 'Menu', route: '/owner/menu', testId: 'nav-owner-menu' }
         ];

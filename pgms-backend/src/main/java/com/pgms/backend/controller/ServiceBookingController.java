@@ -50,9 +50,21 @@ public class ServiceBookingController {
         return BaseResponse.success("Service bookings fetched successfully", serviceBookingService.getManagerBookings());
     }
 
+    @GetMapping("/api/owner/services")
+    @PreAuthorize("hasRole('OWNER')")
+    public BaseResponse<List<ServiceBookingResponse>> ownerServices() {
+        return BaseResponse.success("Service bookings fetched successfully", serviceBookingService.getOwnerBookings());
+    }
+
     @PutMapping("/api/manager/services/{id}/update-status")
     @PreAuthorize("hasRole('MANAGER')")
     public BaseResponse<ServiceBookingResponse> updateStatus(@PathVariable Long id, @Valid @RequestBody ServiceStatusUpdateRequest request) {
         return BaseResponse.success("Service booking updated successfully", serviceBookingService.updateStatus(id, request));
+    }
+
+    @PutMapping("/api/owner/services/{id}/update-status")
+    @PreAuthorize("hasRole('OWNER')")
+    public BaseResponse<ServiceBookingResponse> ownerUpdateStatus(@PathVariable Long id, @Valid @RequestBody ServiceStatusUpdateRequest request) {
+        return BaseResponse.success("Service booking updated successfully", serviceBookingService.updateStatusForOwner(id, request));
     }
 }

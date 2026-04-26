@@ -92,7 +92,9 @@ export const environment = {
       tenant: '/tenant/services',
       tenantRate: '/tenant/services/:id/rate',
       manager: '/manager/services',
-      managerUpdate: '/manager/services/:id/update-status'
+      managerUpdate: '/manager/services/:id/update-status',
+      owner: '/owner/services',
+      ownerUpdate: '/owner/services/:id/update-status'
     },
     amenities: {
       managerSlots: '/manager/amenities/slots',

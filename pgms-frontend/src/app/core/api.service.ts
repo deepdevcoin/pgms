@@ -358,7 +358,11 @@ export class ApiService {
 
   listServices(): Observable<ServiceBooking[]> {
     if (this.isDemo()) return this.mock.listServices(this.role());
-    const path = this.role() === 'TENANT' ? environment.endpoints.services.tenant : environment.endpoints.services.manager;
+    const path = this.role() === 'TENANT'
+      ? environment.endpoints.services.tenant
+      : this.role() === 'OWNER'
+        ? environment.endpoints.services.owner
+        : environment.endpoints.services.manager;
     return this.get<unknown>(path).pipe(map(response => asCollection(response).map(mapServiceBooking)));
   }
 
@@ -369,7 +373,10 @@ export class ApiService {
 
   updateService(id: number, status: string, notes?: string): Observable<ServiceBooking> {
     if (this.isDemo()) return this.mock.updateService(id, status, notes);
-    return this.put<unknown>(this.path(environment.endpoints.services.managerUpdate, { id }), { status, notes }).pipe(map(mapServiceBooking));
+    const path = this.role() === 'OWNER'
+      ? environment.endpoints.services.ownerUpdate
+      : environment.endpoints.services.managerUpdate;
+    return this.put<unknown>(this.path(path, { id }), { status, notes }).pipe(map(mapServiceBooking));
   }
 
   rateService(id: number, rating: number, ratingComment?: string): Observable<ServiceBooking> {

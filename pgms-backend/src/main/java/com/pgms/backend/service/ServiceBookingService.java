@@ -90,10 +90,27 @@ public class ServiceBookingService {
         return serviceBookingRepository.findByTenantProfilePgIdInOrderByCreatedAtDesc(pgIds).stream().map(this::toResponse).toList();
     }
 
+    public List<ServiceBookingResponse> getOwnerBookings() {
+        return serviceBookingRepository.findAll().stream()
+                .sorted((left, right) -> right.getCreatedAt().compareTo(left.getCreatedAt()))
+                .map(this::toResponse)
+                .toList();
+    }
+
     @Transactional
     public ServiceBookingResponse updateStatus(Long id, ServiceStatusUpdateRequest request) {
         ServiceBooking booking = serviceBookingRepository.findById(id).orElseThrow(() -> new NotFoundException("Service booking not found"));
         accessControlService.ensureManagerAssignedToPg(booking.getTenantProfile().getPg().getId());
+        return updateStatusInternal(booking, request);
+    }
+
+    @Transactional
+    public ServiceBookingResponse updateStatusForOwner(Long id, ServiceStatusUpdateRequest request) {
+        ServiceBooking booking = serviceBookingRepository.findById(id).orElseThrow(() -> new NotFoundException("Service booking not found"));
+        return updateStatusInternal(booking, request);
+    }
+
+    private ServiceBookingResponse updateStatusInternal(ServiceBooking booking, ServiceStatusUpdateRequest request) {
         ServiceStatus nextStatus = request.getStatus();
         validateTransition(booking.getStatus(), nextStatus);
         String managerNotes = normalizeOptionalText(request.getNotes());
