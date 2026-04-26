@@ -277,6 +277,8 @@ export interface SubletRequest {
   id: number;
   tenantProfileId?: number;
   tenantName?: string;
+  pgId?: number;
+  pgName?: string;
   roomNumber?: string;
   startDate: string;
   endDate: string;
@@ -286,4 +288,6 @@ export interface SubletRequest {
   guestPhone?: string;
   checkInDate?: string;
   checkOutDate?: string;
+  subletGuestId?: number;
+  guestRecordStatus?: 'ACTIVE' | 'CHECKED_OUT';
 }

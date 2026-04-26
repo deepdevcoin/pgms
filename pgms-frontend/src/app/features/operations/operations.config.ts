@@ -21,7 +21,8 @@ export interface OperationsActionHandlers {
   amenityCancel: (row: Record<string, any>) => void;
   amenityDeleteSlot: (row: Record<string, any>) => void;
   subletApprove: (row: Record<string, any>) => void;
-  subletComplete: (row: Record<string, any>) => void;
+  subletCheckIn: (row: Record<string, any>) => void;
+  subletCheckout: (row: Record<string, any>) => void;
 }
 
 export function buildModuleConfig(role: Role | null, pgOptions: string[], pgName: (value: string) => string): Record<ModuleKey, ModuleConfig> {
@@ -128,7 +129,9 @@ export function buildModuleConfig(role: Role | null, pgOptions: string[], pgName
       crumb: 'Credits',
       title: 'Sublets',
       subtitle: role === 'TENANT' ? 'Request a temporary sublet and earn wallet credit.' : 'Approve sublets and complete guest checkout.',
-      columns: ['tenantName', 'roomNumber', 'startDate', 'endDate', 'status', 'guestName', 'checkInDate', 'checkOutDate'],
+      columns: role === 'TENANT'
+        ? ['roomNumber', 'startDate', 'endDate', 'status', 'guestName', 'checkInDate', 'checkOutDate']
+        : ['tenantName', 'pgName', 'roomNumber', 'startDate', 'endDate', 'status', 'guestName', 'guestPhone', 'guestRecordStatus', 'checkInDate', 'checkOutDate'],
       createLabel: role === 'TENANT' ? 'Request sublet' : undefined,
       fields: role === 'TENANT' ? [
         { key: 'startDate', label: 'Start date', type: 'date' },
@@ -174,7 +177,8 @@ export function buildModuleActions(role: Role | null, handlers: OperationsAction
     menu: [],
     sublets: [
       { label: 'Approve', icon: 'check_circle', show: row => role === 'MANAGER' && row['status'] === 'PENDING', run: handlers.subletApprove },
-      { label: 'Complete', icon: 'task_alt', show: row => role === 'MANAGER' && row['status'] === 'APPROVED', run: handlers.subletComplete }
+      { label: 'Check in', icon: 'login', show: row => role === 'MANAGER' && row['status'] === 'APPROVED', run: handlers.subletCheckIn },
+      { label: 'Checkout', icon: 'logout', show: row => role === 'MANAGER' && row['status'] === 'ACTIVE', run: handlers.subletCheckout }
     ]
   };
 }

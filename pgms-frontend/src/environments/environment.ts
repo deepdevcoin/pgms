@@ -110,7 +110,8 @@ export const environment = {
       wallet: '/tenant/wallet',
       manager: '/manager/sublets',
       approve: '/manager/sublets/:id/approve',
-      complete: '/manager/sublets/:id/complete'
+      checkIn: '/manager/sublets/:id/check-in',
+      checkout: '/manager/sublets/:id/checkout'
     }
   }
 } as const;

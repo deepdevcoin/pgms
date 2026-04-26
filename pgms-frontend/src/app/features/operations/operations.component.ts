@@ -190,6 +190,36 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
       </div>
     }
   </app-popup-shell>
+
+  <app-popup-shell
+    [open]="subletCheckInOpen()"
+    eyebrow="Sublets"
+    title="Check in guest"
+    subtitle="Create a temporary guest record for this approved sublet."
+    (closed)="closeSubletCheckIn()"
+  >
+    <div class="dialog-grid">
+      <label class="fld">
+        <span>Guest name</span>
+        <input [(ngModel)]="subletGuestForm.guestName" name="subletGuestName" />
+      </label>
+      <label class="fld">
+        <span>Guest phone</span>
+        <input [(ngModel)]="subletGuestForm.guestPhone" name="subletGuestPhone" />
+      </label>
+      <label class="fld">
+        <span>Check in date</span>
+        <input type="date" [(ngModel)]="subletGuestForm.checkInDate" name="subletCheckInDate" />
+      </label>
+    </div>
+    <div class="dialog-actions">
+      <button class="btn btn--ghost" type="button" (click)="closeSubletCheckIn()">Cancel</button>
+      <button class="btn btn--primary" type="button" (click)="submitSubletCheckIn()">
+        <mat-icon>check</mat-icon>
+        <span>Create guest record</span>
+      </button>
+    </div>
+  </app-popup-shell>
   `,
   styles: [`
     .ops { display: flex; flex-direction: column; gap: 18px; }
@@ -219,6 +249,7 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
       box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
     }
     .fld textarea { min-height: 108px; resize: vertical; line-height: 1.5; }
+    .dialog-grid { display: grid; gap: 12px; }
     .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
     .receipt-list { display: flex; flex-direction: column; gap: 10px; }
     .receipt-row { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
@@ -258,6 +289,9 @@ export class OperationsComponent {
   query = '';
   form: Row = {};
   actionDialogValue: string | number = '';
+  subletCheckInOpen = signal(false);
+  subletCheckInRow = signal<Row | null>(null);
+  subletGuestForm = { guestName: '', guestPhone: '', checkInDate: '' };
   private textActionFactory: ((value: string) => { subscribe: (handlers: { next: () => void; error: (err: any) => void }) => void }) | null = null;
   private numberActionFactory: ((value: number) => { subscribe: (handlers: { next: () => void; error: (err: any) => void }) => void }) | null = null;
   private actionHandlers: OperationsActionHandlers = {
@@ -290,7 +324,8 @@ export class OperationsComponent {
     amenityCancel: row => this.mutate(this.api.cancelAmenity(row['bookingId'])),
     amenityDeleteSlot: row => this.mutate(this.api.deleteAmenitySlot(row['slotId'])),
     subletApprove: row => this.mutate(this.api.approveSublet(row['id'])),
-    subletComplete: row => this.openTextDialog('Complete sublet', 'Add the guest name to finish the check-in.', 'Guest name', 'Complete', guestName => this.api.completeSublet(row['id'], { guestName, guestPhone: '9000000000', checkInDate: new Date().toISOString().slice(0, 10) }))
+    subletCheckIn: row => this.openSubletCheckIn(row),
+    subletCheckout: row => this.mutate(this.api.checkoutSublet(row['id']))
   };
 
   moduleKey = computed(() => this.route.snapshot.data['module'] as ModuleKey);
@@ -533,6 +568,36 @@ export class OperationsComponent {
     this.textActionFactory = null;
     this.numberActionFactory = null;
     this.actionDialogValue = '';
+  }
+
+  private openSubletCheckIn(row: Row) {
+    this.subletCheckInRow.set(row);
+    this.subletGuestForm = {
+      guestName: '',
+      guestPhone: '',
+      checkInDate: String(row['startDate'] || new Date().toISOString().slice(0, 10))
+    };
+    this.subletCheckInOpen.set(true);
+  }
+
+  closeSubletCheckIn() {
+    this.subletCheckInOpen.set(false);
+    this.subletCheckInRow.set(null);
+    this.subletGuestForm = { guestName: '', guestPhone: '', checkInDate: '' };
+  }
+
+  submitSubletCheckIn() {
+    const row = this.subletCheckInRow();
+    const guestName = this.subletGuestForm.guestName.trim();
+    const guestPhone = this.subletGuestForm.guestPhone.trim();
+    const checkInDate = this.subletGuestForm.checkInDate;
+    if (!row || !guestName || !guestPhone || !checkInDate) {
+      this.snack.open('Enter guest name, phone, and check in date.', 'Dismiss', { duration: 2400, panelClass: 'pgms-snack' });
+      return;
+    }
+    const request = this.api.checkInSublet(row['id'], { guestName, guestPhone, checkInDate });
+    this.closeSubletCheckIn();
+    this.mutate(request);
   }
 
   submitActionDialog() {

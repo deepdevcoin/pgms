@@ -3,6 +3,7 @@ package com.pgms.backend.controller;
 import com.pgms.backend.dto.BaseResponse;
 import com.pgms.backend.dto.payment.WalletResponse;
 import com.pgms.backend.dto.sublet.SubletCompleteRequest;
+import com.pgms.backend.dto.sublet.SubletCheckoutResponse;
 import com.pgms.backend.dto.sublet.SubletCreateRequest;
 import com.pgms.backend.dto.sublet.SubletResponse;
 import com.pgms.backend.service.SubletService;
@@ -56,9 +57,15 @@ public class SubletController {
         return BaseResponse.success("Sublet approved successfully", subletService.approve(id));
     }
 
-    @PutMapping("/api/manager/sublets/{id}/complete")
+    @PutMapping("/api/manager/sublets/{id}/check-in")
     @PreAuthorize("hasRole('MANAGER')")
-    public BaseResponse<SubletResponse> complete(@PathVariable Long id, @Valid @RequestBody SubletCompleteRequest request) {
-        return BaseResponse.success("Sublet completed successfully", subletService.complete(id, request));
+    public BaseResponse<SubletResponse> checkIn(@PathVariable Long id, @Valid @RequestBody SubletCompleteRequest request) {
+        return BaseResponse.success("Sublet guest checked in successfully", subletService.checkIn(id, request));
+    }
+
+    @PutMapping("/api/manager/sublets/{id}/checkout")
+    @PreAuthorize("hasRole('MANAGER')")
+    public BaseResponse<SubletCheckoutResponse> checkout(@PathVariable Long id) {
+        return BaseResponse.success("Sublet guest checked out successfully", subletService.checkout(id));
     }
 }

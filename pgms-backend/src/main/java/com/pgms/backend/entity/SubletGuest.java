@@ -1,6 +1,6 @@
 package com.pgms.backend.entity;
 
-import com.pgms.backend.entity.enums.SubletStatus;
+import com.pgms.backend.entity.enums.SubletGuestStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -10,7 +10,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
@@ -27,38 +26,46 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "sublet_requests")
-public class SubletRequest {
+@Table(name = "sublet_guests")
+public class SubletGuest {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "sublet_request_id", nullable = false, unique = true)
+    private SubletRequest subletRequest;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "tenant_profile_id", nullable = false)
-    private TenantProfile tenantProfile;
+    @JoinColumn(name = "host_tenant_profile_id", nullable = false)
+    private TenantProfile hostTenantProfile;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "pg_id", nullable = false)
+    private Pg pg;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "room_id", nullable = false)
+    private Room room;
 
     @Column(nullable = false)
-    private LocalDate startDate;
+    private String guestName;
 
     @Column(nullable = false)
-    private LocalDate endDate;
+    private String guestPhone;
 
-    @Lob
     @Column(nullable = false)
-    private String reason;
+    private LocalDate checkInDate;
+
+    @Column(nullable = false)
+    private LocalDate expectedCheckOutDate;
+
+    private LocalDate actualCheckOutDate;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private SubletStatus status;
-
-    private String guestName;
-    private String guestPhone;
-    private LocalDate checkInDate;
-    private LocalDate checkOutDate;
-
-    @OneToOne(mappedBy = "subletRequest", fetch = FetchType.LAZY)
-    private SubletGuest guestRecord;
+    private SubletGuestStatus status;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;

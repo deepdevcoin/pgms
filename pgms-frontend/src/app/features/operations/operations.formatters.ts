@@ -15,6 +15,7 @@ const COLUMN_LABELS: Record<string, string> = {
   bookingCount: 'Booked',
   resourceName: 'Unit',
   createdAt: 'Time',
+  guestRecordStatus: 'Guest Record',
   transactionType: 'Type',
   paymentMethod: 'Method',
   signedAmount: 'Amount',

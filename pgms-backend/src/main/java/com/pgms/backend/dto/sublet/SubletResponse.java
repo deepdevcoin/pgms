@@ -1,6 +1,7 @@
 package com.pgms.backend.dto.sublet;
 
 import com.pgms.backend.entity.enums.SubletStatus;
+import com.pgms.backend.entity.enums.SubletGuestStatus;
 import lombok.Builder;
 import lombok.Data;
 
@@ -12,6 +13,8 @@ public class SubletResponse {
     private Long id;
     private Long tenantProfileId;
     private String tenantName;
+    private Long pgId;
+    private String pgName;
     private String roomNumber;
     private LocalDate startDate;
     private LocalDate endDate;
@@ -21,4 +24,6 @@ public class SubletResponse {
     private String guestPhone;
     private LocalDate checkInDate;
     private LocalDate checkOutDate;
+    private Long subletGuestId;
+    private SubletGuestStatus guestRecordStatus;
 }

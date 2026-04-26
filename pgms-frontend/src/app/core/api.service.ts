@@ -414,8 +414,14 @@ export class ApiService {
     return this.put<SubletRequest>(this.path(environment.endpoints.sublets.approve, { id }), {});
   }
 
-  completeSublet(id: number, payload: { guestName: string; guestPhone: string; checkInDate: string }): Observable<SubletRequest> {
-    return this.put<SubletRequest>(this.path(environment.endpoints.sublets.complete, { id }), payload);
+  checkInSublet(id: number, payload: { guestName: string; guestPhone: string; checkInDate: string }): Observable<SubletRequest> {
+    return this.put<SubletRequest>(this.path(environment.endpoints.sublets.checkIn, { id }), payload);
+  }
+
+  checkoutSublet(id: number): Observable<SubletRequest> {
+    return this.put<{ sublet: SubletRequest }>(this.path(environment.endpoints.sublets.checkout, { id }), {}).pipe(
+      map(response => response.sublet)
+    );
   }
 
   wallet(): Observable<{ creditWalletBalance: number }> {

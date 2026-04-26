@@ -9,5 +9,6 @@ import java.util.List;
 public interface SubletRequestRepository extends JpaRepository<SubletRequest, Long> {
     List<SubletRequest> findByTenantProfileUserIdOrderByCreatedAtDesc(Long userId);
     List<SubletRequest> findByTenantProfilePgIdOrderByCreatedAtDesc(Long pgId);
+    List<SubletRequest> findByTenantProfilePgIdInOrderByCreatedAtDesc(List<Long> pgIds);
     long countByStatus(SubletStatus status);
 }
