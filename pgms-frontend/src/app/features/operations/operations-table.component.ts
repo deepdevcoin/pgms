@@ -40,10 +40,23 @@ import { ActionConfig, CellClassValue, ModuleKey, Row } from './operations.types
               [class.cell--status]="statusColumn(col)"
               [class.cell--right]="alignRight(col)"
               [class.cell--wrap]="wrapColumn(col)"
+              [class.cell--details]="col === 'details'"
               [ngClass]="cellClass(row, col)"
             >
               @if (statusColumn(col)) {
                 <span class="pill dot" [ngClass]="pillClass((row[col]))">{{ row[col] || '-' }}</span>
+              } @else if (col === 'details') {
+                <div class="detail-block">
+                  <div class="detail-main">{{ row['description'] || '-' }}</div>
+                  @if (row['latestActivitySummary']) {
+                    <div class="detail-notes">{{ row['latestActivitySummary'] }}</div>
+                  } @else {
+                    <div class="detail-notes detail-notes--empty">No updates yet.</div>
+                  }
+                  @if (row['activityCount']) {
+                    <div class="detail-meta">{{ row['activityCount'] }} entr{{ row['activityCount'] === 1 ? 'y' : 'ies' }} in timeline</div>
+                  }
+                </div>
               } @else {
                 {{ value(row, col) }}
               }
@@ -80,9 +93,22 @@ import { ActionConfig, CellClassValue, ModuleKey, Row } from './operations.types
     .tr:last-child { border-bottom: 0; }
     .money { font-family: var(--font-mono); }
     .cell--status { display: flex; align-items: center; }
+    .cell--details { display: block; }
     .cell--right, .head-cell--right, .head-cell--actions { text-align: right; }
     .head-cell--compact-actions { padding-right: 2px; }
     .cell--wrap { white-space: normal; line-height: 1.45; }
+    .detail-block { display: grid; gap: 6px; }
+    .detail-main { color: var(--text); line-height: 1.5; }
+    .detail-notes {
+      color: var(--text-muted);
+      font-size: 12px;
+      line-height: 1.5;
+      padding-top: 6px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      white-space: pre-line;
+    }
+    .detail-notes--empty { font-style: italic; }
+    .detail-meta { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
     .actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: nowrap; align-items: center; min-height: 32px; }
     .actions--compact { gap: 4px; min-height: 28px; }
     .actions--payments-compact { justify-content: flex-end; }
@@ -146,7 +172,7 @@ export class OperationsTableComponent {
   }
 
   wrapColumn(col: string): boolean {
-    return ['notes', 'itemNames', 'content', 'description', 'facilityName', 'title'].includes(col);
+    return ['notes', 'itemNames', 'content', 'description', 'facilityName', 'title', 'details'].includes(col);
   }
 
   private columnWidth(col: string): string {
@@ -176,12 +202,13 @@ export class OperationsTableComponent {
   private compactComplaintTemplate(): string {
     const cells: string[] = this.columns.map(col => {
       if (col === 'id') return '56px';
-      if (col === 'tenantName') return 'minmax(112px, 1fr)';
+      if (col === 'tenantName') return 'minmax(104px, 0.95fr)';
       if (col === 'roomNumber') return '72px';
-      if (col === 'category') return 'minmax(98px, 0.9fr)';
+      if (col === 'category') return 'minmax(92px, 0.82fr)';
+      if (col === 'details') return 'minmax(280px, 1.9fr)';
       if (this.statusColumn(col)) return 'minmax(92px, 0.85fr)';
-      if (col === 'createdAt') return 'minmax(108px, 0.95fr)';
-      if (col === 'notes') return 'minmax(190px, 1.45fr)';
+      if (col === 'createdAt') return 'minmax(96px, 0.82fr)';
+      if (col === 'notes') return 'minmax(170px, 1.2fr)';
       return 'minmax(84px, 0.85fr)';
     });
     if (this.showActions) cells.push('44px');

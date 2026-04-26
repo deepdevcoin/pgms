@@ -61,9 +61,15 @@ export const environment = {
     },
     complaints: {
       tenant: '/tenant/complaints',
+      tenantHistory: '/tenant/complaints/:id/activities',
+      tenantComment: '/tenant/complaints/:id/comment',
       manager: '/manager/complaints',
+      managerHistory: '/manager/complaints/:id/activities',
+      managerComment: '/manager/complaints/:id/comment',
       managerUpdate: '/manager/complaints/:id/update-status',
       owner: '/owner/complaints',
+      ownerHistory: '/owner/complaints/:id/activities',
+      ownerComment: '/owner/complaints/:id/comment',
       ownerUpdate: '/owner/complaints/:id/update-status'
     },
     notices: {

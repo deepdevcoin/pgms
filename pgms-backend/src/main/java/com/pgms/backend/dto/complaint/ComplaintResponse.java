@@ -19,6 +19,8 @@ public class ComplaintResponse {
     private String attachmentPath;
     private ComplaintStatus status;
     private String notes;
+    private String latestActivitySummary;
+    private Integer activityCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

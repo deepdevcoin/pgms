@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Observable, delay, of, throwError } from 'rxjs';
 import {
-  AmenityBooking, Complaint, LoginResponse, Manager, ManagerSummary, MenuItem, Notice,
+  AmenityBooking, Complaint, ComplaintActivity, LoginResponse, Manager, ManagerSummary, MenuItem, Notice,
   NoticeReadReceipt, OwnerSummary, PaymentOverview, PaymentTransaction, PG, RentRecord, Role,
   Room, RoomStatus, SharingType, Tenant
 } from './models';
@@ -15,6 +15,7 @@ export class MockDataService {
   private payments: RentRecord[];
   private paymentTransactions: PaymentTransaction[];
   private complaints: Complaint[];
+  private complaintActivitiesById: Record<number, ComplaintActivity[]>;
   private notices: Notice[];
   private noticeReceiptsById: Record<number, NoticeReadReceipt[]>;
   private menu: MenuItem[];
@@ -28,6 +29,7 @@ export class MockDataService {
     this.payments = this.buildPayments();
     this.paymentTransactions = this.buildPaymentTransactions();
     this.complaints = this.buildComplaints();
+    this.complaintActivitiesById = this.buildComplaintActivities();
     this.notices = this.buildNotices();
     this.noticeReceiptsById = this.buildNoticeReceipts();
     this.menu = this.buildMenu();
@@ -318,8 +320,12 @@ export class MockDataService {
   }
 
   listComplaints(role: Role | null): Observable<Complaint[]> {
-    const all = this.clone(this.complaints);
+    const all = this.clone(this.complaints.map(complaint => this.decorateComplaint(complaint)));
     return of(role === 'TENANT' ? all.slice(0, 2) : all).pipe(delay(120));
+  }
+
+  listComplaintActivities(id: number): Observable<ComplaintActivity[]> {
+    return of(this.clone(this.complaintActivitiesById[id] || [])).pipe(delay(120));
   }
 
   createComplaint(payload: { category: string; description: string; attachmentPath?: string }): Observable<Complaint> {
@@ -336,16 +342,58 @@ export class MockDataService {
       notes: ''
     };
     this.complaints.unshift(complaint);
-    return of(this.clone(complaint)).pipe(delay(120));
+    this.complaintActivitiesById[complaint.id] = [{
+      id: Date.now() + 1,
+      activityType: 'CREATED',
+      actorRole: 'TENANT',
+      actorName: complaint.tenantName,
+      toStatus: 'OPEN',
+      message: complaint.description,
+      createdAt: complaint.createdAt
+    }];
+    return of(this.clone(this.decorateComplaint(complaint))).pipe(delay(120));
   }
 
   updateComplaint(id: number, status: string, notes?: string): Observable<Complaint> {
     const complaint = this.complaints.find(item => item.id === id);
     if (!complaint) return throwError(() => new Error('Complaint not found'));
+    const previousStatus = complaint.status;
     complaint.status = status as Complaint['status'];
-    complaint.notes = notes;
     complaint.updatedAt = new Date().toISOString();
-    return of(this.clone(complaint)).pipe(delay(120));
+    this.complaintActivitiesById[id] = [
+      ...(this.complaintActivitiesById[id] || []),
+      {
+        id: Date.now(),
+        activityType: 'STATUS_CHANGE',
+        actorRole: 'MANAGER',
+        actorName: 'Arjun Nair',
+        fromStatus: previousStatus,
+        toStatus: status as Complaint['status'],
+        message: notes || '',
+        createdAt: complaint.updatedAt
+      }
+    ];
+    if (notes) complaint.notes = notes;
+    return of(this.clone(this.decorateComplaint(complaint))).pipe(delay(120));
+  }
+
+  commentOnComplaint(id: number, message: string): Observable<Complaint> {
+    const complaint = this.complaints.find(item => item.id === id);
+    if (!complaint) return throwError(() => new Error('Complaint not found'));
+    complaint.updatedAt = new Date().toISOString();
+    complaint.notes = message;
+    this.complaintActivitiesById[id] = [
+      ...(this.complaintActivitiesById[id] || []),
+      {
+        id: Date.now(),
+        activityType: 'COMMENT',
+        actorRole: 'MANAGER',
+        actorName: 'Arjun Nair',
+        message,
+        createdAt: complaint.updatedAt
+      }
+    ];
+    return of(this.clone(this.decorateComplaint(complaint))).pipe(delay(120));
   }
 
   listNotices(_role: Role | null): Observable<Notice[]> {
@@ -732,6 +780,32 @@ export class MockDataService {
       { id: 2, tenantProfileId: 2, tenantName: 'Karan Mehta', roomNumber: '102', category: 'FOOD', description: 'Dinner was delayed', status: 'IN_PROGRESS', notes: 'Kitchen informed', createdAt: '2026-04-23T11:00:00' },
       { id: 3, tenantProfileId: 3, tenantName: 'Priya Singh', roomNumber: '201', category: 'AGAINST_MANAGER', description: 'Rude behaviour', status: 'ESCALATED', notes: 'Owner review needed', createdAt: '2026-04-24T09:30:00' }
     ];
+  }
+
+  private buildComplaintActivities(): Record<number, ComplaintActivity[]> {
+    return {
+      1: [
+        { id: 1001, activityType: 'CREATED', actorRole: 'TENANT', actorName: 'Devika Rao', toStatus: 'OPEN', message: 'AC not cooling', createdAt: '2026-04-22T10:00:00' }
+      ],
+      2: [
+        { id: 1002, activityType: 'CREATED', actorRole: 'TENANT', actorName: 'Karan Mehta', toStatus: 'OPEN', message: 'Dinner was delayed', createdAt: '2026-04-23T11:00:00' },
+        { id: 1003, activityType: 'STATUS_CHANGE', actorRole: 'MANAGER', actorName: 'Arjun Nair', fromStatus: 'OPEN', toStatus: 'IN_PROGRESS', message: 'Kitchen informed', createdAt: '2026-04-23T12:10:00' }
+      ],
+      3: [
+        { id: 1004, activityType: 'CREATED', actorRole: 'TENANT', actorName: 'Priya Singh', toStatus: 'OPEN', message: 'Rude behaviour', createdAt: '2026-04-24T09:30:00' },
+        { id: 1005, activityType: 'STATUS_CHANGE', actorRole: 'TENANT', actorName: 'System', fromStatus: 'OPEN', toStatus: 'ESCALATED', message: 'Owner review needed', createdAt: '2026-04-24T16:00:00' }
+      ]
+    };
+  }
+
+  private decorateComplaint(complaint: Complaint): Complaint {
+    const activities = this.complaintActivitiesById[complaint.id] || [];
+    const latest = activities[activities.length - 1];
+    return {
+      ...complaint,
+      latestActivitySummary: latest?.message || (latest?.toStatus ? `Status moved to ${latest.toStatus}` : ''),
+      activityCount: activities.length
+    };
   }
 
   private buildNotices(): Notice[] {

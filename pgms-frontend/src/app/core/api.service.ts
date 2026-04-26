@@ -5,12 +5,12 @@ import { environment } from '../../environments/environment';
 import { AuthService } from './auth.service';
 import { MockDataService } from './mock-data.service';
 import {
-  AmenityBooking, Complaint, LoginResponse, Manager, ManagerSummary, MenuItem,
+  AmenityBooking, Complaint, ComplaintActivity, LoginResponse, Manager, ManagerSummary, MenuItem,
   Notice, NoticeReadReceipt, OwnerSummary, PaymentOverview, PG, RentRecord, Room, RoomStatus, ServiceBooking,
   SubletRequest, Tenant, VacateNotice
 } from './models';
 import {
-  asCollection, mapLogin, mapManager, mapManagerSummary, mapOwnerSummary,
+  asCollection, mapComplaint, mapComplaintActivity, mapLogin, mapManager, mapManagerSummary, mapOwnerSummary,
   mapLayoutRooms, mapPaymentOverview, mapPg, mapRentRecord, mapRoom, mapTenant, unwrapApiPayload
 } from './api-adapters';
 
@@ -270,18 +270,40 @@ export class ApiService {
       : role === 'MANAGER'
         ? environment.endpoints.complaints.manager
         : environment.endpoints.complaints.tenant;
-    return this.get<unknown>(path).pipe(map(response => asCollection(response) as Complaint[]));
+    return this.get<unknown>(path).pipe(map(response => asCollection(response).map(mapComplaint)));
   }
 
   createComplaint(payload: { category: string; description: string; attachmentPath?: string }): Observable<Complaint> {
     if (this.isDemo()) return this.mock.createComplaint(payload);
-    return this.post<Complaint>(environment.endpoints.complaints.tenant, payload);
+    return this.post<unknown>(environment.endpoints.complaints.tenant, payload).pipe(map(mapComplaint));
   }
 
   updateComplaint(id: number, status: string, notes?: string): Observable<Complaint> {
     if (this.isDemo()) return this.mock.updateComplaint(id, status, notes);
     const endpoint = this.role() === 'OWNER' ? environment.endpoints.complaints.ownerUpdate : environment.endpoints.complaints.managerUpdate;
-    return this.put<Complaint>(this.path(endpoint, { id }), { status, notes });
+    return this.put<unknown>(this.path(endpoint, { id }), { status, notes }).pipe(map(mapComplaint));
+  }
+
+  listComplaintActivities(id: number): Observable<ComplaintActivity[]> {
+    if (this.isDemo()) return this.mock.listComplaintActivities(id);
+    const role = this.role();
+    const path = role === 'OWNER'
+      ? environment.endpoints.complaints.ownerHistory
+      : role === 'MANAGER'
+        ? environment.endpoints.complaints.managerHistory
+        : environment.endpoints.complaints.tenantHistory;
+    return this.get<unknown>(this.path(path, { id })).pipe(map(response => asCollection(response).map(mapComplaintActivity)));
+  }
+
+  commentOnComplaint(id: number, message: string): Observable<Complaint> {
+    if (this.isDemo()) return this.mock.commentOnComplaint(id, message);
+    const role = this.role();
+    const path = role === 'OWNER'
+      ? environment.endpoints.complaints.ownerComment
+      : role === 'MANAGER'
+        ? environment.endpoints.complaints.managerComment
+        : environment.endpoints.complaints.tenantComment;
+    return this.post<unknown>(this.path(path, { id }), { message }).pipe(map(mapComplaint));
   }
 
   listNotices(): Observable<Notice[]> {

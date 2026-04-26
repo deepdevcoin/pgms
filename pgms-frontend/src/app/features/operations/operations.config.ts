@@ -6,7 +6,11 @@ export interface OperationsActionHandlers {
   applyCredit: (row: Record<string, any>) => void;
   waiveFine: (row: Record<string, any>) => void;
   complaintInProgress: (row: Record<string, any>) => void;
+  complaintEscalate: (row: Record<string, any>) => void;
   complaintResolve: (row: Record<string, any>) => void;
+  complaintClose: (row: Record<string, any>) => void;
+  complaintComment: (row: Record<string, any>) => void;
+  complaintTimeline: (row: Record<string, any>) => void;
   noticeMarkRead: (row: Record<string, any>) => void;
   noticeReceipts: (row: Record<string, any>) => void;
   vacateApprove: (row: Record<string, any>) => void;
@@ -40,7 +44,7 @@ export function buildModuleConfig(role: Role | null, pgOptions: string[], pgName
       crumb: 'Support',
       title: 'Complaints',
       subtitle: role === 'TENANT' ? 'Raise and track complaints.' : 'Track complaint SLA, ownership and resolution.',
-      columns: ['id', 'tenantName', 'roomNumber', 'category', 'status', 'createdAt', 'notes'],
+      columns: ['id', 'tenantName', 'roomNumber', 'category', 'status', 'createdAt', 'details'],
       createLabel: role === 'TENANT' ? 'Raise complaint' : undefined,
       fields: role === 'TENANT' ? [
         { key: 'category', label: 'Category', type: 'select', options: ['MAINTENANCE', 'NOISE', 'HYGIENE', 'FOOD', 'OTHER', 'AGAINST_MANAGER'] },
@@ -151,7 +155,11 @@ export function buildModuleActions(role: Role | null, handlers: OperationsAction
     ],
     complaints: [
       { label: 'In progress', icon: 'hourglass_top', show: row => role !== 'TENANT' && (row['status'] === 'OPEN' || row['status'] === 'ESCALATED'), run: handlers.complaintInProgress },
-      { label: 'Resolve', icon: 'task_alt', show: row => role !== 'TENANT' && row['status'] !== 'RESOLVED', run: handlers.complaintResolve }
+      { label: 'Escalate', icon: 'priority_high', show: row => role === 'MANAGER' && (row['status'] === 'OPEN' || row['status'] === 'IN_PROGRESS'), run: handlers.complaintEscalate },
+      { label: 'Resolve', icon: 'task_alt', show: row => role !== 'TENANT' && row['status'] !== 'RESOLVED' && row['status'] !== 'CLOSED', run: handlers.complaintResolve },
+      { label: role === 'TENANT' ? 'Follow up' : 'Add note', icon: 'comment', show: () => true, run: handlers.complaintComment },
+      { label: 'Timeline', icon: 'history', show: () => true, run: handlers.complaintTimeline },
+      { label: 'Close', icon: 'check_circle', show: row => role !== 'TENANT' && row['status'] === 'RESOLVED', run: handlers.complaintClose }
     ],
     notices: [
       { label: 'Mark read', icon: 'done_all', show: row => !row['read'], run: handlers.noticeMarkRead },

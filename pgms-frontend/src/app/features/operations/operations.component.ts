@@ -7,7 +7,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { Observable } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
-import { AmenityBooking, MenuItem, NoticeReadReceipt, PaymentSummary, PaymentTransaction, PG, Role, Tenant } from '../../core/models';
+import { AmenityBooking, ComplaintActivity, MenuItem, NoticeReadReceipt, PaymentSummary, PaymentTransaction, PG, Role, Tenant } from '../../core/models';
 import { MenuBoardComponent } from '../../shared/menu-board.component';
 import { PopupShellComponent } from '../../shared/popup-shell.component';
 import { AmenitySlotBoardComponent } from './amenity-slot-board.component';
@@ -192,6 +192,37 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
   </app-popup-shell>
 
   <app-popup-shell
+    [open]="complaintTimelineOpen()"
+    eyebrow="Complaints"
+    [title]="selectedComplaintTitle() || 'Complaint history'"
+    [subtitle]="complaintTimelineSummary()"
+    (closed)="closeComplaintTimeline()"
+  >
+    @if (complaintTimelineLoading()) {
+      <div class="state"><div class="spinner"></div><span>Loading complaint history...</span></div>
+    } @else if (complaintActivities().length === 0) {
+      <div class="state"><mat-icon>forum</mat-icon><span>No activity recorded yet.</span></div>
+    } @else {
+      <div class="receipt-list">
+        @for (activity of complaintActivities(); track activity.id + '-' + activity.createdAt) {
+          <div class="receipt-row receipt-row--stacked">
+            <div class="receipt-topline">
+              <div>
+                <div class="receipt-name">{{ complaintActivityTitle(activity) }}</div>
+                <div class="receipt-meta">{{ activity.actorName || activity.actorRole || 'System' }}</div>
+              </div>
+              <div class="receipt-time">{{ activity.createdAt | date:'medium' }}</div>
+            </div>
+            @if (activity.message) {
+              <div class="receipt-message">{{ activity.message }}</div>
+            }
+          </div>
+        }
+      </div>
+    }
+  </app-popup-shell>
+
+  <app-popup-shell
     [open]="subletCheckInOpen()"
     eyebrow="Sublets"
     title="Check in guest"
@@ -253,9 +284,12 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
     .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
     .receipt-list { display: flex; flex-direction: column; gap: 10px; }
     .receipt-row { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
+    .receipt-row--stacked { display: grid; gap: 8px; }
+    .receipt-topline { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; }
     .receipt-name { font-weight: 600; }
     .receipt-meta, .receipt-time { color: var(--text-muted); font-size: 12px; }
     .receipt-time { text-align: right; }
+    .receipt-message { color: var(--text); font-size: 13px; line-height: 1.5; white-space: pre-line; }
   `],
   host: {}
 })
@@ -286,6 +320,10 @@ export class OperationsComponent {
   receiptsLoading = signal(false);
   selectedNoticeTitle = signal('');
   receipts = signal<NoticeReadReceipt[]>([]);
+  complaintTimelineOpen = signal(false);
+  complaintTimelineLoading = signal(false);
+  selectedComplaintTitle = signal('');
+  complaintActivities = signal<ComplaintActivity[]>([]);
   query = '';
   form: Row = {};
   actionDialogValue: string | number = '';
@@ -308,8 +346,18 @@ export class OperationsComponent {
       );
     },
     waiveFine: row => this.openTextDialog('Waive fine', 'Add a short reason for the waiver.', 'Reason', 'Waive fine', reason => this.api.waiveFine(row['id'], reason)),
-    complaintInProgress: row => this.mutate(this.api.updateComplaint(row['id'], 'IN_PROGRESS', 'Work started')),
+    complaintInProgress: row => this.mutate(this.api.updateComplaint(row['id'], 'IN_PROGRESS')),
+    complaintEscalate: row => this.openTextDialog('Escalate complaint', 'Add a short escalation note for the owner.', 'Escalation note', 'Escalate', notes => this.api.updateComplaint(row['id'], 'ESCALATED', notes)),
     complaintResolve: row => this.openTextDialog('Resolve complaint', 'Share the resolution details for the tenant.', 'Resolution notes', 'Resolve', notes => this.api.updateComplaint(row['id'], 'RESOLVED', notes)),
+    complaintClose: row => this.openTextDialog('Close complaint', 'Add a closing note before marking this issue complete.', 'Closing note', 'Close complaint', notes => this.api.updateComplaint(row['id'], 'CLOSED', notes)),
+    complaintComment: row => this.openTextDialog(
+      this.auth.role() === 'TENANT' ? 'Add follow-up' : 'Add complaint note',
+      this.auth.role() === 'TENANT' ? 'Add more context to this complaint.' : 'Add a timeline note without changing the complaint status.',
+      this.auth.role() === 'TENANT' ? 'Follow-up' : 'Note',
+      this.auth.role() === 'TENANT' ? 'Post follow-up' : 'Add note',
+      notes => this.api.commentOnComplaint(row['id'], notes)
+    ),
+    complaintTimeline: row => this.showComplaintTimeline(row),
     noticeMarkRead: row => this.mutate(this.api.markNoticeRead(row['id'])),
     noticeReceipts: row => this.showReceipts(row['id'], row['title']),
     vacateApprove: row => this.mutate(this.api.approveVacateReferral(row['id'], true)),
@@ -631,10 +679,23 @@ export class OperationsComponent {
     this.selectedNoticeTitle.set('');
   }
 
+  closeComplaintTimeline() {
+    this.complaintTimelineOpen.set(false);
+    this.complaintTimelineLoading.set(false);
+    this.complaintActivities.set([]);
+    this.selectedComplaintTitle.set('');
+  }
+
   receiptSummary(): string {
     if (this.receiptsLoading()) return 'Checking who has opened this notice.';
     const count = this.receipts().length;
     return count ? `${count} receipt${count === 1 ? '' : 's'} captured.` : 'No one has marked this notice as read yet.';
+  }
+
+  complaintTimelineSummary(): string {
+    if (this.complaintTimelineLoading()) return 'Checking the complaint history.';
+    const count = this.complaintActivities().length;
+    return count ? `${count} timeline entr${count === 1 ? 'y' : 'ies'} recorded.` : 'No updates recorded yet.';
   }
 
   private showReceipts(noticeId: number, title?: string) {
@@ -652,6 +713,33 @@ export class OperationsComponent {
         this.snack.open(err?.message || 'Could not load read receipts', 'Dismiss', { duration: 3000, panelClass: 'pgms-snack' });
       }
     });
+  }
+
+  private showComplaintTimeline(row: Row) {
+    this.complaintTimelineOpen.set(true);
+    this.complaintTimelineLoading.set(true);
+    this.selectedComplaintTitle.set(`${row['tenantName'] || 'Complaint'} · ${row['category'] || 'Issue'}`);
+    this.complaintActivities.set([]);
+    this.api.listComplaintActivities(Number(row['id'])).subscribe({
+      next: activities => {
+        this.complaintActivities.set(activities);
+        this.complaintTimelineLoading.set(false);
+      },
+      error: err => {
+        this.complaintTimelineLoading.set(false);
+        this.snack.open(err?.message || 'Could not load complaint history', 'Dismiss', { duration: 3000, panelClass: 'pgms-snack' });
+      }
+    });
+  }
+
+  complaintActivityTitle(activity: ComplaintActivity): string {
+    if (activity.activityType === 'STATUS_CHANGE') {
+      const fromStatus = activity.fromStatus ? this.prettyEnum(activity.fromStatus) : 'Unknown';
+      const toStatus = activity.toStatus ? this.prettyEnum(activity.toStatus) : 'Unknown';
+      return `${fromStatus} -> ${toStatus}`;
+    }
+    if (activity.activityType === 'CREATED') return 'Complaint created';
+    return 'Comment added';
   }
 
   private autoMarkTenantNotices(rows: Row[]) {
@@ -673,6 +761,10 @@ export class OperationsComponent {
 
   transactionValue(tx: PaymentTransaction, col: string): string {
     return formatTransactionValue(tx, col, this.rows());
+  }
+
+  private prettyEnum(value: string): string {
+    return value.toLowerCase().split('_').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
   }
 
   private money(value: number): string {

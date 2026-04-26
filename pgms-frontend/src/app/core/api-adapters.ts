@@ -1,5 +1,5 @@
 import {
-  CleaningStatus, LoginResponse, Manager, ManagerSummary, OwnerSummary, PaymentOverview, PaymentSummary,
+  CleaningStatus, Complaint, ComplaintActivity, LoginResponse, Manager, ManagerSummary, OwnerSummary, PaymentOverview, PaymentSummary,
   PaymentTransaction, PG, Role, Room, RoomStatus, SharingType, Tenant, RentRecord
 } from './models';
 
@@ -10,6 +10,9 @@ const roomStatuses: RoomStatus[] = ['VACANT', 'PARTIAL', 'OCCUPIED', 'SUBLETTING
 const cleaningStatuses: CleaningStatus[] = ['CLEAN', 'DIRTY', 'IN_PROGRESS'];
 const sharingTypes: SharingType[] = ['SINGLE', 'DOUBLE', 'TRIPLE', 'DORM'];
 const tenantStatuses = ['ACTIVE', 'VACATING', 'ARCHIVED'] as const;
+const complaintStatuses = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'ESCALATED', 'CLOSED'] as const;
+const complaintCategories = ['MAINTENANCE', 'NOISE', 'HYGIENE', 'FOOD', 'OTHER', 'AGAINST_MANAGER'] as const;
+const complaintActivityTypes = ['CREATED', 'COMMENT', 'STATUS_CHANGE'] as const;
 
 function isRecord(value: unknown): value is AnyRecord {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -296,6 +299,37 @@ export function mapPaymentSummary(source: unknown): PaymentSummary {
     overdueAmount: numberValue(payload, ['overdueAmount'], 0),
     fineOutstanding: numberValue(payload, ['fineOutstanding'], 0),
     walletBalance: numberValue(payload, ['walletBalance'], 0)
+  };
+}
+
+export function mapComplaint(source: unknown): Complaint {
+  return {
+    id: numberValue(source, ['id']),
+    tenantProfileId: optionalNumber(source, ['tenantProfileId', 'tenant.id']),
+    tenantName: text(source, ['tenantName', 'tenant.name'], 'Tenant'),
+    roomNumber: text(source, ['roomNumber', 'room.number'], ''),
+    category: enumValue(source, ['category'], complaintCategories, 'OTHER'),
+    description: text(source, ['description'], ''),
+    attachmentPath: text(source, ['attachmentPath'], ''),
+    status: enumValue(source, ['status'], complaintStatuses, 'OPEN'),
+    notes: text(source, ['notes'], ''),
+    latestActivitySummary: text(source, ['latestActivitySummary'], ''),
+    activityCount: numberValue(source, ['activityCount'], 0),
+    createdAt: text(source, ['createdAt'], ''),
+    updatedAt: text(source, ['updatedAt'], '')
+  };
+}
+
+export function mapComplaintActivity(source: unknown): ComplaintActivity {
+  return {
+    id: numberValue(source, ['id']),
+    activityType: enumValue(source, ['activityType', 'type'], complaintActivityTypes, 'COMMENT'),
+    actorRole: enumValue(source, ['actorRole', 'role'], roles, 'OWNER'),
+    actorName: text(source, ['actorName', 'createdByName'], ''),
+    fromStatus: text(source, ['fromStatus'], '') as ComplaintActivity['fromStatus'],
+    toStatus: text(source, ['toStatus'], '') as ComplaintActivity['toStatus'],
+    message: text(source, ['message', 'notes'], ''),
+    createdAt: text(source, ['createdAt'], '')
   };
 }
 

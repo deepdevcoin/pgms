@@ -108,6 +108,7 @@ export type PaymentMethod = 'ONLINE' | 'CASH' | 'WALLET' | 'ADJUSTMENT' | 'SYSTE
 export type PaymentTransactionType = 'RENT_CHARGE' | 'TENANT_PAYMENT' | 'MANAGER_CASH_COLLECTION' | 'WALLET_CREDIT_APPLIED' | 'FINE_WAIVER' | 'LATE_FEE_APPLIED';
 export type ComplaintStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'ESCALATED' | 'CLOSED';
 export type ComplaintCategory = 'MAINTENANCE' | 'NOISE' | 'HYGIENE' | 'FOOD' | 'OTHER' | 'AGAINST_MANAGER';
+export type ComplaintActivityType = 'CREATED' | 'COMMENT' | 'STATUS_CHANGE';
 export type VacateStatus = 'PENDING' | 'REFERRAL_PENDING' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
 export type ServiceStatus = 'REQUESTED' | 'CONFIRMED' | 'COMPLETED' | 'REJECTED';
 export type ServiceType = 'ROOM_CLEANING' | 'LINEN_CHANGE' | 'PEST_CONTROL' | 'PLUMBING_INSPECTION' | 'ELECTRICAL_CHECK';
@@ -189,8 +190,21 @@ export interface Complaint {
   attachmentPath?: string;
   status: ComplaintStatus;
   notes?: string;
+   latestActivitySummary?: string;
+   activityCount?: number;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface ComplaintActivity {
+  id: number;
+  activityType: ComplaintActivityType;
+  actorRole?: Role;
+  actorName?: string;
+  fromStatus?: ComplaintStatus;
+  toStatus?: ComplaintStatus;
+  message?: string;
+  createdAt?: string;
 }
 
 export interface Notice {

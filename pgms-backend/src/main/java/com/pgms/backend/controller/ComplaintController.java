@@ -1,6 +1,8 @@
 package com.pgms.backend.controller;
 
 import com.pgms.backend.dto.BaseResponse;
+import com.pgms.backend.dto.complaint.ComplaintActivityResponse;
+import com.pgms.backend.dto.complaint.ComplaintCommentRequest;
 import com.pgms.backend.dto.complaint.ComplaintCreateRequest;
 import com.pgms.backend.dto.complaint.ComplaintResponse;
 import com.pgms.backend.dto.complaint.ComplaintStatusUpdateRequest;
@@ -37,10 +39,34 @@ public class ComplaintController {
         return BaseResponse.success("Complaints fetched successfully", complaintService.getTenantComplaints());
     }
 
+    @GetMapping("/api/tenant/complaints/{id}/activities")
+    @PreAuthorize("hasRole('TENANT')")
+    public BaseResponse<List<ComplaintActivityResponse>> tenantComplaintActivities(@PathVariable Long id) {
+        return BaseResponse.success("Complaint activity fetched successfully", complaintService.getTenantComplaintActivities(id));
+    }
+
+    @PostMapping("/api/tenant/complaints/{id}/comment")
+    @PreAuthorize("hasRole('TENANT')")
+    public BaseResponse<ComplaintResponse> tenantComment(@PathVariable Long id, @Valid @RequestBody ComplaintCommentRequest request) {
+        return BaseResponse.success("Complaint comment added successfully", complaintService.commentAsTenant(id, request));
+    }
+
     @GetMapping("/api/manager/complaints")
     @PreAuthorize("hasRole('MANAGER')")
     public BaseResponse<List<ComplaintResponse>> managerComplaints() {
         return BaseResponse.success("Complaints fetched successfully", complaintService.getManagerComplaints());
+    }
+
+    @GetMapping("/api/manager/complaints/{id}/activities")
+    @PreAuthorize("hasRole('MANAGER')")
+    public BaseResponse<List<ComplaintActivityResponse>> managerComplaintActivities(@PathVariable Long id) {
+        return BaseResponse.success("Complaint activity fetched successfully", complaintService.getManagerComplaintActivities(id));
+    }
+
+    @PostMapping("/api/manager/complaints/{id}/comment")
+    @PreAuthorize("hasRole('MANAGER')")
+    public BaseResponse<ComplaintResponse> managerComment(@PathVariable Long id, @Valid @RequestBody ComplaintCommentRequest request) {
+        return BaseResponse.success("Complaint comment added successfully", complaintService.commentAsManager(id, request));
     }
 
     @PutMapping("/api/manager/complaints/{id}/update-status")
@@ -54,6 +80,18 @@ public class ComplaintController {
     @PreAuthorize("hasRole('OWNER')")
     public BaseResponse<List<ComplaintResponse>> ownerComplaints() {
         return BaseResponse.success("Complaints fetched successfully", complaintService.getOwnerComplaints());
+    }
+
+    @GetMapping("/api/owner/complaints/{id}/activities")
+    @PreAuthorize("hasRole('OWNER')")
+    public BaseResponse<List<ComplaintActivityResponse>> ownerComplaintActivities(@PathVariable Long id) {
+        return BaseResponse.success("Complaint activity fetched successfully", complaintService.getOwnerComplaintActivities(id));
+    }
+
+    @PostMapping("/api/owner/complaints/{id}/comment")
+    @PreAuthorize("hasRole('OWNER')")
+    public BaseResponse<ComplaintResponse> ownerComment(@PathVariable Long id, @Valid @RequestBody ComplaintCommentRequest request) {
+        return BaseResponse.success("Complaint comment added successfully", complaintService.commentAsOwner(id, request));
     }
 
     @PutMapping("/api/owner/complaints/{id}/update-status")

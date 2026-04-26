@@ -6,6 +6,8 @@ const COLUMN_LABELS: Record<string, string> = {
   pgName: 'PG',
   roomNumber: 'Room',
   billingMonth: 'Month',
+  description: 'Description',
+  details: 'Case Details',
   rentAmount: 'Rent',
   totalDue: 'Due',
   amountPaid: 'Paid',
