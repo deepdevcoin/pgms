@@ -1,6 +1,6 @@
 import {
   CleaningStatus, Complaint, ComplaintActivity, LoginResponse, Manager, ManagerSummary, OwnerSummary, PaymentOverview, PaymentSummary,
-  PaymentTransaction, PG, Role, Room, RoomStatus, SharingType, Tenant, RentRecord
+  PaymentTransaction, PG, Role, Room, RoomStatus, ServiceBooking, SharingType, Tenant, RentRecord
 } from './models';
 
 type AnyRecord = Record<string, unknown>;
@@ -13,6 +13,8 @@ const tenantStatuses = ['ACTIVE', 'VACATING', 'ARCHIVED'] as const;
 const complaintStatuses = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'ESCALATED', 'CLOSED'] as const;
 const complaintCategories = ['MAINTENANCE', 'NOISE', 'HYGIENE', 'FOOD', 'OTHER', 'AGAINST_MANAGER'] as const;
 const complaintActivityTypes = ['CREATED', 'COMMENT', 'STATUS_CHANGE'] as const;
+const serviceStatuses = ['REQUESTED', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'REJECTED'] as const;
+const serviceTypes = ['CLEANING', 'LINEN_CHANGE', 'PEST_CONTROL', 'PLUMBING', 'ELECTRICAL'] as const;
 
 function isRecord(value: unknown): value is AnyRecord {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -257,6 +259,31 @@ export function mapRentRecord(source: unknown): RentRecord {
     dueDate: text(source, ['dueDate'], ''),
     status: enumValue(source, ['status'], ['PENDING', 'PAID', 'PARTIAL', 'OVERDUE'], 'PENDING'),
     fineWaivedReason: text(source, ['fineWaivedReason'], '')
+  };
+}
+
+export function mapServiceBooking(source: unknown): ServiceBooking {
+  return {
+    id: numberValue(source, ['id', 'serviceBookingId']),
+    tenantProfileId: optionalNumber(source, ['tenantProfileId', 'tenantProfile.id']),
+    tenantName: text(source, ['tenantName', 'tenant.name'], 'Tenant'),
+    pgId: optionalNumber(source, ['pgId', 'tenantProfile.pg.id', 'propertyId']),
+    pgName: text(source, ['pgName', 'tenantProfile.pg.name', 'propertyName'], ''),
+    roomNumber: text(source, ['roomNumber', 'tenantProfile.room.roomNumber', 'room.number'], ''),
+    serviceType: enumValue(source, ['serviceType', 'type'], serviceTypes, 'CLEANING'),
+    preferredDate: text(source, ['preferredDate'], ''),
+    preferredTimeWindow: text(source, ['preferredTimeWindow'], ''),
+    requestNotes: text(source, ['requestNotes', 'description'], ''),
+    status: enumValue(source, ['status'], serviceStatuses, 'REQUESTED'),
+    managerNotes: text(source, ['managerNotes', 'notes'], ''),
+    rating: optionalNumber(source, ['rating']),
+    ratingComment: text(source, ['ratingComment'], ''),
+    createdAt: text(source, ['createdAt'], ''),
+    updatedAt: text(source, ['updatedAt'], ''),
+    confirmedAt: text(source, ['confirmedAt'], ''),
+    startedAt: text(source, ['startedAt'], ''),
+    completedAt: text(source, ['completedAt'], ''),
+    rejectedAt: text(source, ['rejectedAt'], '')
   };
 }
 

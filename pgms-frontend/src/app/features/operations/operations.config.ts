@@ -17,7 +17,9 @@ export interface OperationsActionHandlers {
   vacateReject: (row: Record<string, any>) => void;
   vacateCheckout: (row: Record<string, any>) => void;
   serviceConfirm: (row: Record<string, any>) => void;
+  serviceStart: (row: Record<string, any>) => void;
   serviceComplete: (row: Record<string, any>) => void;
+  serviceReject: (row: Record<string, any>) => void;
   serviceRate: (row: Record<string, any>) => void;
   amenityBook: (row: Record<string, any>) => void;
   amenityOpenInvite: (row: Record<string, any>) => void;
@@ -27,6 +29,30 @@ export interface OperationsActionHandlers {
   subletApprove: (row: Record<string, any>) => void;
   subletCheckIn: (row: Record<string, any>) => void;
   subletCheckout: (row: Record<string, any>) => void;
+}
+
+const serviceTypeLabels: Record<string, string> = {
+  CLEANING: 'Room cleaning',
+  LINEN_CHANGE: 'Linen change',
+  PEST_CONTROL: 'Pest control',
+  PLUMBING: 'Plumbing',
+  ELECTRICAL: 'Electrical'
+};
+
+const serviceTimeWindowOptions = [
+  '6:00 AM - 8:00 AM',
+  '8:00 AM - 10:00 AM',
+  '10:00 AM - 12:00 PM',
+  '12:00 PM - 2:00 PM',
+  '2:00 PM - 4:00 PM',
+  '4:00 PM - 6:00 PM',
+  '6:00 PM - 8:00 PM',
+  '8:00 PM - 10:00 PM',
+  'Flexible'
+];
+
+function serviceTypeLabel(option: string): string {
+  return serviceTypeLabels[option] || option;
 }
 
 export function buildModuleConfig(role: Role | null, pgOptions: string[], pgName: (value: string) => string): Record<ModuleKey, ModuleConfig> {
@@ -44,7 +70,9 @@ export function buildModuleConfig(role: Role | null, pgOptions: string[], pgName
       crumb: 'Support',
       title: 'Complaints',
       subtitle: role === 'TENANT' ? 'Raise and track complaints.' : 'Track complaint SLA, ownership and resolution.',
-      columns: ['id', 'tenantName', 'roomNumber', 'category', 'status', 'createdAt', 'details'],
+      columns: role === 'TENANT'
+        ? ['id', 'roomNumber', 'category', 'status', 'createdAt', 'details']
+        : ['id', 'tenantName', 'roomNumber', 'category', 'status', 'createdAt', 'details'],
       createLabel: role === 'TENANT' ? 'Raise complaint' : undefined,
       fields: role === 'TENANT' ? [
         { key: 'category', label: 'Category', type: 'select', options: ['MAINTENANCE', 'NOISE', 'HYGIENE', 'FOOD', 'OTHER', 'AGAINST_MANAGER'] },
@@ -85,13 +113,18 @@ export function buildModuleConfig(role: Role | null, pgOptions: string[], pgName
     services: {
       crumb: 'Operations',
       title: 'Service Bookings',
-      subtitle: role === 'TENANT' ? 'Book cleaning and maintenance services.' : 'Confirm, complete and track service quality.',
-      columns: ['tenantName', 'roomNumber', 'serviceType', 'preferredDate', 'preferredTimeWindow', 'status', 'rating'],
+      subtitle: role === 'TENANT'
+        ? 'Request housekeeping and maintenance support with clear timing and follow-through.'
+        : 'Triage requests, coordinate visits, and close the loop with clean service notes.',
+      columns: role === 'TENANT'
+        ? ['serviceType', 'preferredDate', 'preferredTimeWindow', 'status', 'createdAt', 'serviceSummary', 'rating']
+        : ['tenantName', 'pgName', 'roomNumber', 'serviceType', 'preferredDate', 'preferredTimeWindow', 'status', 'serviceSummary', 'rating'],
       createLabel: role === 'TENANT' ? 'Book service' : undefined,
       fields: role === 'TENANT' ? [
-        { key: 'serviceType', label: 'Service type', type: 'select', options: ['ROOM_CLEANING', 'LINEN_CHANGE', 'PEST_CONTROL', 'PLUMBING_INSPECTION', 'ELECTRICAL_CHECK'] },
+        { key: 'serviceType', label: 'Service type', type: 'select', options: ['CLEANING', 'LINEN_CHANGE', 'PEST_CONTROL', 'PLUMBING', 'ELECTRICAL'], optionLabel: serviceTypeLabel },
         { key: 'preferredDate', label: 'Preferred date', type: 'date' },
-        { key: 'preferredTimeWindow', label: 'Time window', type: 'text' }
+        { key: 'preferredTimeWindow', label: 'Preferred time window', type: 'select', options: serviceTimeWindowOptions },
+        { key: 'requestNotes', label: 'Request details', type: 'textarea', wide: true }
       ] : []
     },
     amenities: {
@@ -172,7 +205,9 @@ export function buildModuleActions(role: Role | null, handlers: OperationsAction
     ],
     services: [
       { label: 'Confirm', icon: 'event_available', show: row => role === 'MANAGER' && row['status'] === 'REQUESTED', run: handlers.serviceConfirm },
-      { label: 'Complete', icon: 'task_alt', show: row => role === 'MANAGER' && row['status'] === 'CONFIRMED', run: handlers.serviceComplete },
+      { label: 'Start', icon: 'play_circle', show: row => role === 'MANAGER' && row['status'] === 'CONFIRMED', run: handlers.serviceStart },
+      { label: 'Complete', icon: 'task_alt', show: row => role === 'MANAGER' && row['status'] === 'IN_PROGRESS', run: handlers.serviceComplete },
+      { label: 'Reject', icon: 'cancel', show: row => role === 'MANAGER' && (row['status'] === 'REQUESTED' || row['status'] === 'CONFIRMED'), run: handlers.serviceReject },
       { label: 'Rate', icon: 'star', show: row => role === 'TENANT' && row['status'] === 'COMPLETED' && !row['rating'], run: handlers.serviceRate }
     ],
     amenities: [

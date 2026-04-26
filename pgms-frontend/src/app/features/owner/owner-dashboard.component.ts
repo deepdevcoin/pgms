@@ -4,13 +4,14 @@ import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { ApiService } from '../../core/api.service';
 import { Complaint, Notice, OwnerSummary, PG, RentRecord } from '../../core/models';
+import { DisplayDatePipe } from '../../shared/display-date.pipe';
 import { OperationsTableComponent } from '../operations/operations-table.component';
 import { formatRowValue, isMoneyColumn, isStatusColumn, labelForColumn, pillClassForStatus } from '../operations/operations.formatters';
 
 @Component({
   selector: 'app-owner-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatIconModule, OperationsTableComponent],
+  imports: [CommonModule, RouterLink, MatIconModule, OperationsTableComponent, DisplayDatePipe],
   template: `
   <section class="dash fade-up" data-testid="owner-dashboard">
     <header class="head">
@@ -91,7 +92,7 @@ import { formatRowValue, isMoneyColumn, isStatusColumn, labelForColumn, pillClas
         <div class="stack-list">
           @for (notice of notices(); track notice.id) {
             <div class="stack-row">
-              <div><div class="title">{{ notice.title }}</div><div class="meta">{{ notice.createdByName }} · {{ notice.createdAt | date:'mediumDate' }}</div></div>
+              <div><div class="title">{{ notice.title }}</div><div class="meta">{{ notice.createdByName }} · {{ notice.createdAt | displayDate }}</div></div>
               <span class="pill dot">{{ notice.readCount || 0 }} reads</span>
             </div>
           } @empty { <div class="empty">No notices yet.</div> }
@@ -103,7 +104,7 @@ import { formatRowValue, isMoneyColumn, isStatusColumn, labelForColumn, pillClas
         <div class="stack-list">
           @for (complaint of complaints(); track complaint.id) {
             <div class="stack-row">
-              <div><div class="title">{{ complaint.tenantName || 'Tenant' }} · {{ complaint.category }}</div><div class="meta">{{ complaint.roomNumber }} · {{ complaint.createdAt | date:'mediumDate' }}</div></div>
+              <div><div class="title">{{ complaint.tenantName || 'Tenant' }} · {{ complaint.category }}</div><div class="meta">{{ complaint.roomNumber }} · {{ complaint.createdAt | displayDate }}</div></div>
               <span class="pill dot" [ngClass]="statusClass(complaint.status)">{{ complaint.status }}</span>
             </div>
           } @empty { <div class="empty">No complaints yet.</div> }

@@ -1,4 +1,5 @@
 import { PaymentSummary, PaymentTransaction, Role } from '../../core/models';
+import { formatDisplayDate, formatDisplayDateTime } from '../../shared/date-utils';
 import { Row, SummaryCard } from './operations.types';
 
 const COLUMN_LABELS: Record<string, string> = {
@@ -14,6 +15,8 @@ const COLUMN_LABELS: Record<string, string> = {
   fineAccrued: 'Fine',
   remainingAmountDue: 'Pending',
   dueDate: 'Due Date',
+  preferredTimeWindow: 'Time Window',
+  serviceSummary: 'Service Notes',
   bookingCount: 'Booked',
   resourceName: 'Unit',
   createdAt: 'Time',
@@ -46,6 +49,14 @@ export function formatRowValue(row: Row, col: string, pgName: (value: string) =>
   const value = row[col];
   if (value === undefined || value === null || value === '') return '-';
   if (col === 'pgId') return pgName(String(value));
+  if (col === 'serviceType') return serviceTypeLabel(String(value));
+  if (col === 'rating') return typeof value === 'number' ? `${value}/5` : '-';
+  if (col === 'createdAt' || col === 'updatedAt' || col === 'confirmedAt' || col === 'startedAt' || col === 'completedAt' || col === 'rejectedAt') {
+    return compactDateTime(String(value));
+  }
+  if (['preferredDate', 'dueDate', 'slotDate', 'startDate', 'endDate', 'intendedVacateDate', 'joiningDate', 'checkInDate', 'checkOutDate'].includes(col)) {
+    return formatDisplayDate(String(value)) || String(value);
+  }
   if (typeof value === 'number' && isMoneyColumn(col)) return money(value);
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   return String(value);
@@ -97,12 +108,19 @@ export function prettyEnum(value: string): string {
   return value.toLowerCase().split('_').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
 }
 
+export function serviceTypeLabel(value: string): string {
+  const labels: Record<string, string> = {
+    CLEANING: 'Room cleaning',
+    LINEN_CHANGE: 'Linen change',
+    PEST_CONTROL: 'Pest control',
+    PLUMBING: 'Plumbing',
+    ELECTRICAL: 'Electrical'
+  };
+  return labels[value] || prettyEnum(value);
+}
+
 function compactDateTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  const day = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-  const time = date.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
-  return `${day} · ${time}`;
+  return formatDisplayDateTime(value) || value;
 }
 
 function prettyBillingMonth(value: string): string {

@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { Observable, delay, of, throwError } from 'rxjs';
 import {
   AmenityBooking, Complaint, ComplaintActivity, LoginResponse, Manager, ManagerSummary, MenuItem, Notice,
-  NoticeReadReceipt, OwnerSummary, PaymentOverview, PaymentTransaction, PG, RentRecord, Role,
+  NoticeReadReceipt, OwnerSummary, PaymentOverview, PaymentTransaction, PG, RentRecord, Role, ServiceBooking,
   Room, RoomStatus, SharingType, Tenant
 } from './models';
 
@@ -18,6 +18,7 @@ export class MockDataService {
   private complaintActivitiesById: Record<number, ComplaintActivity[]>;
   private notices: Notice[];
   private noticeReceiptsById: Record<number, NoticeReadReceipt[]>;
+  private services: ServiceBooking[];
   private menu: MenuItem[];
   private amenities: AmenityBooking[];
 
@@ -32,6 +33,7 @@ export class MockDataService {
     this.complaintActivitiesById = this.buildComplaintActivities();
     this.notices = this.buildNotices();
     this.noticeReceiptsById = this.buildNoticeReceipts();
+    this.services = this.buildServices();
     this.menu = this.buildMenu();
     this.amenities = this.buildAmenities();
     this.recomputePgCounts();
@@ -173,7 +175,7 @@ export class MockDataService {
       paymentCollectedThisMonth: 184200,
       paymentPendingThisMonth: 38600,
       openComplaints: 3,
-      pendingServiceRequests: 4,
+      pendingServiceRequests: this.services.filter(item => item.status === 'REQUESTED' || item.status === 'CONFIRMED' || item.status === 'IN_PROGRESS').length,
       vacateNotices: [
         { tenantName: 'Karan Mehta', intendedDate: '2026-03-05', refundEligible: true },
         { tenantName: 'Priya Singh', intendedDate: '2026-02-28', refundEligible: false }
@@ -322,6 +324,94 @@ export class MockDataService {
   listComplaints(role: Role | null): Observable<Complaint[]> {
     const all = this.clone(this.complaints.map(complaint => this.decorateComplaint(complaint)));
     return of(role === 'TENANT' ? all.slice(0, 2) : all).pipe(delay(120));
+  }
+
+  listServices(role: Role | null): Observable<ServiceBooking[]> {
+    const all = this.clone(this.services);
+    if (role === 'TENANT') {
+      const currentTenant = this.tenants[0]?.tenantProfileId;
+      return of(all.filter(item => item.tenantProfileId === currentTenant)).pipe(delay(120));
+    }
+    return of(all).pipe(delay(120));
+  }
+
+  createService(payload: { serviceType: string; preferredDate: string; preferredTimeWindow?: string; requestNotes?: string }): Observable<ServiceBooking> {
+    if (!payload.preferredDate) {
+      return throwError(() => new Error('Preferred date is required'));
+    }
+    const preferredDate = new Date(payload.preferredDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (Number.isNaN(preferredDate.getTime()) || preferredDate < today) {
+      return throwError(() => new Error('Preferred date cannot be in the past'));
+    }
+    const tenant = this.tenants[0];
+    if (!tenant) return throwError(() => new Error('Tenant not found'));
+    const preferredTimeWindow = payload.preferredTimeWindow?.trim() || '';
+    const duplicate = this.services.find(item =>
+      item.tenantProfileId === tenant.tenantProfileId
+      && item.serviceType === payload.serviceType
+      && item.preferredDate === payload.preferredDate
+      && (item.preferredTimeWindow || '') === preferredTimeWindow
+      && ['REQUESTED', 'CONFIRMED', 'IN_PROGRESS'].includes(item.status)
+    );
+    if (duplicate) {
+      return throwError(() => new Error('An active request already exists for this service and time window'));
+    }
+    const now = new Date().toISOString();
+    const booking: ServiceBooking = {
+      id: Date.now(),
+      tenantProfileId: tenant.tenantProfileId,
+      tenantName: tenant.name,
+      pgId: tenant.pgId,
+      pgName: tenant.pgName,
+      roomNumber: tenant.roomNumber,
+      serviceType: payload.serviceType as ServiceBooking['serviceType'],
+      preferredDate: payload.preferredDate,
+      preferredTimeWindow,
+      requestNotes: payload.requestNotes?.trim() || '',
+      status: 'REQUESTED',
+      createdAt: now,
+      updatedAt: now
+    };
+    this.services.unshift(booking);
+    return of(this.clone(booking)).pipe(delay(120));
+  }
+
+  updateService(id: number, status: string, notes?: string): Observable<ServiceBooking> {
+    const booking = this.services.find(item => item.id === id);
+    if (!booking) return throwError(() => new Error('Service request not found'));
+    const nextStatus = status as ServiceBooking['status'];
+    const valid = (booking.status === 'REQUESTED' && (nextStatus === 'CONFIRMED' || nextStatus === 'REJECTED'))
+      || (booking.status === 'CONFIRMED' && (nextStatus === 'IN_PROGRESS' || nextStatus === 'REJECTED'))
+      || (booking.status === 'IN_PROGRESS' && nextStatus === 'COMPLETED');
+    if (!valid) {
+      return throwError(() => new Error('Invalid service status transition'));
+    }
+    const managerNotes = notes?.trim() || '';
+    if ((nextStatus === 'REJECTED' || nextStatus === 'COMPLETED') && !managerNotes) {
+      return throwError(() => new Error(nextStatus === 'REJECTED' ? 'Rejection reason is required' : 'Completion note is required'));
+    }
+    const now = new Date().toISOString();
+    booking.status = nextStatus;
+    if (managerNotes) booking.managerNotes = managerNotes;
+    booking.updatedAt = now;
+    if (nextStatus === 'CONFIRMED') booking.confirmedAt = now;
+    if (nextStatus === 'IN_PROGRESS') booking.startedAt = now;
+    if (nextStatus === 'COMPLETED') booking.completedAt = now;
+    if (nextStatus === 'REJECTED') booking.rejectedAt = now;
+    return of(this.clone(booking)).pipe(delay(120));
+  }
+
+  rateService(id: number, rating: number, ratingComment?: string): Observable<ServiceBooking> {
+    const booking = this.services.find(item => item.id === id);
+    if (!booking) return throwError(() => new Error('Service request not found'));
+    if (booking.status !== 'COMPLETED') return throwError(() => new Error('Only completed services can be rated'));
+    if (booking.rating) return throwError(() => new Error('Service booking has already been rated'));
+    booking.rating = rating;
+    booking.ratingComment = ratingComment?.trim() || '';
+    booking.updatedAt = new Date().toISOString();
+    return of(this.clone(booking)).pipe(delay(120));
   }
 
   listComplaintActivities(id: number): Observable<ComplaintActivity[]> {
@@ -825,6 +915,86 @@ export class MockDataService {
         { userId: 11, userName: 'Arjun Nair', role: 'MANAGER', readAt: '2026-04-23T12:20:00' }
       ]
     };
+  }
+
+  private buildServices(): ServiceBooking[] {
+    const baseTenant = this.tenants[0];
+    const otherTenant = this.tenants[1];
+    const thirdTenant = this.tenants[2];
+    const services: ServiceBooking[] = [
+      {
+        id: 5001,
+        tenantProfileId: baseTenant?.tenantProfileId,
+        tenantName: baseTenant?.name,
+        pgId: baseTenant?.pgId,
+        pgName: baseTenant?.pgName,
+        roomNumber: baseTenant?.roomNumber,
+        serviceType: 'CLEANING',
+        preferredDate: '2026-04-28',
+        preferredTimeWindow: '7:00 PM - 9:00 PM',
+        requestNotes: 'Need deep cleaning near the study table and bathroom drain.',
+        status: 'REQUESTED',
+        createdAt: '2026-04-27T08:30:00',
+        updatedAt: '2026-04-27T08:30:00'
+      },
+      {
+        id: 5002,
+        tenantProfileId: otherTenant?.tenantProfileId,
+        tenantName: otherTenant?.name,
+        pgId: otherTenant?.pgId,
+        pgName: otherTenant?.pgName,
+        roomNumber: otherTenant?.roomNumber,
+        serviceType: 'PLUMBING',
+        preferredDate: '2026-04-27',
+        preferredTimeWindow: '10:00 AM - 12:00 PM',
+        requestNotes: 'Wash basin tap is leaking continuously.',
+        status: 'CONFIRMED',
+        managerNotes: 'Technician assigned for the morning round.',
+        createdAt: '2026-04-26T18:15:00',
+        updatedAt: '2026-04-26T20:00:00',
+        confirmedAt: '2026-04-26T20:00:00'
+      },
+      {
+        id: 5003,
+        tenantProfileId: thirdTenant?.tenantProfileId,
+        tenantName: thirdTenant?.name,
+        pgId: thirdTenant?.pgId,
+        pgName: thirdTenant?.pgName,
+        roomNumber: thirdTenant?.roomNumber,
+        serviceType: 'ELECTRICAL',
+        preferredDate: '2026-04-27',
+        preferredTimeWindow: '2:00 PM - 4:00 PM',
+        requestNotes: 'Bedside plug point is sparking intermittently.',
+        status: 'IN_PROGRESS',
+        managerNotes: 'Electrician is on site and checking the socket line.',
+        createdAt: '2026-04-26T09:20:00',
+        updatedAt: '2026-04-27T14:10:00',
+        confirmedAt: '2026-04-26T11:30:00',
+        startedAt: '2026-04-27T14:10:00'
+      },
+      {
+        id: 5004,
+        tenantProfileId: baseTenant?.tenantProfileId,
+        tenantName: baseTenant?.name,
+        pgId: baseTenant?.pgId,
+        pgName: baseTenant?.pgName,
+        roomNumber: baseTenant?.roomNumber,
+        serviceType: 'LINEN_CHANGE',
+        preferredDate: '2026-04-24',
+        preferredTimeWindow: '6:00 PM - 8:00 PM',
+        requestNotes: 'Please replace the bedsheet and pillow cover set.',
+        status: 'COMPLETED',
+        managerNotes: 'Fresh linen delivered and old set collected.',
+        rating: 5,
+        ratingComment: 'Quick turnaround and neatly done.',
+        createdAt: '2026-04-23T19:00:00',
+        updatedAt: '2026-04-24T19:15:00',
+        confirmedAt: '2026-04-24T09:30:00',
+        startedAt: '2026-04-24T18:05:00',
+        completedAt: '2026-04-24T19:15:00'
+      }
+    ];
+    return services.filter(item => !!item.tenantProfileId);
   }
 
   private buildMenu(): MenuItem[] {

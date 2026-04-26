@@ -47,12 +47,15 @@ public class ServiceBooking {
 
     private String preferredTimeWindow;
 
+    @Lob
+    private String requestNotes;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ServiceStatus status;
 
     @Lob
-    private String notes;
+    private String managerNotes;
 
     private Integer rating;
 
@@ -61,4 +64,15 @@ public class ServiceBooking {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
+
+    private LocalDateTime confirmedAt;
+
+    private LocalDateTime startedAt;
+
+    private LocalDateTime completedAt;
+
+    private LocalDateTime rejectedAt;
 }

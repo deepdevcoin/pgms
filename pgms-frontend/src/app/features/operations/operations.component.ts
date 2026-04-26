@@ -10,11 +10,14 @@ import { AuthService } from '../../core/auth.service';
 import { AmenityBooking, ComplaintActivity, MenuItem, NoticeReadReceipt, PaymentSummary, PaymentTransaction, PG, Role, Tenant } from '../../core/models';
 import { MenuBoardComponent } from '../../shared/menu-board.component';
 import { PopupShellComponent } from '../../shared/popup-shell.component';
+import { DateInputComponent } from '../../shared/date-input.component';
+import { DisplayDatePipe } from '../../shared/display-date.pipe';
 import { AmenitySlotBoardComponent } from './amenity-slot-board.component';
 import { buildModuleActions, buildModuleConfig, OperationsActionHandlers } from './operations.config';
 import { buildPaymentSummaryCards, formatRowValue, formatTransactionValue, isMoneyColumn, isStatusColumn, labelForColumn, pillClassForStatus, transactionColumns } from './operations.formatters';
 import { OperationsFormComponent } from './operations-form.component';
 import { OperationsHeaderComponent } from './operations-header.component';
+import { MenuWeekPlannerComponent } from './menu-week-planner.component';
 import { OperationsPaymentOverviewComponent } from './operations-payment-overview.component';
 import { OperationsTableComponent } from './operations-table.component';
 import { ActionConfig, ModuleKey, Row } from './operations.types';
@@ -27,9 +30,12 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
     FormsModule,
     MatIconModule,
     PopupShellComponent,
+    DateInputComponent,
+    DisplayDatePipe,
     MenuBoardComponent,
     AmenitySlotBoardComponent,
     OperationsHeaderComponent,
+    MenuWeekPlannerComponent,
     OperationsFormComponent,
     OperationsTableComponent,
     OperationsPaymentOverviewComponent
@@ -81,62 +87,76 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
       />
     }
 
-    <div class="toolbar">
-      <div class="search">
-        <mat-icon>search</mat-icon>
-        <input [(ngModel)]="query" name="query" placeholder="Search" />
-      </div>
-      <button class="btn btn--ghost" (click)="load()"><mat-icon>refresh</mat-icon><span>Refresh</span></button>
-    </div>
-
-    @if (loading()) {
-      <div class="state card"><div class="spinner"></div><span>Loading {{ config().title.toLowerCase() }}...</span></div>
-    } @else if (error()) {
-      <div class="state card err"><mat-icon>error</mat-icon><span>{{ error() }}</span></div>
-    } @else if (moduleKey() === 'menu' && auth.role() === 'TENANT') {
-      <app-menu-board
-        [items]="tenantMenuItems()"
-        mode="week"
-        [showWeekLabel]="true"
-        emptyLabel="Weekly menu is not available for your PG yet."
+    @if (isMenuPlannerMode()) {
+      <app-menu-planner
+        [pgs]="pgs()"
+        [pgId]="menuPgId()"
+        [weekLabel]="currentMenuWeekLabel()"
+        [items]="menuItems()"
+        [saving]="saving()"
+        (pgIdChange)="setMenuPgId($event)"
+        (weekLabelChange)="setMenuWeekLabel($event)"
+        (loadWeek)="loadMenu()"
+        (saveWeek)="saveMenuPlanner($event)"
       />
-    } @else if (moduleKey() === 'amenities' && auth.role() === 'TENANT') {
-      <app-amenity-slot-board
-        [rows]="tenantAmenityRows()"
-        emptyLabel="No amenity slots available right now."
-        [book]="runAmenityBook.bind(this)"
-        [openInvite]="runAmenityOpenInvite.bind(this)"
-        [joinInvite]="runAmenityJoin.bind(this)"
-        [cancel]="runAmenityCancel.bind(this)"
-      />
-    } @else if (filteredRows().length === 0) {
-      <div class="state card"><mat-icon>inbox</mat-icon><span>No records found.</span></div>
     } @else {
-      <app-operations-table
-        [columns]="config().columns"
-        [rows]="filteredRows()"
-        [actions]="actions()"
-        [role]="auth.role()"
-        [moduleKey]="moduleKey()"
-        [compact]="compactTable()"
-        [minWidth]="moduleKey() === 'payments' ? '100%' : ''"
-        [label]="label.bind(this)"
-        [value]="value.bind(this)"
-        [rowKey]="rowKey.bind(this)"
-        [moneyColumn]="moneyColumn.bind(this)"
-        [statusColumn]="statusColumn.bind(this)"
-        [pillClass]="pillClass.bind(this)"
-      />
+      <div class="toolbar">
+        <div class="search">
+          <mat-icon>search</mat-icon>
+          <input [(ngModel)]="query" name="query" placeholder="Search" />
+        </div>
+        <button class="btn btn--ghost" (click)="load()"><mat-icon>refresh</mat-icon><span>Refresh</span></button>
+      </div>
 
-      @if (moduleKey() === 'payments') {
-        <app-operations-payment-overview
-          [showSummary]="false"
-          [transactions]="filteredTransactions()"
-          [columns]="transactionColumns()"
-          [label]="label.bind(this)"
-          [transactionValue]="transactionValue.bind(this)"
-          [moneyColumn]="moneyColumn.bind(this)"
+      @if (loading()) {
+        <div class="state card"><div class="spinner"></div><span>Loading {{ config().title.toLowerCase() }}...</span></div>
+      } @else if (error()) {
+        <div class="state card err"><mat-icon>error</mat-icon><span>{{ error() }}</span></div>
+      } @else if (moduleKey() === 'menu' && auth.role() === 'TENANT') {
+        <app-menu-board
+          [items]="tenantMenuItems()"
+          mode="week"
+          [showWeekLabel]="true"
+          emptyLabel="Weekly menu is not available for your PG yet."
         />
+      } @else if (moduleKey() === 'amenities' && auth.role() === 'TENANT') {
+        <app-amenity-slot-board
+          [rows]="tenantAmenityRows()"
+          emptyLabel="No amenity slots available right now."
+          [book]="runAmenityBook.bind(this)"
+          [openInvite]="runAmenityOpenInvite.bind(this)"
+          [joinInvite]="runAmenityJoin.bind(this)"
+          [cancel]="runAmenityCancel.bind(this)"
+        />
+      } @else if (filteredRows().length === 0) {
+        <div class="state card"><mat-icon>inbox</mat-icon><span>No records found.</span></div>
+      } @else {
+        <app-operations-table
+          [columns]="config().columns"
+          [rows]="filteredRows()"
+          [actions]="actions()"
+          [role]="auth.role()"
+          [moduleKey]="moduleKey()"
+          [compact]="compactTable()"
+          [minWidth]="moduleKey() === 'payments' ? '100%' : ''"
+          [label]="label.bind(this)"
+          [value]="value.bind(this)"
+          [rowKey]="rowKey.bind(this)"
+          [moneyColumn]="moneyColumn.bind(this)"
+          [statusColumn]="statusColumn.bind(this)"
+          [pillClass]="pillClass.bind(this)"
+        />
+
+        @if (moduleKey() === 'payments') {
+          <app-operations-payment-overview
+            [showSummary]="false"
+            [transactions]="filteredTransactions()"
+            [columns]="transactionColumns()"
+            [label]="label.bind(this)"
+            [transactionValue]="transactionValue.bind(this)"
+            [moneyColumn]="moneyColumn.bind(this)"
+          />
+        }
       }
     }
   </section>
@@ -184,7 +204,7 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
               <div class="receipt-name">{{ receipt.userName }}</div>
               <div class="receipt-meta">{{ receipt.role }}</div>
             </div>
-            <div class="receipt-time">{{ receipt.readAt | date:'medium' }}</div>
+            <div class="receipt-time">{{ receipt.readAt | displayDate:'datetime' }}</div>
           </div>
         }
       </div>
@@ -211,7 +231,7 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
                 <div class="receipt-name">{{ complaintActivityTitle(activity) }}</div>
                 <div class="receipt-meta">{{ activity.actorName || activity.actorRole || 'System' }}</div>
               </div>
-              <div class="receipt-time">{{ activity.createdAt | date:'medium' }}</div>
+              <div class="receipt-time">{{ activity.createdAt | displayDate:'datetime' }}</div>
             </div>
             @if (activity.message) {
               <div class="receipt-message">{{ activity.message }}</div>
@@ -240,7 +260,7 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
       </label>
       <label class="fld">
         <span>Check in date</span>
-        <input type="date" [(ngModel)]="subletGuestForm.checkInDate" name="subletCheckInDate" />
+        <app-date-input [(value)]="subletGuestForm.checkInDate"></app-date-input>
       </label>
     </div>
     <div class="dialog-actions">
@@ -363,9 +383,35 @@ export class OperationsComponent {
     vacateApprove: row => this.mutate(this.api.approveVacateReferral(row['id'], true)),
     vacateReject: row => this.mutate(this.api.approveVacateReferral(row['id'], false)),
     vacateCheckout: row => this.mutate(this.api.checkoutVacate(row['id'])),
-    serviceConfirm: row => this.mutate(this.api.updateService(row['id'], 'CONFIRMED', 'Confirmed')),
-    serviceComplete: row => this.mutate(this.api.updateService(row['id'], 'COMPLETED', 'Completed')),
-    serviceRate: row => this.openNumberDialog('Rate service', 'Give a score between 1 and 5.', 'Rating', 'Submit rating', rating => this.api.rateService(row['id'], rating, 'Rated from app')),
+    serviceConfirm: row => this.openTextDialog(
+      'Confirm service visit',
+      'Share the committed visit window or assigned technician for this request.',
+      'Confirmation note',
+      'Confirm service',
+      notes => this.api.updateService(row['id'], 'CONFIRMED', notes)
+    ),
+    serviceStart: row => this.openTextDialog(
+      'Start service work',
+      'Capture the on-site update so the tenant knows the work is underway.',
+      'Work started note',
+      'Mark in progress',
+      notes => this.api.updateService(row['id'], 'IN_PROGRESS', notes)
+    ),
+    serviceComplete: row => this.openTextDialog(
+      'Complete service',
+      'Record what was fixed or delivered before closing this request.',
+      'Completion note',
+      'Complete service',
+      notes => this.api.updateService(row['id'], 'COMPLETED', notes)
+    ),
+    serviceReject: row => this.openTextDialog(
+      'Reject service request',
+      'Explain why the request cannot be fulfilled in the current form.',
+      'Rejection reason',
+      'Reject request',
+      notes => this.api.updateService(row['id'], 'REJECTED', notes)
+    ),
+    serviceRate: row => this.openNumberDialog('Rate service', 'Give a score between 1 and 5 for the completed service.', 'Rating', 'Submit rating', rating => this.api.rateService(row['id'], rating)),
     amenityBook: row => this.mutate(this.api.bookAmenity(row['slotId'], false)),
     amenityOpenInvite: row => this.mutate(this.api.bookAmenity(row['slotId'], true)),
     amenityJoin: row => this.mutate(this.api.joinAmenityInvite(row['slotId'])),
@@ -390,7 +436,7 @@ export class OperationsComponent {
     if (!q) return this.paymentTransactions();
     return this.paymentTransactions().filter(row => JSON.stringify(row).toLowerCase().includes(q));
   });
-  canCreate = computed(() => !!this.config().fields?.length && !!this.config().createLabel);
+  canCreate = computed(() => !this.isMenuPlannerMode() && !!this.config().fields?.length && !!this.config().createLabel);
   actionsMap = computed(() => buildModuleActions(this.auth.role(), this.actionHandlers));
   actions = computed<ActionConfig[]>(() => this.actionsMap()[this.moduleKey()]);
   tenantMenuPgId = computed(() => {
@@ -427,6 +473,11 @@ export class OperationsComponent {
     this.loading.set(true);
     this.error.set(null);
     const key = this.moduleKey();
+    if (key === 'menu' && !this.menuPgId()) {
+      this.rows.set([]);
+      this.loading.set(false);
+      return;
+    }
     if (key === 'payments') {
       this.api.paymentOverview().subscribe({
         next: overview => {
@@ -468,6 +519,34 @@ export class OperationsComponent {
 
   loadMenu() { this.load(); }
 
+  saveMenuPlanner(items: MenuItem[]) {
+    if (!this.menuPgId()) {
+      this.snack.open('Select a PG before saving the menu.', 'Dismiss', { duration: 2400, panelClass: 'pgms-snack' });
+      return;
+    }
+    if (!this.currentMenuWeekLabel()) {
+      this.snack.open('Select a week before saving the menu.', 'Dismiss', { duration: 2400, panelClass: 'pgms-snack' });
+      return;
+    }
+    if (!items.length) {
+      this.snack.open('Add at least one meal before saving the week.', 'Dismiss', { duration: 2400, panelClass: 'pgms-snack' });
+      return;
+    }
+    this.saving.set(true);
+    this.api.saveMenu(items).subscribe({
+      next: rows => {
+        this.saving.set(false);
+        this.rows.set(rows as Row[]);
+        this.snack.open('Weekly menu saved', 'OK', { duration: 2000, panelClass: 'pgms-snack' });
+        this.load();
+      },
+      error: err => {
+        this.saving.set(false);
+        this.snack.open(err?.message || 'Save failed', 'Dismiss', { duration: 3000, panelClass: 'pgms-snack' });
+      }
+    });
+  }
+
   submit() {
     this.saving.set(true);
     const key = this.moduleKey();
@@ -480,7 +559,7 @@ export class OperationsComponent {
           : key === 'vacate'
             ? this.api.createVacate({ intendedVacateDate: this.form['intendedVacateDate'], hasReferral: !!this.form['hasReferral'], referralName: this.form['referralName'], referralPhone: this.form['referralPhone'], referralEmail: this.form['referralEmail'] })
             : key === 'services'
-              ? this.api.createService({ serviceType: this.form['serviceType'], preferredDate: this.form['preferredDate'], preferredTimeWindow: this.form['preferredTimeWindow'] })
+              ? this.api.createService({ serviceType: this.form['serviceType'], preferredDate: this.form['preferredDate'], preferredTimeWindow: this.form['preferredTimeWindow'], requestNotes: this.form['requestNotes'] })
               : key === 'amenities' && this.auth.role() === 'MANAGER'
                 ? this.api.createAmenitySlot({ pgId: this.numberField('pgId'), amenityType: this.form['amenityType'], slotDate: this.form['slotDate'], startTime: this.form['startTime'], endTime: this.form['endTime'], capacity: this.numberField('capacity'), facilityName: this.form['facilityName'] })
                 : key === 'sublets'
@@ -524,7 +603,8 @@ export class OperationsComponent {
     this.form = {
       category: 'MAINTENANCE',
       targetType: 'ALL_PGS',
-      serviceType: 'ROOM_CLEANING',
+      serviceType: 'CLEANING',
+      preferredTimeWindow: '6:00 PM - 8:00 PM',
       amenityType: 'WASHING_MACHINE',
       capacity: 1,
       weekLabel: this.weekLabel(),
@@ -538,7 +618,7 @@ export class OperationsComponent {
   private menuPayload(): MenuItem[] {
     return [{
       pgId: this.menuPgId(),
-      weekLabel: this.form['weekLabel'] || this.weekLabel(),
+      weekLabel: this.currentMenuWeekLabel(),
       dayOfWeek: this.form['dayOfWeek'],
       mealType: this.form['mealType'],
       itemNames: this.form['itemNames'],
@@ -565,11 +645,27 @@ export class OperationsComponent {
     return this.pgs().find(pg => pg.id === id)?.name || `PG ${value}`;
   }
 
-  private menuPgId(): number {
+  menuPgId(): number {
     if (this.auth.role() === 'TENANT') {
       return this.tenantMenuPgId();
     }
     return this.numberField('pgId') || this.pgs()[0]?.id || 0;
+  }
+
+  currentMenuWeekLabel(): string {
+    return String(this.form['weekLabel'] || this.weekLabel());
+  }
+
+  setMenuPgId(pgId: number) {
+    this.form['pgId'] = Number(pgId || 0);
+  }
+
+  setMenuWeekLabel(weekLabel: string) {
+    this.form['weekLabel'] = weekLabel;
+  }
+
+  isMenuPlannerMode(): boolean {
+    return this.moduleKey() === 'menu' && this.auth.role() !== 'TENANT';
   }
 
   private numberField(key: string): number { return Number(this.form[key] || 0); }
@@ -773,6 +869,10 @@ export class OperationsComponent {
 
   tenantMenuItems(): MenuItem[] {
     return (this.rows() as MenuItem[]).filter(row => !!row.dayOfWeek && !!row.mealType);
+  }
+
+  menuItems(): MenuItem[] {
+    return this.rows() as MenuItem[];
   }
 
   tenantAmenityRows(): AmenityBooking[] {

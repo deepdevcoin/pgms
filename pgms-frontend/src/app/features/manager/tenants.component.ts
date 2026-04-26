@@ -7,6 +7,8 @@ import { forkJoin, of, switchMap } from 'rxjs';
 import { AuthService } from '../../core/auth.service';
 import { ApiService } from '../../core/api.service';
 import { PG, RentRecord, Room, Tenant } from '../../core/models';
+import { DateInputComponent } from '../../shared/date-input.component';
+import { DisplayDatePipe } from '../../shared/display-date.pipe';
 
 interface TenantFinanceView extends Tenant {
   monthlyRent: number;
@@ -29,7 +31,7 @@ interface TenantMoveForm {
 @Component({
   selector: 'app-tenants',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatIconModule],
+  imports: [CommonModule, FormsModule, MatIconModule, DateInputComponent, DisplayDatePipe],
   template: `
   <section class="fade-up tenants">
     <header class="head">
@@ -51,7 +53,7 @@ interface TenantMoveForm {
         <label class="fld"><span>Name</span><input [(ngModel)]="form.name" name="name" required /></label>
         <label class="fld"><span>Email</span><input [(ngModel)]="form.email" name="email" type="email" required /></label>
         <label class="fld"><span>Phone</span><input [(ngModel)]="form.phone" name="phone" required /></label>
-        <label class="fld"><span>Joining date</span><input [(ngModel)]="form.joiningDate" name="joiningDate" type="date" required /></label>
+        <label class="fld"><span>Joining date</span><app-date-input [(value)]="form.joiningDate"></app-date-input></label>
         <label class="fld"><span>Advance paid</span><input [(ngModel)]="form.advanceAmountPaid" name="advanceAmountPaid" type="number" required /></label>
         <label class="fld"><span>PG</span>
           <select [(ngModel)]="selectedPgId" name="pg" (ngModelChange)="loadRooms($event)">
@@ -83,7 +85,7 @@ interface TenantMoveForm {
           <div class="avatar" [style.background]="color(t.name)">{{ initials(t.name) }}</div>
           <div class="info">
             <div class="name">{{ t.name }}</div>
-            <div class="meta">{{ t.pgName || pgName(t.pgId) }} · Room {{ t.roomNumber || t.roomId || '-' }} · Joined {{ t.joiningDate || '-' }}</div>
+            <div class="meta">{{ t.pgName || pgName(t.pgId) }} · Room {{ t.roomNumber || t.roomId || '-' }} · Joined {{ t.joiningDate | displayDate }}</div>
             <div class="meta">{{ t.email }} · {{ t.phone }}</div>
             <div class="finance-strip">
               <div class="finance-pill">
@@ -182,7 +184,7 @@ interface TenantMoveForm {
           <div><span>Room</span><strong>{{ tenant.roomNumber || tenant.roomId || '-' }}</strong></div>
           <div><span>PG</span><strong>{{ tenant.pgName || pgName(tenant.pgId) }}</strong></div>
           <div><span>Status</span><strong>{{ tenant.status }}</strong></div>
-          <div><span>Joined</span><strong>{{ tenant.joiningDate || '-' }}</strong></div>
+          <div><span>Joined</span><strong>{{ tenant.joiningDate | displayDate }}</strong></div>
           <div><span>Deposit target</span><strong>{{ money(tenant.depositAmount) }}</strong></div>
           <div><span>Overdue records</span><strong>{{ tenant.overdueRecords }}</strong></div>
         </div>

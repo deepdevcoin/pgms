@@ -4,11 +4,12 @@ import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { ApiService } from '../../core/api.service';
 import { Complaint, ManagerSummary, Notice, PG, RentRecord, ServiceBooking, VacateNotice } from '../../core/models';
+import { DisplayDatePipe } from '../../shared/display-date.pipe';
 
 @Component({
   selector: 'app-manager-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatIconModule],
+  imports: [CommonModule, RouterLink, MatIconModule, DisplayDatePipe],
   template: `
   <section class="dashboard fade-up" data-testid="manager-dashboard">
     <header class="masthead">
@@ -160,7 +161,7 @@ import { Complaint, ManagerSummary, Notice, PG, RentRecord, ServiceBooking, Vaca
                 <div class="stack-row">
                   <div>
                     <div class="stack-title">{{ complaint.tenantName || 'Tenant' }} · {{ complaint.category }}</div>
-                    <div class="stack-meta">{{ complaint.roomNumber || '-' }} · {{ complaint.createdAt | date:'mediumDate' }}</div>
+                    <div class="stack-meta">{{ complaint.roomNumber || '-' }} · {{ complaint.createdAt | displayDate }}</div>
                   </div>
                   <span class="pill dot" [ngClass]="statusClass(complaint.status)">{{ complaint.status }}</span>
                 </div>
@@ -182,11 +183,12 @@ import { Complaint, ManagerSummary, Notice, PG, RentRecord, ServiceBooking, Vaca
               @for (service of serviceQueue(); track service.id) {
                 <div class="stack-row">
                   <div>
-                    <div class="stack-title">{{ service.tenantName || 'Tenant' }} · {{ service.serviceType }}</div>
-                    <div class="stack-meta">{{ service.roomNumber || '-' }} · {{ service.preferredDate }} · {{ service.preferredTimeWindow || 'Flexible' }}</div>
-                  </div>
-                  <span class="pill dot" [ngClass]="statusClass(service.status)">{{ service.status }}</span>
+                  <div class="stack-title">{{ service.tenantName || 'Tenant' }} · {{ serviceLabel(service.serviceType) }}</div>
+                  <div class="stack-meta">{{ service.pgName || '-' }} · {{ service.roomNumber || '-' }} · {{ service.preferredDate | displayDate }} · {{ service.preferredTimeWindow || 'Flexible' }}</div>
+                  <div class="stack-meta">{{ service.managerNotes || service.requestNotes || 'No service note added yet.' }}</div>
                 </div>
+                <span class="pill dot" [ngClass]="statusClass(service.status)">{{ service.status }}</span>
+              </div>
               } @empty {
                 <div class="empty-state">No requested services pending.</div>
               }
@@ -232,7 +234,7 @@ import { Complaint, ManagerSummary, Notice, PG, RentRecord, ServiceBooking, Vaca
               <div class="stack-row">
                 <div>
                   <div class="stack-title">{{ notice.title }}</div>
-                  <div class="stack-meta">{{ notice.createdByName || 'System' }} · {{ notice.createdAt | date:'mediumDate' }}</div>
+                  <div class="stack-meta">{{ notice.createdByName || 'System' }} · {{ notice.createdAt | displayDate }}</div>
                 </div>
                 <span class="reads">{{ notice.readCount || 0 }} reads</span>
               </div>
@@ -622,7 +624,7 @@ export class ManagerDashboardComponent {
 
   serviceQueue = computed(() =>
     this.services()
-      .filter(service => service.status === 'REQUESTED' || service.status === 'CONFIRMED')
+      .filter(service => service.status === 'REQUESTED' || service.status === 'CONFIRMED' || service.status === 'IN_PROGRESS')
       .slice(0, 5)
   );
 
@@ -664,6 +666,17 @@ export class ManagerDashboardComponent {
 
   statusClass(status: string | undefined): string {
     return `pill--${String(status || '').toLowerCase()}`;
+  }
+
+  serviceLabel(value: string | undefined): string {
+    const labels: Record<string, string> = {
+      CLEANING: 'Room cleaning',
+      LINEN_CHANGE: 'Linen change',
+      PEST_CONTROL: 'Pest control',
+      PLUMBING: 'Plumbing',
+      ELECTRICAL: 'Electrical'
+    };
+    return labels[String(value || '')] || String(value || 'Service');
   }
 
   paymentBadge(payment: RentRecord): string {

@@ -13,4 +13,5 @@ public class ServiceBookingCreateRequest {
     @NotNull(message = "Preferred date is required")
     private LocalDate preferredDate;
     private String preferredTimeWindow;
+    private String requestNotes;
 }

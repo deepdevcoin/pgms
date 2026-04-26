@@ -110,8 +110,8 @@ export type ComplaintStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'ESCALATED' 
 export type ComplaintCategory = 'MAINTENANCE' | 'NOISE' | 'HYGIENE' | 'FOOD' | 'OTHER' | 'AGAINST_MANAGER';
 export type ComplaintActivityType = 'CREATED' | 'COMMENT' | 'STATUS_CHANGE';
 export type VacateStatus = 'PENDING' | 'REFERRAL_PENDING' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
-export type ServiceStatus = 'REQUESTED' | 'CONFIRMED' | 'COMPLETED' | 'REJECTED';
-export type ServiceType = 'ROOM_CLEANING' | 'LINEN_CHANGE' | 'PEST_CONTROL' | 'PLUMBING_INSPECTION' | 'ELECTRICAL_CHECK';
+export type ServiceStatus = 'REQUESTED' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED';
+export type ServiceType = 'CLEANING' | 'LINEN_CHANGE' | 'PEST_CONTROL' | 'PLUMBING' | 'ELECTRICAL';
 export type AmenityType = 'WASHING_MACHINE' | 'TABLE_TENNIS' | 'CARROM' | 'BADMINTON';
 export type BookingStatus = 'AVAILABLE' | 'BOOKED' | 'CANCELLED' | 'COMPLETED';
 export type SubletStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
@@ -246,14 +246,23 @@ export interface ServiceBooking {
   id: number;
   tenantProfileId?: number;
   tenantName?: string;
+  pgId?: number;
+  pgName?: string;
   roomNumber?: string;
   serviceType: ServiceType;
   preferredDate: string;
   preferredTimeWindow?: string;
+  requestNotes?: string;
   status: ServiceStatus;
-  notes?: string;
+  managerNotes?: string;
   rating?: number;
   ratingComment?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  confirmedAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+  rejectedAt?: string;
 }
 
 export interface AmenityBooking {

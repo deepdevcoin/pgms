@@ -26,6 +26,7 @@ public class MenuController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('OWNER','MANAGER','TENANT')")
     public BaseResponse<List<MenuItemResponse>> getMenu(@RequestParam Long pgId, @RequestParam String weekLabel) {
         return BaseResponse.success("Menu fetched successfully", menuService.getMenu(pgId, weekLabel));
     }

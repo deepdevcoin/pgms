@@ -4,12 +4,13 @@ import { MatIconModule } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AmenityBooking, Complaint, MenuItem, Notice, RentRecord, ServiceBooking, Tenant, VacateNotice } from '../../core/models';
+import { DisplayDatePipe } from '../../shared/display-date.pipe';
 import { MenuBoardComponent } from '../../shared/menu-board.component';
 
 @Component({
   selector: 'app-tenant-dashboard',
   standalone: true,
-  imports: [CommonModule, MatIconModule, RouterLink, MenuBoardComponent],
+  imports: [CommonModule, MatIconModule, RouterLink, MenuBoardComponent, DisplayDatePipe],
   template: `
   <section class="tenant-dashboard fade-up" data-testid="tenant-dashboard">
     <header class="hero surface">
@@ -33,7 +34,7 @@ import { MenuBoardComponent } from '../../shared/menu-board.component';
           </div>
           <div class="chip">
             <span>Joined</span>
-            <strong>{{ profile()?.joiningDate || '-' }}</strong>
+            <strong>{{ profile()?.joiningDate | displayDate }}</strong>
           </div>
         </div>
 
@@ -123,7 +124,7 @@ import { MenuBoardComponent } from '../../shared/menu-board.component';
             </div>
             <div class="detail-tile">
               <span>Joined</span>
-              <strong>{{ profile()?.joiningDate || '-' }}</strong>
+              <strong>{{ profile()?.joiningDate | displayDate }}</strong>
             </div>
           </div>
         </section>
@@ -207,7 +208,7 @@ import { MenuBoardComponent } from '../../shared/menu-board.component';
                   <div class="list-copy">
                     <strong>{{ complaint.category }}</strong>
                     <p>{{ complaint.description }}</p>
-                    <div class="row-meta">{{ complaint.createdAt | date:'mediumDate' }} · {{ complaint.roomNumber || 'My room' }}</div>
+                    <div class="row-meta">{{ complaint.createdAt | displayDate }} · {{ complaint.roomNumber || 'My room' }}</div>
                   </div>
                   <span class="pill dot" [ngClass]="statusClass(complaint.status)">{{ complaint.status }}</span>
                 </article>
@@ -229,9 +230,9 @@ import { MenuBoardComponent } from '../../shared/menu-board.component';
               @for (service of activeServices(); track service.id) {
                 <article class="list-row">
                   <div class="list-copy">
-                    <strong>{{ service.serviceType }}</strong>
-                    <p>{{ service.notes || 'Preferred time captured for this request.' }}</p>
-                    <div class="row-meta">{{ service.preferredDate }} · {{ service.preferredTimeWindow || 'Flexible timing' }}</div>
+                    <strong>{{ serviceLabel(service.serviceType) }}</strong>
+                    <p>{{ service.managerNotes || service.requestNotes || 'Preferred time captured for this request.' }}</p>
+                    <div class="row-meta">{{ service.preferredDate | displayDate }} · {{ service.preferredTimeWindow || 'Flexible timing' }}</div>
                   </div>
                   <span class="pill dot" [ngClass]="statusClass(service.status)">{{ service.status }}</span>
                 </article>
@@ -258,7 +259,7 @@ import { MenuBoardComponent } from '../../shared/menu-board.component';
                 <div class="list-copy">
                   <strong>{{ notice.title }}</strong>
                   <p>{{ notice.content }}</p>
-                  <div class="row-meta">{{ notice.createdByName || 'Management' }} · {{ notice.createdAt | date:'mediumDate' }}</div>
+                  <div class="row-meta">{{ notice.createdByName || 'Management' }} · {{ notice.createdAt | displayDate }}</div>
                 </div>
                 <span class="pill dot" [class.pill--approved]="notice.read" [class.pill--pending]="!notice.read">
                   {{ notice.read ? 'Read' : 'New' }}
@@ -706,7 +707,7 @@ export class TenantDashboardComponent {
 
   recentComplaints = computed(() => this.complaints().slice(0, 4));
   recentNotices = computed(() => this.notices().slice(0, 4));
-  activeServices = computed(() => this.services().filter(item => item.status !== 'COMPLETED').slice(0, 4));
+  activeServices = computed(() => this.services().filter(item => item.status !== 'COMPLETED' && item.status !== 'REJECTED').slice(0, 4));
   currentVacate = computed(() => this.vacates()[0] || null);
   nextBookedAmenity = computed(() =>
     [...this.amenities()]
@@ -760,6 +761,17 @@ export class TenantDashboardComponent {
 
   pretty(value: string): string {
     return value.toLowerCase().split('_').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+  }
+
+  serviceLabel(value: string | undefined): string {
+    const labels: Record<string, string> = {
+      CLEANING: 'Room cleaning',
+      LINEN_CHANGE: 'Linen change',
+      PEST_CONTROL: 'Pest control',
+      PLUMBING: 'Plumbing',
+      ELECTRICAL: 'Electrical'
+    };
+    return labels[String(value || '')] || String(value || 'Service');
   }
 
   fallbackRoom(): string {

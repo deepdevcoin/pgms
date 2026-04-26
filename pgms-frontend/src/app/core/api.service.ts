@@ -11,7 +11,7 @@ import {
 } from './models';
 import {
   asCollection, mapComplaint, mapComplaintActivity, mapLogin, mapManager, mapManagerSummary, mapOwnerSummary,
-  mapLayoutRooms, mapPaymentOverview, mapPg, mapRentRecord, mapRoom, mapTenant, unwrapApiPayload
+  mapLayoutRooms, mapPaymentOverview, mapPg, mapRentRecord, mapRoom, mapServiceBooking, mapTenant, unwrapApiPayload
 } from './api-adapters';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -357,20 +357,24 @@ export class ApiService {
   }
 
   listServices(): Observable<ServiceBooking[]> {
+    if (this.isDemo()) return this.mock.listServices(this.role());
     const path = this.role() === 'TENANT' ? environment.endpoints.services.tenant : environment.endpoints.services.manager;
-    return this.get<unknown>(path).pipe(map(response => asCollection(response) as ServiceBooking[]));
+    return this.get<unknown>(path).pipe(map(response => asCollection(response).map(mapServiceBooking)));
   }
 
-  createService(payload: { serviceType: string; preferredDate: string; preferredTimeWindow?: string }): Observable<ServiceBooking> {
-    return this.post<ServiceBooking>(environment.endpoints.services.tenant, payload);
+  createService(payload: { serviceType: string; preferredDate: string; preferredTimeWindow?: string; requestNotes?: string }): Observable<ServiceBooking> {
+    if (this.isDemo()) return this.mock.createService(payload);
+    return this.post<unknown>(environment.endpoints.services.tenant, payload).pipe(map(mapServiceBooking));
   }
 
   updateService(id: number, status: string, notes?: string): Observable<ServiceBooking> {
-    return this.put<ServiceBooking>(this.path(environment.endpoints.services.managerUpdate, { id }), { status, notes });
+    if (this.isDemo()) return this.mock.updateService(id, status, notes);
+    return this.put<unknown>(this.path(environment.endpoints.services.managerUpdate, { id }), { status, notes }).pipe(map(mapServiceBooking));
   }
 
   rateService(id: number, rating: number, ratingComment?: string): Observable<ServiceBooking> {
-    return this.post<ServiceBooking>(this.path(environment.endpoints.services.tenantRate, { id }), { rating, ratingComment });
+    if (this.isDemo()) return this.mock.rateService(id, rating, ratingComment);
+    return this.post<unknown>(this.path(environment.endpoints.services.tenantRate, { id }), { rating, ratingComment }).pipe(map(mapServiceBooking));
   }
 
   listAmenities(): Observable<AmenityBooking[]> {

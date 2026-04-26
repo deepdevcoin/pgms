@@ -40,7 +40,7 @@ import { ActionConfig, CellClassValue, ModuleKey, Row } from './operations.types
               [class.cell--status]="statusColumn(col)"
               [class.cell--right]="alignRight(col)"
               [class.cell--wrap]="wrapColumn(col)"
-              [class.cell--details]="col === 'details'"
+              [class.cell--details]="col === 'details' || col === 'serviceSummary'"
               [ngClass]="cellClass(row, col)"
             >
               @if (statusColumn(col)) {
@@ -56,6 +56,14 @@ import { ActionConfig, CellClassValue, ModuleKey, Row } from './operations.types
                   @if (row['activityCount']) {
                     <div class="detail-meta">{{ row['activityCount'] }} entr{{ row['activityCount'] === 1 ? 'y' : 'ies' }} in timeline</div>
                   }
+                </div>
+              } @else if (col === 'serviceSummary') {
+                <div class="detail-block">
+                  <div class="detail-kicker">Request</div>
+                  <div class="detail-main">{{ row['requestNotes'] || 'No service note provided.' }}</div>
+                  <div class="detail-kicker">Operations</div>
+                  <div class="detail-notes" [class.detail-notes--empty]="!row['managerNotes']">{{ row['managerNotes'] || 'No manager update yet.' }}</div>
+                  <div class="detail-meta">{{ serviceMeta(row) }}</div>
                 </div>
               } @else {
                 {{ value(row, col) }}
@@ -98,6 +106,7 @@ import { ActionConfig, CellClassValue, ModuleKey, Row } from './operations.types
     .head-cell--compact-actions { padding-right: 2px; }
     .cell--wrap { white-space: normal; line-height: 1.45; }
     .detail-block { display: grid; gap: 6px; }
+    .detail-kicker { color: var(--text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
     .detail-main { color: var(--text); line-height: 1.5; }
     .detail-notes {
       color: var(--text-muted);
@@ -150,6 +159,9 @@ export class OperationsTableComponent {
     if (this.compact && this.moduleKey === 'complaints') {
       return this.compactComplaintTemplate();
     }
+    if (this.compact && this.moduleKey === 'services') {
+      return this.compactServiceTemplate();
+    }
     const cells = this.columns.map(col => this.columnWidth(col));
     if (this.showActions) cells.push(this.moduleKey === 'payments' ? (this.compact ? 'minmax(118px, 136px)' : 'minmax(156px, 190px)') : 'minmax(92px, 132px)');
     return cells.join(' ');
@@ -163,6 +175,9 @@ export class OperationsTableComponent {
     if (this.compact && this.moduleKey === 'complaints') {
       return '860px';
     }
+    if (this.compact && this.moduleKey === 'services') {
+      return this.columns.includes('tenantName') ? '1120px' : '920px';
+    }
     const base = this.showActions ? 170 : 0;
     return `${Math.max(680, this.columns.length * (this.compact ? (this.moduleKey === 'payments' ? 88 : 112) : 128) + base)}px`;
   }
@@ -172,7 +187,7 @@ export class OperationsTableComponent {
   }
 
   wrapColumn(col: string): boolean {
-    return ['notes', 'itemNames', 'content', 'description', 'facilityName', 'title', 'details'].includes(col);
+    return ['notes', 'itemNames', 'content', 'description', 'facilityName', 'title', 'details', 'serviceSummary'].includes(col);
   }
 
   private columnWidth(col: string): string {
@@ -213,5 +228,39 @@ export class OperationsTableComponent {
     });
     if (this.showActions) cells.push('44px');
     return cells.join(' ');
+  }
+
+  private compactServiceTemplate(): string {
+    const cells: string[] = this.columns.map(col => {
+      if (col === 'tenantName') return 'minmax(104px, 0.95fr)';
+      if (col === 'pgName') return 'minmax(92px, 0.82fr)';
+      if (col === 'roomNumber') return '72px';
+      if (col === 'serviceType') return 'minmax(116px, 0.95fr)';
+      if (col === 'preferredDate') return '96px';
+      if (col === 'preferredTimeWindow') return 'minmax(118px, 0.95fr)';
+      if (col === 'serviceSummary') return 'minmax(260px, 1.7fr)';
+      if (col === 'rating') return '70px';
+      if (this.statusColumn(col)) return 'minmax(92px, 0.82fr)';
+      if (col === 'createdAt') return '96px';
+      return 'minmax(84px, 0.85fr)';
+    });
+    if (this.showActions) cells.push('88px');
+    return cells.join(' ');
+  }
+
+  serviceMeta(row: Row): string {
+    const stamp = row['completedAt'] || row['startedAt'] || row['confirmedAt'] || row['updatedAt'] || row['createdAt'];
+    const label = row['completedAt']
+      ? 'Completed'
+      : row['startedAt']
+        ? 'Started'
+        : row['confirmedAt']
+          ? 'Confirmed'
+          : row['updatedAt']
+            ? 'Updated'
+            : 'Requested';
+    const formattedStamp = stamp ? this.value({ createdAt: stamp }, 'createdAt') : 'Awaiting next update';
+    const rated = row['rating'] ? ` · Rated ${row['rating']}/5` : '';
+    return `${label} ${formattedStamp}${rated}`;
   }
 }

@@ -2,16 +2,17 @@ import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
+import { DateInputComponent } from '../../shared/date-input.component';
 import { FieldConfig } from './operations.types';
 
 @Component({
   selector: 'app-operations-form',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatIconModule],
+  imports: [CommonModule, FormsModule, MatIconModule, DateInputComponent],
   template: `
     <form class="form card" (ngSubmit)="submitForm.emit()" data-testid="ops-form">
       @for (field of fields; track field.key) {
-        <label class="fld" [class.wide]="field.type === 'textarea'">
+        <label class="fld" [class.wide]="field.type === 'textarea' || field.wide">
           <span>{{ field.label }}</span>
           @if (field.type === 'textarea') {
             <textarea [(ngModel)]="form[field.key]" [name]="field.key"></textarea>
@@ -21,6 +22,8 @@ import { FieldConfig } from './operations.types';
                 <option [value]="option">{{ field.optionLabel ? field.optionLabel(option) : option }}</option>
               }
             </select>
+          } @else if (field.type === 'date') {
+            <app-date-input [(value)]="form[field.key]"></app-date-input>
           } @else if (field.type === 'checkbox') {
             <input type="checkbox" [(ngModel)]="form[field.key]" [name]="field.key" />
           } @else {

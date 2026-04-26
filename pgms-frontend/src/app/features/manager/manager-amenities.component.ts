@@ -5,6 +5,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/api.service';
 import { AmenityBooking, AmenityType, PG } from '../../core/models';
+import { DateInputComponent } from '../../shared/date-input.component';
+import { DisplayDatePipe } from '../../shared/display-date.pipe';
 import { PopupShellComponent } from '../../shared/popup-shell.component';
 
 type AmenityForm = {
@@ -21,7 +23,7 @@ type AmenityForm = {
 @Component({
   selector: 'app-manager-amenities',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatIconModule, PopupShellComponent],
+  imports: [CommonModule, FormsModule, MatIconModule, PopupShellComponent, DateInputComponent, DisplayDatePipe],
   template: `
     <section class="manager-amenities fade-up">
       <section class="setup surface">
@@ -91,7 +93,7 @@ type AmenityForm = {
 
           <label class="fld">
             <span>Date</span>
-            <input type="date" [(ngModel)]="form.slotDate" name="slotDate" required />
+            <app-date-input [(value)]="form.slotDate"></app-date-input>
           </label>
 
           <label class="fld">
@@ -156,7 +158,7 @@ type AmenityForm = {
                 <div class="day-head">
                   <div>
                     <div class="day-name">{{ group.date | date:'EEEE' }}</div>
-                    <div class="day-date">{{ group.date | date:'mediumDate' }}</div>
+                    <div class="day-date">{{ group.date | displayDate }}</div>
                   </div>
                   <div class="day-count">{{ group.items.length }} slot{{ group.items.length === 1 ? '' : 's' }}</div>
                 </div>
@@ -254,10 +256,10 @@ type AmenityForm = {
           <input [(ngModel)]="editForm.facilityName" name="editFacilityName" />
         </label>
 
-        <label class="fld">
-          <span>Date</span>
-          <input type="date" [(ngModel)]="editForm.slotDate" name="editSlotDate" required />
-        </label>
+          <label class="fld">
+            <span>Date</span>
+            <app-date-input [(value)]="editForm.slotDate"></app-date-input>
+          </label>
 
         <label class="fld">
           <span>Start</span>

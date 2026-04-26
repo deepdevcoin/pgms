@@ -2,11 +2,12 @@ import { CommonModule } from '@angular/common';
 import { Component, computed, input } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { AmenityBooking } from '../../core/models';
+import { DisplayDatePipe } from '../../shared/display-date.pipe';
 
 @Component({
   selector: 'app-amenity-slot-board',
   standalone: true,
-  imports: [CommonModule, MatIconModule],
+  imports: [CommonModule, MatIconModule, DisplayDatePipe],
   template: `
     @if (rows().length === 0) {
       <div class="state card">
@@ -29,7 +30,7 @@ import { AmenityBooking } from '../../core/models';
                 <div class="day-head">
                   <div>
                     <div class="day-name">{{ group.date | date:'EEEE' }}</div>
-                    <div class="day-date">{{ group.date | date:'mediumDate' }}</div>
+                    <div class="day-date">{{ group.date | displayDate }}</div>
                   </div>
                 </div>
                 <div class="slot-grid">
@@ -113,7 +114,7 @@ import { AmenityBooking } from '../../core/models';
                 <div class="day-head">
                   <div>
                     <div class="day-name">{{ group.date | date:'EEEE' }}</div>
-                    <div class="day-date">{{ group.date | date:'mediumDate' }}</div>
+                    <div class="day-date">{{ group.date | displayDate }}</div>
                   </div>
                 </div>
                 <div class="slot-grid">

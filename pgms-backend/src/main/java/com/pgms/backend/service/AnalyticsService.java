@@ -114,9 +114,10 @@ public class AnalyticsService {
                         .flatMap(pgId -> complaintRepository.findByTenantProfilePgIdAndCategoryNotOrderByCreatedAtDesc(pgId, ComplaintCategory.AGAINST_MANAGER).stream())
                         .filter(c -> c.getStatus() == ComplaintStatus.OPEN || c.getStatus() == ComplaintStatus.IN_PROGRESS)
                         .count())
-                .pendingServiceRequests((int) pgIds.stream()
-                        .mapToLong(pgId -> serviceBookingRepository.countByTenantProfilePgIdAndStatus(pgId, ServiceStatus.REQUESTED))
-                        .sum())
+                .pendingServiceRequests((int) serviceBookingRepository.countByTenantProfilePgIdInAndStatusIn(
+                        pgIds,
+                        List.of(ServiceStatus.REQUESTED, ServiceStatus.CONFIRMED, ServiceStatus.IN_PROGRESS)
+                ))
                 .vacateNotices(pgIds.stream()
                         .flatMap(pgId -> vacateNoticeRepository.findByTenantProfilePgId(pgId).stream())
                         .filter(notice -> notice.getStatus() != VacateStatus.COMPLETED)
