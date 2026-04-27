@@ -13,13 +13,15 @@ export const environment = {
       ownerList: '/owner/pgs',
       ownerLayoutList: '/owner/layout-pgs',
       managerList: '/manager/pgs',
-      create: '/owner/pgs'
+      create: '/owner/pgs',
+      update: '/owner/pgs/:id'
     },
     rooms: {
       ownerListByPg: '/owner/pgs/:pgId/rooms',
       ownerLayoutByPg: '/owner/pgs/:pgId/layout',
       managerLayoutByPg: '/manager/pgs/:pgId/layout',
       update: '/manager/rooms/:id',
+      ownerUpdate: '/owner/rooms/:id',
       managerCleaningStatus: '/manager/rooms/:id/cleaning-status',
       ownerCleaningStatus: '/owner/rooms/:id/cleaning-status',
       create: '/owner/pgs/:pgId/rooms'

@@ -30,7 +30,7 @@ public class ManagerRoomController {
 
     @PutMapping("/rooms/{id}")
     @PreAuthorize("hasRole('MANAGER')")
-    public BaseResponse<RoomResponse> updateRoom(@PathVariable Long id, @RequestBody RoomUpdateRequest request) {
+    public BaseResponse<RoomResponse> updateRoom(@PathVariable Long id, @Valid @RequestBody RoomUpdateRequest request) {
         return BaseResponse.success("Room updated successfully", pgService.updateRoom(id, request));
     }
 

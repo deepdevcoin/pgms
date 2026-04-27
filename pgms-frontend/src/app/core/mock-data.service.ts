@@ -2,8 +2,8 @@ import { Injectable } from '@angular/core';
 import { Observable, delay, of, throwError } from 'rxjs';
 import {
   AmenityBooking, Complaint, ComplaintActivity, LoginResponse, Manager, ManagerSummary, MenuItem, Notice,
-  NoticeReadReceipt, OwnerSummary, PaymentOverview, PaymentTransaction, PG, RentRecord, Role, ServiceBooking,
-  Room, RoomStatus, SharingType, Tenant
+  NoticeReadReceipt, OwnerSummary, PaymentOverview, PaymentTransaction, PG, PgCreatePayload, PgUpdatePayload, RentRecord, Role,
+  Room, RoomCreatePayload, RoomStatus, RoomUpdatePayload, ServiceBooking, SharingType, Tenant
 } from './models';
 
 @Injectable({ providedIn: 'root' })
@@ -54,6 +54,39 @@ export class MockDataService {
   listTenants(): Observable<Tenant[]> {
     return of(this.clone(this.tenants.filter(tenant => tenant.status !== 'ARCHIVED'))).pipe(delay(120));
   }
+
+  createPg(payload: PgCreatePayload): Observable<PG> {
+    const pg: PG = {
+      id: Date.now(),
+      name: payload.name.trim(),
+      address: payload.address.trim(),
+      totalFloors: payload.totalFloors,
+      paymentDeadlineDay: payload.paymentDeadlineDay,
+      fineAmountPerDay: payload.fineAmountPerDay,
+      slaHours: payload.slaHours,
+      vacantCount: 0,
+      occupiedCount: 0,
+      vacatingCount: 0
+    };
+    this.pgs.unshift(pg);
+    return of(this.clone(pg)).pipe(delay(120));
+  }
+
+  updatePg(id: number, payload: PgUpdatePayload): Observable<PG> {
+    const index = this.pgs.findIndex(item => item.id === id);
+    if (index < 0) return throwError(() => new Error('Property not found'));
+    this.pgs[index] = {
+      ...this.pgs[index],
+      name: payload.name.trim(),
+      address: payload.address.trim(),
+      totalFloors: payload.totalFloors,
+      paymentDeadlineDay: payload.paymentDeadlineDay,
+      fineAmountPerDay: payload.fineAmountPerDay,
+      slaHours: payload.slaHours
+    };
+    return of(this.clone(this.pgs[index])).pipe(delay(120));
+  }
+
   tenantProfile(): Observable<Tenant> {
     const tenant = this.tenants.find(item => item.status !== 'ARCHIVED') || this.tenants[0];
     return of({ ...tenant, creditWalletBalance: tenant?.creditWalletBalance ?? 1200 }).pipe(delay(120));
@@ -66,10 +99,52 @@ export class MockDataService {
     return of(list.map(room => this.hydrateRoom(room))).pipe(delay(120));
   }
 
-  updateRoom(id: number, patch: Partial<Room>): Observable<Room> {
+  createRoom(pgId: number, payload: RoomCreatePayload): Observable<Room> {
+    const pg = this.pgs.find(item => item.id === pgId);
+    if (!pg) return throwError(() => new Error('Property not found'));
+    const roomNumber = payload.roomNumber.trim();
+    if (!roomNumber) return throwError(() => new Error('Room number is required'));
+    if (this.rooms.some(room => room.pgId === pgId && room.roomNumber.toLowerCase() === roomNumber.toLowerCase())) {
+      return throwError(() => new Error('Room number already exists in this property'));
+    }
+    const room: Room = {
+      id: Date.now(),
+      pgId,
+      roomNumber,
+      floor: payload.floor,
+      isAC: payload.isAC,
+      sharingType: payload.sharingType,
+      monthlyRent: payload.monthlyRent,
+      depositAmount: payload.depositAmount,
+      status: payload.status,
+      cleaningStatus: payload.cleaningStatus,
+      capacity: this.capacityFor(payload.sharingType),
+      occupants: []
+    };
+    this.rooms.unshift(room);
+    pg.totalFloors = Math.max(pg.totalFloors, payload.floor);
+    this.recomputePgCounts();
+    return of(this.hydrateRoom(room)).pipe(delay(120));
+  }
+
+  updateRoom(id: number, patch: RoomUpdatePayload): Observable<Room> {
     const index = this.rooms.findIndex(room => room.id === id);
     if (index < 0) return throwError(() => new Error('Room not found'));
-    this.rooms[index] = { ...this.rooms[index], ...patch };
+    const current = this.rooms[index];
+    const roomNumber = patch.roomNumber?.trim();
+    if (roomNumber && this.rooms.some(room => room.id !== id && room.pgId === current.pgId && room.roomNumber.toLowerCase() === roomNumber.toLowerCase())) {
+      return throwError(() => new Error('Room number already exists in this property'));
+    }
+    const nextSharing = patch.sharingType || current.sharingType;
+    if (this.roomOccupancy(id) > this.capacityFor(nextSharing)) {
+      return throwError(() => new Error('Cannot reduce room capacity below current occupancy'));
+    }
+    this.rooms[index] = {
+      ...current,
+      ...patch,
+      roomNumber: roomNumber || current.roomNumber,
+      capacity: this.capacityFor(nextSharing)
+    };
     this.syncTenantsForRoom(this.rooms[index]);
     this.recomputePgCounts();
     return of(this.hydrateRoom(this.rooms[index])).pipe(delay(120));
@@ -1072,7 +1147,7 @@ export class MockDataService {
       ? { ...t, status: room.status === 'VACATING' ? 'VACATING' : 'ACTIVE' }
       : t
     );
-    if (room.status === 'MAINTENANCE' || room.status === 'SUBLETTING') {
+    if (room.status === 'MAINTENANCE' || room.status === 'SUBLETTING' || room.status === 'VACATING') {
       return;
     }
     const occupancy = this.roomOccupancy(room.id);
@@ -1080,7 +1155,11 @@ export class MockDataService {
   }
 
   private roomCapacity(room: Room): number {
-    switch (room.sharingType) {
+    return this.capacityFor(room.sharingType);
+  }
+
+  private capacityFor(sharingType: SharingType): number {
+    switch (sharingType) {
       case 'SINGLE': return 1;
       case 'DOUBLE': return 2;
       case 'TRIPLE': return 3;

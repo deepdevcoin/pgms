@@ -6,8 +6,8 @@ import { AuthService } from './auth.service';
 import { MockDataService } from './mock-data.service';
 import {
   AmenityBooking, Complaint, ComplaintActivity, LoginResponse, Manager, ManagerSummary, MenuItem,
-  Notice, NoticeReadReceipt, OwnerSummary, PaymentOverview, PG, RentRecord, Room, RoomStatus, ServiceBooking,
-  SubletRequest, Tenant, VacateNotice
+  Notice, NoticeReadReceipt, OwnerSummary, PaymentOverview, PG, PgCreatePayload, PgUpdatePayload, RentRecord, Room, RoomCreatePayload,
+  RoomStatus, RoomUpdatePayload, ServiceBooking, SubletRequest, Tenant, VacateNotice
 } from './models';
 import {
   asCollection, mapComplaint, mapComplaintActivity, mapLogin, mapManager, mapManagerSummary, mapOwnerSummary,
@@ -81,6 +81,20 @@ export class ApiService {
     });
   }
 
+  createPg(payload: PgCreatePayload): Observable<PG> {
+    if (this.isDemo()) return this.mock.createPg(payload);
+    return this.post<unknown>(environment.endpoints.pgs.create, payload).pipe(
+      map(mapPg)
+    );
+  }
+
+  updatePg(id: number, payload: PgUpdatePayload): Observable<PG> {
+    if (this.isDemo()) return this.mock.updatePg(id, payload);
+    return this.put<unknown>(this.path(environment.endpoints.pgs.update, { id }), payload).pipe(
+      map(mapPg)
+    );
+  }
+
   listRooms(pgId: number, opts?: { status?: RoomStatus; floor?: number }): Observable<Room[]> {
     const params: QueryParams = {};
     if (opts?.status) params['status'] = opts.status;
@@ -97,9 +111,19 @@ export class ApiService {
     });
   }
 
-  updateRoom(id: number, patch: Partial<Room>): Observable<Room> {
+  createRoom(pgId: number, payload: RoomCreatePayload): Observable<Room> {
+    if (this.isDemo()) return this.mock.createRoom(pgId, payload);
+    return this.post<unknown>(this.path(environment.endpoints.rooms.create, { pgId }), payload).pipe(
+      map(mapRoom)
+    );
+  }
+
+  updateRoom(id: number, patch: RoomUpdatePayload): Observable<Room> {
     if (this.isDemo()) return this.mock.updateRoom(id, patch);
-    return this.put<unknown>(this.path(environment.endpoints.rooms.update, { id }), patch).pipe(
+    const endpoint = this.role() === 'OWNER'
+      ? environment.endpoints.rooms.ownerUpdate
+      : environment.endpoints.rooms.update;
+    return this.put<unknown>(this.path(endpoint, { id }), patch).pipe(
       map(mapRoom)
     );
   }

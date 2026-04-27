@@ -3,6 +3,7 @@ export type Role = 'OWNER' | 'MANAGER' | 'TENANT';
 export type RoomStatus = 'VACANT' | 'PARTIAL' | 'OCCUPIED' | 'SUBLETTING' | 'VACATING' | 'MAINTENANCE';
 export type CleaningStatus = 'CLEAN' | 'DIRTY' | 'IN_PROGRESS';
 export type SharingType = 'SINGLE' | 'DOUBLE' | 'TRIPLE' | 'DORM';
+export type RoomMutableStatus = Exclude<RoomStatus, 'PARTIAL'>;
 
 export interface LoginResponse {
   token?: string;
@@ -29,6 +30,39 @@ export interface PG {
   vacantCount: number;
   occupiedCount: number;
   vacatingCount: number;
+}
+
+export interface PgCreatePayload {
+  name: string;
+  address: string;
+  totalFloors: number;
+  paymentDeadlineDay: number;
+  fineAmountPerDay: number;
+  slaHours: number;
+}
+
+export interface PgUpdatePayload extends PgCreatePayload {}
+
+export interface RoomCreatePayload {
+  roomNumber: string;
+  floor: number;
+  isAC: boolean;
+  sharingType: SharingType;
+  monthlyRent: number;
+  depositAmount: number;
+  status: RoomMutableStatus;
+  cleaningStatus: CleaningStatus;
+}
+
+export interface RoomUpdatePayload {
+  roomNumber?: string;
+  floor?: number;
+  isAC?: boolean;
+  sharingType?: SharingType;
+  monthlyRent?: number;
+  depositAmount?: number;
+  status?: RoomMutableStatus;
+  cleaningStatus?: CleaningStatus;
 }
 
 export interface Room {

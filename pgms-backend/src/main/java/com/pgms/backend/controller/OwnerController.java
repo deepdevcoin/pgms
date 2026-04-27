@@ -3,10 +3,13 @@ package com.pgms.backend.controller;
 import com.pgms.backend.dto.BaseResponse;
 import com.pgms.backend.dto.layout.LayoutPgResponse;
 import com.pgms.backend.dto.layout.LayoutResponse;
+import com.pgms.backend.dto.pg.PgCreateRequest;
+import com.pgms.backend.dto.pg.PgUpdateRequest;
 import com.pgms.backend.dto.pg.RoomCreateRequest;
 import com.pgms.backend.dto.pg.RoomCleaningStatusUpdateRequest;
 import com.pgms.backend.dto.pg.PgSummaryResponse;
 import com.pgms.backend.dto.pg.RoomResponse;
+import com.pgms.backend.dto.pg.RoomUpdateRequest;
 import com.pgms.backend.dto.tenant.TenantAccountStatusRequest;
 import com.pgms.backend.dto.tenant.TenantCreateRequest;
 import com.pgms.backend.dto.tenant.TenantMoveRequest;
@@ -46,6 +49,19 @@ public class OwnerController {
         return BaseResponse.success("PGs fetched successfully", pgService.getAllPgsWithSummary());
     }
 
+    @PostMapping("/pgs")
+    @PreAuthorize("hasRole('OWNER')")
+    public BaseResponse<PgSummaryResponse> createPg(@Valid @RequestBody PgCreateRequest request) {
+        return BaseResponse.success("PG created successfully", pgService.createPg(request));
+    }
+
+    @PutMapping("/pgs/{id}")
+    @PreAuthorize("hasRole('OWNER')")
+    public BaseResponse<PgSummaryResponse> updatePg(@PathVariable Long id,
+                                                    @Valid @RequestBody PgUpdateRequest request) {
+        return BaseResponse.success("PG updated successfully", pgService.updatePg(id, request));
+    }
+
     @GetMapping("/layout-pgs")
     @PreAuthorize("hasRole('OWNER')")
     public BaseResponse<List<LayoutPgResponse>> getLayoutPgs() {
@@ -71,6 +87,13 @@ public class OwnerController {
     public BaseResponse<RoomResponse> createRoom(@PathVariable Long pgId,
                                                  @Valid @RequestBody RoomCreateRequest request) {
         return BaseResponse.success("Room created successfully", pgService.createRoomForOwner(pgId, request));
+    }
+
+    @PutMapping("/rooms/{id}")
+    @PreAuthorize("hasRole('OWNER')")
+    public BaseResponse<RoomResponse> updateRoom(@PathVariable Long id,
+                                                 @Valid @RequestBody RoomUpdateRequest request) {
+        return BaseResponse.success("Room updated successfully", pgService.updateRoomForOwner(id, request));
     }
 
     @PutMapping("/rooms/{id}/cleaning-status")

@@ -7,6 +7,8 @@ import com.pgms.backend.dto.layout.LayoutRoomResponse;
 import com.pgms.backend.dto.layout.LayoutRoomStatus;
 import com.pgms.backend.dto.layout.LayoutTenantRentSummaryResponse;
 import com.pgms.backend.dto.layout.LayoutTenantResponse;
+import com.pgms.backend.dto.pg.PgCreateRequest;
+import com.pgms.backend.dto.pg.PgUpdateRequest;
 import com.pgms.backend.dto.pg.RoomCreateRequest;
 import com.pgms.backend.dto.pg.PgSummaryResponse;
 import com.pgms.backend.dto.pg.RoomCleaningStatusUpdateRequest;
@@ -59,6 +61,40 @@ public class PgService {
 
     public List<PgSummaryResponse> getAllPgsWithSummary() {
         return pgRepository.findAll().stream().map(this::toSummary).toList();
+    }
+
+    @Transactional
+    public PgSummaryResponse createPg(PgCreateRequest request) {
+        Pg pg = Pg.builder()
+                .name(request.getName().trim())
+                .address(request.getAddress().trim())
+                .totalFloors(request.getTotalFloors())
+                .totalRooms(0)
+                .paymentDeadlineDay(request.getPaymentDeadlineDay())
+                .fineAmountPerDay(request.getFineAmountPerDay())
+                .slaHours(request.getSlaHours())
+                .build();
+        return toSummary(pgRepository.save(pg));
+    }
+
+    @Transactional
+    public PgSummaryResponse updatePg(Long pgId, PgUpdateRequest request) {
+        Pg pg = getPgOrThrow(pgId);
+        pg.setName(request.getName().trim());
+        pg.setAddress(request.getAddress().trim());
+        if (request.getTotalFloors() != null) {
+            pg.setTotalFloors(request.getTotalFloors());
+        }
+        if (request.getPaymentDeadlineDay() != null) {
+            pg.setPaymentDeadlineDay(request.getPaymentDeadlineDay());
+        }
+        if (request.getFineAmountPerDay() != null) {
+            pg.setFineAmountPerDay(request.getFineAmountPerDay());
+        }
+        if (request.getSlaHours() != null) {
+            pg.setSlaHours(request.getSlaHours());
+        }
+        return toSummary(pgRepository.save(pg));
     }
 
     public List<RoomResponse> getRoomsByPgId(Long pgId, RoomStatus status, Integer floor) {
@@ -187,19 +223,14 @@ public class PgService {
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new NotFoundException("Room not found"));
         accessControlService.ensureManagerAssignedToPg(room.getPg().getId());
-        if (request.getMonthlyRent() != null) {
-            room.setMonthlyRent(request.getMonthlyRent());
-        }
-        if (request.getIsAC() != null) {
-            room.setIsAC(request.getIsAC());
-        }
-        if (request.getSharingType() != null) {
-            room.setSharingType(request.getSharingType());
-        }
-        if (request.getStatus() != null) {
-            room.setStatus(request.getStatus());
-        }
-        return toRoomResponse(roomRepository.save(room));
+        return toRoomResponse(roomRepository.save(applyRoomUpdates(room, request)));
+    }
+
+    @Transactional
+    public RoomResponse updateRoomForOwner(Long roomId, RoomUpdateRequest request) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new NotFoundException("Room not found"));
+        return toRoomResponse(roomRepository.save(applyRoomUpdates(room, request)));
     }
 
     @Transactional
@@ -243,6 +274,61 @@ public class PgService {
                 .status(room.getStatus())
                 .cleaningStatus(room.getCleaningStatus())
                 .build();
+    }
+
+    private Room applyRoomUpdates(Room room, RoomUpdateRequest request) {
+        if (request.getRoomNumber() != null) {
+            String roomNumber = request.getRoomNumber().trim();
+            if (roomNumber.isEmpty()) {
+                throw new ConflictException("Room number cannot be blank");
+            }
+            roomRepository.findByPgAndRoomNumber(room.getPg(), roomNumber)
+                    .filter(existing -> !existing.getId().equals(room.getId()))
+                    .ifPresent(existing -> {
+                        throw new ConflictException("Room number already exists in this PG");
+                    });
+            room.setRoomNumber(roomNumber);
+        }
+
+        if (request.getFloor() != null) {
+            room.setFloor(request.getFloor());
+        }
+
+        int activeOccupants = tenantProfileRepository.findByRoomIdAndStatusIn(
+                room.getId(),
+                List.of(TenantStatus.ACTIVE, TenantStatus.VACATING)
+        ).size();
+
+        if (request.getSharingType() != null) {
+            int nextCapacity = getCapacity(request.getSharingType());
+            if (activeOccupants > nextCapacity) {
+                throw new ConflictException("Cannot reduce room capacity below the current tenant count");
+            }
+            room.setSharingType(request.getSharingType());
+        }
+
+        if (request.getStatus() != null) {
+            if (activeOccupants > 0
+                    && (request.getStatus() == RoomStatus.VACANT || request.getStatus() == RoomStatus.MAINTENANCE)) {
+                throw new ConflictException("Cannot mark an occupied room as vacant or maintenance");
+            }
+            room.setStatus(request.getStatus());
+        }
+
+        if (request.getMonthlyRent() != null) {
+            room.setMonthlyRent(request.getMonthlyRent());
+        }
+        if (request.getDepositAmount() != null) {
+            room.setDepositAmount(request.getDepositAmount());
+        }
+        if (request.getIsAC() != null) {
+            room.setIsAC(request.getIsAC());
+        }
+        if (request.getCleaningStatus() != null) {
+            room.setCleaningStatus(request.getCleaningStatus());
+        }
+
+        return room;
     }
 
     private LayoutRoomResponse toLayoutRoomResponse(Room room,
