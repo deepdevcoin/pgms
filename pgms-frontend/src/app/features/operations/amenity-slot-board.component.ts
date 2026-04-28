@@ -4,9 +4,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { AmenityBooking } from '../../core/models';
 import { DisplayDatePipe } from '../../shared/display-date.pipe';
 
-type DayGroup = { date: string; items: AmenityBooking[] };
-type MachineWindow = { key: string; timeKey: string; timeLabel: string; location: string; slots: AmenityBooking[] };
-type MachineDayGroup = { date: string; items: MachineWindow[] };
+type ResourceDateGroup = { date: string; slots: AmenityBooking[] };
+type ResourceGroup = { key: string; title: string; subtitle: string; dates: ResourceDateGroup[] };
 
 @Component({
   selector: 'app-amenity-slot-board',
@@ -25,7 +24,7 @@ type MachineDayGroup = { date: string; items: MachineWindow[] };
             <div class="lane-head">
               <div>
                 <div class="lane-title">Your bookings</div>
-                <div class="lane-subtitle">Keep track of your current amenity reservations in one place.</div>
+                <div class="lane-subtitle">Current reservations, grouped away from the booking grid.</div>
               </div>
               <div class="lane-meta">{{ bookedRows().length }} active</div>
             </div>
@@ -38,20 +37,22 @@ type MachineDayGroup = { date: string; items: MachineWindow[] };
                       <div class="booking-title">{{ bookingTitle(slot) }}</div>
                       <div class="booking-sub">{{ bookingSubtitle(slot) }}</div>
                     </div>
-                    @if (isManagementBlocked(slot)) {
-                      <span class="mini-badge mini-badge--warn">{{ managementLabel(slot) }}</span>
-                    } @else {
-                      <span class="mini-badge">Booked</span>
-                    }
+                    <span class="mini-badge" [class.mini-badge--warn]="isManagementBlocked(slot)">
+                      {{ isManagementBlocked(slot) ? managementLabel(slot) : 'Booked' }}
+                    </span>
                   </div>
                   <div class="booking-time">{{ slot.slotDate | displayDate }} · {{ timeRange(slot) }}</div>
-                  @if (slot.hostName && slot.tenantName !== slot.hostName) {
-                    <div class="booking-note">Host: <strong>{{ slot.hostName }}</strong></div>
-                  } @else if (slot.hostName && slot.tenantName === slot.hostName) {
-                    <div class="booking-note">You are hosting this session.</div>
-                  } @else {
-                    <div class="booking-note">{{ isManagementBlocked(slot) ? managementMessage(slot) : 'Reserved for you.' }}</div>
-                  }
+                  <div class="booking-note">
+                    @if (slot.hostName && slot.tenantName === slot.hostName) {
+                      You are hosting this session.
+                    } @else if (slot.hostName) {
+                      Host: <strong>{{ slot.hostName }}</strong>
+                    } @else if (isManagementBlocked(slot)) {
+                      {{ managementMessage(slot) }}
+                    } @else {
+                      Reserved for you.
+                    }
+                  </div>
                   <button class="btn btn--ghost" type="button" (click)="runCancel(slot)">
                     <mat-icon>event_busy</mat-icon>
                     <span>Cancel</span>
@@ -62,115 +63,122 @@ type MachineDayGroup = { date: string; items: MachineWindow[] };
           </section>
         }
 
-        @if (machineGroups().length) {
+        @if (machineResources().length) {
           <section class="lane">
             <div class="lane-head">
               <div>
-                <div class="lane-title">Machine slots</div>
-                <div class="lane-subtitle">Choose a time first, then pick any free machine in that window.</div>
+                <div class="lane-title">Machines</div>
+                <div class="lane-subtitle">Pick the machine first, then choose any free time slot in it.</div>
               </div>
-              <div class="lane-meta">{{ machineWindowCount() }} time window{{ machineWindowCount() === 1 ? '' : 's' }}</div>
+              <div class="lane-meta">{{ machineResources().length }} machine{{ machineResources().length === 1 ? '' : 's' }}</div>
             </div>
 
-            @for (group of machineGroups(); track group.date) {
-              <section class="day-block">
-                <div class="day-head">
-                  <div class="day-name">{{ group.date | date:'EEEE' }}</div>
-                  <div class="day-date">{{ group.date | displayDate }}</div>
-                </div>
+            <div class="resource-grid">
+              @for (resource of machineResources(); track resource.key) {
+                <article class="resource-card">
+                  <div class="resource-head">
+                    <div>
+                      <div class="resource-title">{{ resource.title }}</div>
+                      <div class="resource-subtitle">{{ resource.subtitle }}</div>
+                    </div>
+                  </div>
 
-                <div class="machine-list">
-                  @for (item of group.items; track item.key) {
-                    <article class="machine-row">
-                      <div class="machine-time">
-                        <strong>{{ item.timeLabel }}</strong>
-                        <span>{{ item.location }}</span>
+                  @for (day of resource.dates; track day.date) {
+                    <section class="date-block">
+                      <div class="date-head">
+                        <strong>{{ day.date | date:'EEEE' }}</strong>
+                        <span>{{ day.date | displayDate }}</span>
                       </div>
-
-                      <div class="machine-units">
-                        @for (slot of item.slots; track trackSlot(slot)) {
+                      <div class="slot-pill-grid">
+                        @for (slot of day.slots; track trackSlot(slot)) {
                           <button
-                            class="unit-pill"
+                            class="slot-pill"
                             type="button"
-                            [class.unit-pill--booked]="isBooked(slot)"
-                            [class.unit-pill--full]="isFull(slot)"
-                            [class.unit-pill--offline]="isManagementBlocked(slot)"
+                            [class.slot-pill--booked]="isBooked(slot)"
+                            [class.slot-pill--full]="isFull(slot)"
+                            [class.slot-pill--offline]="isManagementBlocked(slot)"
                             [disabled]="isMachineDisabled(slot)"
                             (click)="runMachineAction(slot)"
                           >
-                            <span class="unit-name">{{ slot.resourceName || 'Machine' }}</span>
-                            <span class="unit-state">{{ machineButtonState(slot) }}</span>
+                            <span class="slot-pill-time">{{ timeRange(slot) }}</span>
+                            <span class="slot-pill-state">{{ machineButtonState(slot) }}</span>
                           </button>
                         }
                       </div>
-                    </article>
+                    </section>
                   }
-                </div>
-              </section>
-            }
+                </article>
+              }
+            </div>
           </section>
         }
 
-        @if (sharedGroups().length) {
+        @if (sharedResources().length) {
           <section class="lane">
             <div class="lane-head">
               <div>
-                <div class="lane-title">Shared sessions</div>
-                <div class="lane-subtitle">Host a session when a slot is empty, or join a session that already has a host.</div>
+                <div class="lane-title">Shared games</div>
+                <div class="lane-subtitle">Pick the board or court first, then host or join a time slot in it.</div>
               </div>
-              <div class="lane-meta">{{ sharedRows().length }} session{{ sharedRows().length === 1 ? '' : 's' }}</div>
+              <div class="lane-meta">{{ sharedResources().length }} resource{{ sharedResources().length === 1 ? '' : 's' }}</div>
             </div>
 
-            @for (group of sharedGroups(); track group.date) {
-              <section class="day-block">
-                <div class="day-head">
-                  <div class="day-name">{{ group.date | date:'EEEE' }}</div>
-                  <div class="day-date">{{ group.date | displayDate }}</div>
-                </div>
+            <div class="resource-grid">
+              @for (resource of sharedResources(); track resource.key) {
+                <article class="resource-card">
+                  <div class="resource-head">
+                    <div>
+                      <div class="resource-title">{{ resource.title }}</div>
+                      <div class="resource-subtitle">{{ resource.subtitle }}</div>
+                    </div>
+                  </div>
 
-                <div class="shared-list">
-                  @for (slot of group.items; track trackSlot(slot)) {
-                    <article class="shared-row" [class.shared-row--offline]="isManagementBlocked(slot)">
-                      <div class="shared-main">
-                        <strong>{{ amenityLabel(slot) }}</strong>
-                        <span>{{ sessionLocation(slot) }}</span>
+                  @for (day of resource.dates; track day.date) {
+                    <section class="date-block">
+                      <div class="date-head">
+                        <strong>{{ day.date | date:'EEEE' }}</strong>
+                        <span>{{ day.date | displayDate }}</span>
                       </div>
+                      <div class="shared-slot-list">
+                        @for (slot of day.slots; track trackSlot(slot)) {
+                          <div class="shared-slot" [class.shared-slot--offline]="isManagementBlocked(slot)">
+                            <div class="shared-slot-copy">
+                              <strong>{{ timeRange(slot) }}</strong>
+                              <span>{{ sharedSummary(slot) }}</span>
+                              @if (slot.hostName) {
+                                <span>Host: <strong>{{ slot.hostName }}</strong></span>
+                              } @else if (isManagementBlocked(slot)) {
+                                <span>{{ managementMessage(slot) }}</span>
+                              } @else {
+                                <span>No host yet</span>
+                              }
+                            </div>
 
-                      <div class="shared-time">{{ timeRange(slot) }}</div>
-
-                      <div class="shared-meta">
-                        <span>{{ sharedSummary(slot) }}</span>
-                        @if (slot.hostName) {
-                          <span>Host: <strong>{{ slot.hostName }}</strong></span>
-                        } @else {
-                          <span>No host yet</span>
+                            <div class="shared-slot-action">
+                              <span class="mini-badge" [class.mini-badge--warn]="isManagementBlocked(slot)" [class.mini-badge--blue]="canJoinHost(slot) && !isManagementBlocked(slot)">
+                                {{ isManagementBlocked(slot) ? managementLabel(slot) : badgeLabel(slot) }}
+                              </span>
+                              <button
+                                class="btn"
+                                type="button"
+                                [class.btn--primary]="sharedActionKind(slot) === 'join'"
+                                [class.btn--ghost]="sharedActionKind(slot) === 'host' || sharedActionKind(slot) === 'cancel'"
+                                [class.btn--danger]="sharedActionKind(slot) === 'disabled'"
+                                [disabled]="sharedActionKind(slot) === 'disabled'"
+                                (click)="runSharedAction(slot)"
+                              >
+                                <mat-icon>{{ sharedActionIcon(slot) }}</mat-icon>
+                                <span>{{ sharedActionLabel(slot) }}</span>
+                              </button>
+                            </div>
+                          </div>
                         }
                       </div>
-
-                      <div class="shared-status">
-                        @if (isManagementBlocked(slot)) {
-                          <span class="mini-badge mini-badge--warn">{{ managementLabel(slot) }}</span>
-                        } @else {
-                          <span class="mini-badge" [class.mini-badge--blue]="canJoinHost(slot)">{{ badgeLabel(slot) }}</span>
-                        }
-                        <button
-                          class="btn"
-                          type="button"
-                          [class.btn--primary]="sharedActionKind(slot) === 'join'"
-                          [class.btn--ghost]="sharedActionKind(slot) === 'host' || sharedActionKind(slot) === 'cancel'"
-                          [class.btn--danger]="sharedActionKind(slot) === 'disabled'"
-                          [disabled]="sharedActionKind(slot) === 'disabled'"
-                          (click)="runSharedAction(slot)"
-                        >
-                          <mat-icon>{{ sharedActionIcon(slot) }}</mat-icon>
-                          <span>{{ sharedActionLabel(slot) }}</span>
-                        </button>
-                      </div>
-                    </article>
+                    </section>
                   }
-                </div>
-              </section>
-            }
+                </article>
+              }
+            </div>
           </section>
         }
       </div>
@@ -201,78 +209,70 @@ type MachineDayGroup = { date: string; items: MachineWindow[] };
     }
     .lane-title { font-size: 18px; font-weight: 800; }
     .lane-subtitle, .lane-meta { color: var(--text-muted); font-size: 12px; }
-    .booking-strip {
+
+    .booking-strip,
+    .resource-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 12px;
     }
-    .booking-card {
-      display: grid;
-      gap: 10px;
-      padding: 14px;
-      border: 1px solid rgba(34,197,94,0.2);
-      border-radius: 14px;
-      background: rgba(255,255,255,0.02);
-    }
-    .booking-card--offline {
-      border-color: rgba(148,163,184,0.28);
-      background: rgba(148,163,184,0.06);
-    }
-    .booking-top {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      align-items: flex-start;
-    }
-    .booking-title { font-weight: 700; }
-    .booking-sub, .booking-time, .booking-note { color: var(--text-muted); font-size: 12px; line-height: 1.45; }
-    .booking-note strong { color: var(--text); }
-    .day-block {
-      display: grid;
-      gap: 10px;
-    }
-    .day-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      padding-top: 4px;
-    }
-    .day-name { font-size: 16px; font-weight: 700; }
-    .day-date { font-size: 12px; color: var(--text-muted); }
-    .machine-list, .shared-list {
-      display: grid;
-      gap: 10px;
-    }
-    .machine-row, .shared-row {
+
+    .booking-card,
+    .resource-card {
       display: grid;
       gap: 12px;
       padding: 14px;
       border: 1px solid var(--border);
       border-radius: 14px;
       background: rgba(255,255,255,0.02);
+      min-width: 0;
     }
-    .machine-row {
-      grid-template-columns: minmax(140px, 180px) 1fr;
-      align-items: center;
+    .booking-card { border-color: rgba(34,197,94,0.2); }
+    .booking-card--offline { border-color: rgba(148,163,184,0.28); background: rgba(148,163,184,0.06); }
+
+    .booking-top,
+    .resource-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
     }
-    .machine-time strong, .shared-main strong {
-      display: block;
-      font-size: 14px;
+    .booking-title,
+    .resource-title {
+      font-size: 15px;
       font-weight: 700;
     }
-    .machine-time span, .shared-main span, .shared-meta {
+    .booking-sub,
+    .booking-time,
+    .booking-note,
+    .resource-subtitle {
       color: var(--text-muted);
       font-size: 12px;
       line-height: 1.45;
     }
-    .machine-units {
+    .booking-note strong { color: var(--text); }
+
+    .date-block {
+      display: grid;
+      gap: 8px;
+      padding-top: 4px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+    .date-head {
       display: flex;
-      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+    }
+    .date-head strong { font-size: 13px; }
+    .date-head span { font-size: 12px; color: var(--text-muted); }
+
+    .slot-pill-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
       gap: 8px;
     }
-    .unit-pill {
-      min-width: 116px;
+    .slot-pill {
       display: grid;
       gap: 2px;
       padding: 10px 12px;
@@ -282,52 +282,76 @@ type MachineDayGroup = { date: string; items: MachineWindow[] };
       color: var(--text);
       cursor: pointer;
       text-align: left;
+      min-height: 58px;
     }
-    .unit-pill--booked {
+    .slot-pill--booked {
       border-color: rgba(34,197,94,0.35);
       background: rgba(34,197,94,0.12);
     }
-    .unit-pill--full {
-      border-color: rgba(248,113,113,0.25);
+    .slot-pill--full {
+      border-color: rgba(248,113,113,0.28);
       background: rgba(248,113,113,0.1);
       color: #fca5a5;
     }
-    .unit-pill--offline {
+    .slot-pill--offline {
       border-color: rgba(148,163,184,0.28);
       background: rgba(148,163,184,0.08);
       color: #e2e8f0;
     }
-    .unit-pill:disabled {
+    .slot-pill:disabled {
       cursor: not-allowed;
       opacity: 0.82;
     }
-    .unit-name { font-size: 13px; font-weight: 700; }
-    .unit-state { font-size: 11px; color: var(--text-muted); }
-    .shared-row {
-      grid-template-columns: minmax(160px, 1fr) 160px minmax(180px, 1fr) auto;
-      align-items: center;
-    }
-    .shared-row--offline {
-      border-color: rgba(148,163,184,0.28);
-      background: rgba(148,163,184,0.06);
-    }
-    .shared-time {
-      font-family: var(--font-mono);
+    .slot-pill-time {
       font-size: 13px;
       font-weight: 700;
     }
-    .shared-meta {
+    .slot-pill-state {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .shared-slot-list {
+      display: grid;
+      gap: 8px;
+    }
+    .shared-slot {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.02);
+      align-items: center;
+    }
+    .shared-slot--offline {
+      border-color: rgba(148,163,184,0.28);
+      background: rgba(148,163,184,0.06);
+    }
+    .shared-slot-copy {
       display: grid;
       gap: 2px;
+      min-width: 0;
     }
-    .shared-meta strong { color: var(--text); }
-    .shared-status {
+    .shared-slot-copy strong {
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .shared-slot-copy span {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+    .shared-slot-copy span strong { color: var(--text); }
+    .shared-slot-action {
       display: flex;
-      gap: 10px;
       align-items: center;
-      justify-content: flex-end;
+      gap: 8px;
       flex-wrap: wrap;
+      justify-content: flex-end;
     }
+
     .mini-badge {
       padding: 5px 9px;
       border-radius: 999px;
@@ -345,6 +369,7 @@ type MachineDayGroup = { date: string; items: MachineWindow[] };
       background: rgba(96,165,250,0.16);
       color: #bfdbfe;
     }
+
     .btn {
       display: inline-flex;
       align-items: center;
@@ -375,6 +400,7 @@ type MachineDayGroup = { date: string; items: MachineWindow[] };
       cursor: not-allowed;
     }
     .btn:disabled { opacity: 1; cursor: not-allowed; }
+
     .state {
       min-height: 180px;
       display: grid;
@@ -384,13 +410,12 @@ type MachineDayGroup = { date: string; items: MachineWindow[] };
       color: var(--text-muted);
       text-align: center;
     }
-    @media (max-width: 980px) {
-      .machine-row,
-      .shared-row {
+
+    @media (max-width: 720px) {
+      .shared-slot {
         grid-template-columns: 1fr;
-        align-items: start;
       }
-      .shared-status {
+      .shared-slot-action {
         justify-content: flex-start;
       }
     }
@@ -413,57 +438,49 @@ export class AmenitySlotBoardComponent {
   exclusiveRows = computed(() => this.rows().filter(row => !this.supportsInvite(row)));
   sharedRows = computed(() => this.rows().filter(row => this.supportsInvite(row)));
 
-  machineGroups = computed(() => this.groupMachineRows(this.exclusiveRows()));
-  sharedGroups = computed(() => this.groupSharedRows(this.sharedRows()));
-  machineWindowCount = computed(() => this.machineGroups().reduce((count, group) => count + group.items.length, 0));
+  machineResources = computed(() => this.groupByResource(this.exclusiveRows(), 'machine'));
+  sharedResources = computed(() => this.groupByResource(this.sharedRows(), 'shared'));
 
-  private groupMachineRows(rows: AmenityBooking[]): MachineDayGroup[] {
-    const byDate = new Map<string, AmenityBooking[]>();
+  private groupByResource(rows: AmenityBooking[], mode: 'machine' | 'shared'): ResourceGroup[] {
+    const byResource = new Map<string, AmenityBooking[]>();
     for (const row of rows) {
-      const date = row.slotDate || 'unknown';
-      if (!byDate.has(date)) byDate.set(date, []);
-      byDate.get(date)!.push(row);
+      const key = mode === 'machine'
+        ? `${row.resourceName || 'Machine'}|${row.facilityName || ''}|${row.displayName || ''}`
+        : `${this.amenityLabel(row)}|${row.resourceName || ''}|${row.facilityName || ''}`;
+      if (!byResource.has(key)) byResource.set(key, []);
+      byResource.get(key)!.push(row);
     }
 
-    return [...byDate.entries()]
+    return [...byResource.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([date, items]) => {
-        const byWindow = new Map<string, AmenityBooking[]>();
+      .map(([key, items]) => {
+        const first = items[0];
+        const byDate = new Map<string, AmenityBooking[]>();
         for (const slot of items) {
-          const key = `${slot.startTime}|${slot.endTime}|${slot.facilityName || ''}|${slot.displayName || ''}`;
-          if (!byWindow.has(key)) byWindow.set(key, []);
-          byWindow.get(key)!.push(slot);
+          const date = slot.slotDate || 'unknown';
+          if (!byDate.has(date)) byDate.set(date, []);
+          byDate.get(date)!.push(slot);
         }
-        const windows: MachineWindow[] = [...byWindow.entries()]
+        const dates = [...byDate.entries()]
           .sort((a, b) => a[0].localeCompare(b[0]))
-          .map(([key, slots]) => ({
-            key,
-            timeKey: `${slots[0]?.startTime || ''}-${slots[0]?.endTime || ''}`,
-            timeLabel: this.timeRange(slots[0]),
-            location: `${slots[0]?.displayName || 'Washing Machine'} · ${slots[0]?.facilityName || 'Laundry Room'}`,
-            slots: [...slots].sort((a, b) => (a.resourceName || '').localeCompare(b.resourceName || ''))
+          .map(([date, slots]) => ({
+            date,
+            slots: [...slots].sort((a, b) =>
+              `${a.startTime}-${this.availabilityRank(a)}-${a.resourceName || ''}`.localeCompare(
+                `${b.startTime}-${this.availabilityRank(b)}-${b.resourceName || ''}`
+              )
+            )
           }));
-        return { date, items: windows };
-      });
-  }
 
-  private groupSharedRows(rows: AmenityBooking[]): DayGroup[] {
-    const groups = new Map<string, AmenityBooking[]>();
-    for (const row of rows) {
-      const date = row.slotDate || 'unknown';
-      if (!groups.has(date)) groups.set(date, []);
-      groups.get(date)!.push(row);
-    }
-    return [...groups.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([date, items]) => ({
-        date,
-        items: [...items].sort((a, b) =>
-          `${this.availabilityRank(a)}-${a.startTime}-${a.facilityName || a.amenityType}-${a.resourceName || ''}`.localeCompare(
-            `${this.availabilityRank(b)}-${b.startTime}-${b.facilityName || b.amenityType}-${b.resourceName || ''}`
-          )
-        )
-      }));
+        return {
+          key,
+          title: mode === 'machine' ? (first?.resourceName || 'Machine') : this.amenityLabel(first),
+          subtitle: mode === 'machine'
+            ? `${first?.displayName || 'Washing Machine'} · ${first?.facilityName || 'Laundry Room'}`
+            : this.sessionLocation(first),
+          dates
+        };
+      });
   }
 
   isBooked(slot: AmenityBooking): boolean {
@@ -548,9 +565,6 @@ export class AmenitySlotBoardComponent {
     if (this.isBooked(slot)) {
       return `Reserved · ${slot.bookingCount || 0}/${slot.capacity}`;
     }
-    if (slot.hostName) {
-      return `${slot.bookingCount || 0}/${slot.capacity} joined`;
-    }
     return `${slot.bookingCount || 0}/${slot.capacity} joined`;
   }
 
@@ -585,11 +599,12 @@ export class AmenitySlotBoardComponent {
     }
   }
 
-  amenityLabel(slot: AmenityBooking): string {
-    return slot.displayName || String(slot.amenityType || '').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, char => char.toUpperCase());
+  amenityLabel(slot?: AmenityBooking): string {
+    return slot?.displayName || String(slot?.amenityType || '').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, char => char.toUpperCase());
   }
 
-  sessionLocation(slot: AmenityBooking): string {
+  sessionLocation(slot?: AmenityBooking): string {
+    if (!slot) return 'Shared facility';
     if (slot.resourceName && slot.facilityName) return `${slot.resourceName} · ${slot.facilityName}`;
     return slot.facilityName || slot.resourceName || 'Shared facility';
   }
@@ -607,15 +622,15 @@ export class AmenitySlotBoardComponent {
   }
 
   private availabilityRank(slot: AmenityBooking): number {
-    if (this.canJoinHost(slot)) return 0;
-    if (!this.isBooked(slot) && !this.isOccupied(slot) && !this.isFull(slot)) return 1;
-    if (this.isBooked(slot)) return 2;
+    if (this.isBooked(slot)) return 0;
+    if (this.canJoinHost(slot)) return 1;
+    if (!this.isOccupied(slot) && !this.isFull(slot)) return 2;
     if (this.isOccupied(slot)) return 3;
     return 4;
   }
 
   trackSlot(slot: AmenityBooking): string {
-    return String(slot.bookingId || `${slot.slotId}-${slot.startTime}-${slot.endTime}-${slot.resourceName || ''}`);
+    return String(slot.bookingId || `${slot.slotId}-${slot.slotDate}-${slot.startTime}-${slot.endTime}-${slot.resourceName || ''}`);
   }
 
   runMachineAction(slot: AmenityBooking) {
