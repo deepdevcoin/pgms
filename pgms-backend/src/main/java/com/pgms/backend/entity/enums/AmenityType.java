@@ -4,5 +4,6 @@ public enum AmenityType {
     WASHING_MACHINE,
     TABLE_TENNIS,
     CARROM,
-    BADMINTON
+    BADMINTON,
+    CUSTOM
 }

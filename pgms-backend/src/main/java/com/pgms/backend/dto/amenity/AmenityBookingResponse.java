@@ -13,11 +13,13 @@ import java.time.LocalTime;
 public class AmenityBookingResponse {
     private Long bookingId;
     private Long slotId;
+    private Long configId;
     private Long pgId;
     private String tenantName;
     private String hostName;
     private String bookedByName;
     private AmenityType amenityType;
+    private String displayName;
     private String facilityName;
     private String resourceName;
     private LocalDate slotDate;
@@ -28,5 +30,7 @@ public class AmenityBookingResponse {
     private boolean openInvite;
     private boolean joinable;
     private boolean shareable;
+    private boolean enabled;
+    private boolean maintenanceMode;
     private BookingStatus status;
 }

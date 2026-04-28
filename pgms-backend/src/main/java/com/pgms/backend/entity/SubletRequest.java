@@ -56,6 +56,11 @@ public class SubletRequest {
     private String guestPhone;
     private LocalDate checkInDate;
     private LocalDate checkOutDate;
+    @Lob
+    private String managerDecisionNote;
+    private Long walletCreditDays;
+    private Double walletCreditAmount;
+    private LocalDateTime walletCreditedAt;
 
     @OneToOne(mappedBy = "subletRequest", fetch = FetchType.LAZY)
     private SubletGuest guestRecord;

@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Data
 @Builder
@@ -26,4 +27,8 @@ public class SubletResponse {
     private LocalDate checkOutDate;
     private Long subletGuestId;
     private SubletGuestStatus guestRecordStatus;
+    private String managerDecisionNote;
+    private Long walletCreditDays;
+    private Double walletCreditAmount;
+    private LocalDateTime walletCreditedAt;
 }

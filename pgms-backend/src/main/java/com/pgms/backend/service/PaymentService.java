@@ -144,7 +144,7 @@ public class PaymentService {
         Role currentRole = SecurityUtils.getCurrentUserRole();
         if (currentRole == Role.MANAGER) {
             accessControlService.ensureManagerAssignedToPg(record.getTenantProfile().getPg().getId());
-        } else if (currentRole != Role.OWNER) {
+        } else {
             throw new ForbiddenException("You are not allowed to waive fines");
         }
         reconcileRecord(record, LocalDate.now());

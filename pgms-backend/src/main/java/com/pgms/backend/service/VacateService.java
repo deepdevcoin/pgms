@@ -43,6 +43,10 @@ public class VacateService {
     @Transactional
     public VacateNoticeResponse createVacateRequest(VacateRequest request) {
         TenantProfile tenantProfile = accessControlService.getCurrentTenantProfile();
+        ensureNoActiveNotice(tenantProfile);
+        if (request.getIntendedVacateDate().isBefore(LocalDate.now())) {
+            throw new BadRequestException("Vacate date cannot be in the past");
+        }
         if (Boolean.TRUE.equals(request.getHasReferral())
                 && (isBlank(request.getReferralName()) || isBlank(request.getReferralPhone()) || isBlank(request.getReferralEmail()))) {
             throw new BadRequestException("Referral name, phone and email are required");
@@ -60,6 +64,7 @@ public class VacateService {
                 .referralName(request.getReferralName())
                 .referralPhone(request.getReferralPhone())
                 .referralEmail(request.getReferralEmail())
+                .managerMessage(null)
                 .createdAt(LocalDateTime.now())
                 .build();
         tenantProfile.setStatus(TenantStatus.VACATING);
@@ -92,8 +97,21 @@ public class VacateService {
             notice.setRefundEligible(true);
             notice.setAdvanceRefundAmount(Math.max(notice.getTenantProfile().getAdvanceAmountPaid() - 1000, 0));
         } else {
+            revertVacateState(notice);
             notice.setStatus(VacateStatus.REJECTED);
         }
+        return toResponse(vacateNoticeRepository.save(notice));
+    }
+
+    @Transactional
+    public VacateNoticeResponse reject(Long id, String message) {
+        VacateNotice notice = getVacateNoticeForManager(id);
+        if (notice.getStatus() == VacateStatus.COMPLETED || notice.getStatus() == VacateStatus.REJECTED) {
+            throw new BadRequestException("This vacate notice is already closed");
+        }
+        revertVacateState(notice);
+        notice.setStatus(VacateStatus.REJECTED);
+        notice.setManagerMessage(message.trim());
         return toResponse(vacateNoticeRepository.save(notice));
     }
 
@@ -124,7 +142,29 @@ public class VacateService {
                 .referralName(notice.getReferralName())
                 .referralPhone(notice.getReferralPhone())
                 .referralEmail(notice.getReferralEmail())
+                .managerMessage(notice.getManagerMessage())
                 .build();
+    }
+
+    private void ensureNoActiveNotice(TenantProfile tenantProfile) {
+        boolean hasActiveNotice = vacateNoticeRepository
+                .findFirstByTenantProfileIdAndStatusInOrderByCreatedAtDesc(
+                        tenantProfile.getId(),
+                        List.of(VacateStatus.PENDING, VacateStatus.REFERRAL_PENDING, VacateStatus.APPROVED)
+                )
+                .isPresent();
+        if (hasActiveNotice) {
+            throw new BadRequestException("You already have a vacate request in progress");
+        }
+    }
+
+    private void revertVacateState(VacateNotice notice) {
+        TenantProfile profile = notice.getTenantProfile();
+        profile.setStatus(TenantStatus.ACTIVE);
+        Room room = profile.getRoom();
+        room.setStatus(RoomStatus.OCCUPIED);
+        tenantProfileRepository.save(profile);
+        roomRepository.save(room);
     }
 
     private VacateNotice getVacateNoticeForManager(Long id) {

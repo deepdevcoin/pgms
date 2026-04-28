@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Observable, delay, of, throwError } from 'rxjs';
 import {
-  AmenityBooking, Complaint, ComplaintActivity, LoginResponse, Manager, ManagerSummary, MenuItem, Notice,
+  AmenityBooking, AmenityControl, AmenityType, Complaint, ComplaintActivity, LoginResponse, Manager, ManagerSummary, MenuItem, Notice,
   NoticeReadReceipt, OwnerSummary, PaymentOverview, PaymentTransaction, PG, PgCreatePayload, PgUpdatePayload, RentRecord, Role,
   Room, RoomCreatePayload, RoomStatus, RoomUpdatePayload, ServiceBooking, SharingType, Tenant
 } from './models';
@@ -21,6 +21,7 @@ export class MockDataService {
   private services: ServiceBooking[];
   private menu: MenuItem[];
   private amenities: AmenityBooking[];
+  private amenityControls: AmenityControl[];
 
   constructor() {
     this.pgs = this.buildPgs();
@@ -36,6 +37,8 @@ export class MockDataService {
     this.services = this.buildServices();
     this.menu = this.buildMenu();
     this.amenities = this.buildAmenities();
+    this.amenityControls = this.buildAmenityControls();
+    this.syncAmenityControls();
     this.recomputePgCounts();
   }
 
@@ -90,6 +93,65 @@ export class MockDataService {
   tenantProfile(): Observable<Tenant> {
     const tenant = this.tenants.find(item => item.status !== 'ARCHIVED') || this.tenants[0];
     return of({ ...tenant, creditWalletBalance: tenant?.creditWalletBalance ?? 1200 }).pipe(delay(120));
+  }
+
+  uploadTenantKyc(docType: string, fileName: string): Observable<Tenant> {
+    const tenant = this.tenants.find(item => item.status !== 'ARCHIVED') || this.tenants[0];
+    if (!tenant) return throwError(() => new Error('Tenant not found'));
+    if (tenant.kycStatus === 'VERIFIED') {
+      return throwError(() => new Error('This KYC document is already verified. Ask your manager to request a replacement first.'));
+    }
+    tenant.kycDocType = docType.trim();
+    tenant.kycDocPath = `mock/${fileName || 'kyc-document.pdf'}`;
+    tenant.kycStatus = 'SUBMITTED';
+    tenant.kycSubmittedAt = new Date().toISOString();
+    tenant.kycVerifiedAt = '';
+    tenant.kycVerifiedByName = '';
+    tenant.kycReplacementNotes = '';
+    tenant.kycReplacementRequestedAt = '';
+    tenant.kycReplacementRequestedByName = '';
+    return of(this.clone(tenant)).pipe(delay(120));
+  }
+
+  downloadTenantKycDocument(): Observable<Blob> {
+    return of(new Blob(['Mock tenant KYC document'], { type: 'text/plain' })).pipe(delay(120));
+  }
+
+  listManagerKyc(): Observable<Tenant[]> {
+    return of(this.clone(this.tenants.filter(tenant => tenant.status !== 'ARCHIVED'))).pipe(delay(120));
+  }
+
+  verifyTenantKyc(tenantProfileId: number): Observable<Tenant> {
+    const tenant = this.tenants.find(item => item.tenantProfileId === tenantProfileId);
+    if (!tenant) return throwError(() => new Error('Tenant not found'));
+    if (!tenant.kycDocPath) return throwError(() => new Error('No KYC document uploaded yet'));
+    if (tenant.kycStatus !== 'SUBMITTED') return throwError(() => new Error('Only submitted KYC documents can be verified'));
+    tenant.kycStatus = 'VERIFIED';
+    tenant.kycVerifiedAt = new Date().toISOString();
+    tenant.kycVerifiedByName = 'Arjun Nair';
+    tenant.kycReplacementNotes = '';
+    tenant.kycReplacementRequestedAt = '';
+    tenant.kycReplacementRequestedByName = '';
+    return of(this.clone(tenant)).pipe(delay(120));
+  }
+
+  requestTenantKycReplacement(tenantProfileId: number, notes: string): Observable<Tenant> {
+    const tenant = this.tenants.find(item => item.tenantProfileId === tenantProfileId);
+    if (!tenant) return throwError(() => new Error('Tenant not found'));
+    if (!tenant.kycDocPath) return throwError(() => new Error('No KYC document is available to replace'));
+    if (tenant.kycStatus !== 'VERIFIED' && tenant.kycStatus !== 'SUBMITTED') {
+      return throwError(() => new Error('Replacement can only be requested for submitted or verified documents'));
+    }
+    if (!notes.trim()) return throwError(() => new Error('Replacement note is required'));
+    tenant.kycStatus = 'REPLACEMENT_REQUESTED';
+    tenant.kycReplacementNotes = notes.trim();
+    tenant.kycReplacementRequestedAt = new Date().toISOString();
+    tenant.kycReplacementRequestedByName = 'Arjun Nair';
+    return of(this.clone(tenant)).pipe(delay(120));
+  }
+
+  downloadManagerKycDocument(_tenantProfileId: number): Observable<Blob> {
+    return of(new Blob(['Mock manager KYC review document'], { type: 'text/plain' })).pipe(delay(120));
   }
 
   listRooms(pgId: number, opts?: { status?: RoomStatus; floor?: number }): Observable<Room[]> {
@@ -464,9 +526,6 @@ export class MockDataService {
       return throwError(() => new Error('Invalid service status transition'));
     }
     const managerNotes = notes?.trim() || '';
-    if ((nextStatus === 'REJECTED' || nextStatus === 'COMPLETED') && !managerNotes) {
-      return throwError(() => new Error(nextStatus === 'REJECTED' ? 'Rejection reason is required' : 'Completion note is required'));
-    }
     const now = new Date().toISOString();
     booking.status = nextStatus;
     if (managerNotes) booking.managerNotes = managerNotes;
@@ -601,24 +660,35 @@ export class MockDataService {
   }
 
   listAmenities(role: Role | null): Observable<AmenityBooking[]> {
+    this.syncAmenityControls();
+    const baseSlots = this.amenities
+      .filter(item => !item.bookingId)
+      .filter(item => this.isUpcomingAmenitySlot(item));
+    const bookings = this.amenities
+      .filter(item => item.bookingId && item.status === 'BOOKED')
+      .filter(item => this.isUpcomingAmenitySlot(item));
+
     if (role === 'MANAGER') {
-      const baseSlots = this.amenities.filter(item => !item.bookingId);
-      const bookings = this.amenities.filter(item => item.bookingId && item.status === 'BOOKED');
       const merged = baseSlots.map(slot => {
         const slotBookings = bookings.filter(item => item.slotId === slot.slotId);
         const firstBooking = slotBookings[0];
         const hostBooking = slotBookings.find(item => item.openInvite);
-        const effectiveCapacity = slot.amenityType === 'WASHING_MACHINE' ? 1 : slot.capacity;
+        const control = this.resolveAmenityControl(slot);
+        const effectiveCapacity = slot.amenityType === 'WASHING_MACHINE' ? 1 : Math.max(1, control?.capacity || slot.capacity);
         return {
           ...slot,
+          configId: control?.id || slot.configId,
+          displayName: control?.displayName || slot.displayName || this.defaultAmenityDisplayName(slot.amenityType),
           tenantName: firstBooking?.tenantName,
           hostName: hostBooking?.tenantName,
           bookedByName: firstBooking?.tenantName,
           openInvite: !!hostBooking?.openInvite,
           joinable: false,
-          shareable: slot.amenityType !== 'WASHING_MACHINE',
+          shareable: this.isSlotShareable(slot, control),
           bookingCount: slotBookings.length,
           capacity: effectiveCapacity,
+          enabled: control?.enabled ?? true,
+          maintenanceMode: control?.maintenanceMode ?? false,
           status: slotBookings.length ? 'BOOKED' as const : 'AVAILABLE' as const
         };
       });
@@ -626,73 +696,195 @@ export class MockDataService {
     }
 
     const currentTenant = this.tenants[0]?.name || 'Devika Rao';
-    const baseSlots = this.amenities.filter(item => !item.bookingId);
-    const bookings = this.amenities.filter(item => item.bookingId && item.status === 'BOOKED');
-
-    const merged = baseSlots.map(slot => {
+    const merged: AmenityBooking[] = baseSlots.flatMap(slot => {
       const slotBookings = bookings.filter(item => item.slotId === slot.slotId);
       const ownBooking = slotBookings.find(item => item.tenantName === currentTenant);
-      const hostBooking = ownBooking ? undefined : slotBookings.find(item => item.openInvite);
-      const effectiveCapacity = slot.amenityType === 'WASHING_MACHINE' ? 1 : slot.capacity;
-      return {
+      const hostBooking = slotBookings.find(item => item.openInvite);
+      const control = this.resolveAmenityControl(slot);
+      const enabled = control?.enabled ?? true;
+      const maintenanceMode = control?.maintenanceMode ?? false;
+      if ((!enabled || maintenanceMode) && !ownBooking) {
+        return [];
+      }
+      const effectiveCapacity = slot.amenityType === 'WASHING_MACHINE' ? 1 : Math.max(1, control?.capacity || slot.capacity);
+      return [{
         ...slot,
+        configId: control?.id || slot.configId,
+        displayName: control?.displayName || slot.displayName || this.defaultAmenityDisplayName(slot.amenityType),
         bookingId: ownBooking?.bookingId,
         tenantName: ownBooking?.tenantName,
         hostName: hostBooking?.tenantName,
         bookedByName: ownBooking?.tenantName || hostBooking?.tenantName || slotBookings[0]?.tenantName,
-        openInvite: !!ownBooking?.openInvite || !!hostBooking?.openInvite,
-        joinable: slot.amenityType !== 'WASHING_MACHINE' && !ownBooking && !!hostBooking && slotBookings.length < effectiveCapacity,
-        shareable: slot.amenityType !== 'WASHING_MACHINE',
+        openInvite: !!hostBooking?.openInvite,
+        joinable: this.isSlotShareable(slot, control) && !ownBooking && !!hostBooking && slotBookings.length < effectiveCapacity,
+        shareable: this.isSlotShareable(slot, control),
         bookingCount: slotBookings.length,
         capacity: effectiveCapacity,
+        enabled,
+        maintenanceMode,
         status: ownBooking ? 'BOOKED' as const : 'AVAILABLE' as const
+      }];
+    }).sort((a, b) => {
+      const rank = (item: AmenityBooking) => {
+        if (item.bookingId) return (item.enabled === false || item.maintenanceMode) ? 0 : 1;
+        if (item.joinable) return 2;
+        if (!item.bookingCount) return 3;
+        if ((item.bookingCount || 0) < item.capacity) return 4;
+        return 5;
       };
+      return `${rank(a)}-${a.slotDate}-${a.startTime}-${a.resourceName || ''}`.localeCompare(`${rank(b)}-${b.slotDate}-${b.startTime}-${b.resourceName || ''}`);
     });
 
     return of(this.clone(merged)).pipe(delay(120));
   }
 
-  createAmenitySlot(payload: { pgId: number; amenityType: string; slotDate: string; startTime: string; endTime: string; capacity: number; facilityName?: string; resourceName?: string }): Observable<AmenityBooking> {
+  listAmenityControls(): Observable<AmenityControl[]> {
+    this.syncAmenityControls();
+    return of(this.clone(this.hydrateAmenityControls())).pipe(delay(120));
+  }
+
+  updateAmenityControl(controlId: number, payload: { enabled: boolean; maintenanceMode: boolean }): Observable<AmenityControl> {
+    const index = this.amenityControls.findIndex(item => item.id === controlId);
+    if (index < 0) return throwError(() => new Error('Amenity control not found'));
+    return this.saveAmenityControl(controlId, {
+      ...this.amenityControls[index],
+      enabled: payload.enabled,
+      maintenanceMode: payload.maintenanceMode
+    });
+  }
+
+  createAmenityControl(payload: {
+    pgId: number;
+    amenityType: string;
+    displayName: string;
+    resourceName: string;
+    facilityName: string;
+    unitCount: number;
+    capacity: number;
+    slotDurationMinutes: number;
+    startTime: string;
+    endTime: string;
+    enabled: boolean;
+    maintenanceMode: boolean;
+  }): Observable<AmenityControl> {
+    const control: AmenityControl = {
+      id: Date.now(),
+      pgId: payload.pgId,
+      amenityType: payload.amenityType as AmenityType,
+      displayName: payload.displayName.trim() || this.defaultAmenityDisplayName(payload.amenityType as AmenityType),
+      resourceName: payload.resourceName.trim() || this.defaultAmenityResourceName(payload.amenityType as AmenityType),
+      facilityName: payload.facilityName.trim() || this.defaultAmenityFacility(payload.amenityType as AmenityType),
+      unitCount: Math.max(1, Number(payload.unitCount || 1)),
+      capacity: (payload.amenityType as AmenityType) === 'WASHING_MACHINE' ? 1 : Math.max(1, Number(payload.capacity || 1)),
+      slotDurationMinutes: Math.max(15, Number(payload.slotDurationMinutes || this.defaultAmenityDuration(payload.amenityType as AmenityType))),
+      startTime: payload.startTime,
+      endTime: payload.endTime,
+      enabled: !!payload.enabled,
+      maintenanceMode: !!payload.maintenanceMode,
+      upcomingOpenSlots: 0,
+      upcomingBookedSlots: 0
+    };
+    this.amenityControls.unshift(control);
+    this.syncAmenityControls();
+    return of(this.clone(this.hydrateAmenityControls().find(item => item.id === control.id)!)).pipe(delay(120));
+  }
+
+  saveAmenityControl(controlId: number, payload: {
+    amenityType: string;
+    displayName: string;
+    resourceName: string;
+    facilityName: string;
+    unitCount: number;
+    capacity: number;
+    slotDurationMinutes: number;
+    startTime: string;
+    endTime: string;
+    enabled: boolean;
+    maintenanceMode: boolean;
+  }): Observable<AmenityControl> {
+    const index = this.amenityControls.findIndex(item => item.id === controlId);
+    if (index < 0) return throwError(() => new Error('Amenity control not found'));
+    const current = this.amenityControls[index];
+    this.amenityControls[index] = {
+      ...current,
+      amenityType: payload.amenityType as AmenityType,
+      displayName: payload.displayName.trim() || this.defaultAmenityDisplayName(payload.amenityType as AmenityType),
+      resourceName: payload.resourceName.trim() || this.defaultAmenityResourceName(payload.amenityType as AmenityType),
+      facilityName: payload.facilityName.trim() || this.defaultAmenityFacility(payload.amenityType as AmenityType),
+      unitCount: Math.max(1, Number(payload.unitCount || 1)),
+      capacity: (payload.amenityType as AmenityType) === 'WASHING_MACHINE' ? 1 : Math.max(1, Number(payload.capacity || 1)),
+      slotDurationMinutes: Math.max(15, Number(payload.slotDurationMinutes || this.defaultAmenityDuration(payload.amenityType as AmenityType))),
+      startTime: payload.startTime,
+      endTime: payload.endTime,
+      enabled: !!payload.enabled,
+      maintenanceMode: !!payload.maintenanceMode
+    };
+    this.syncAmenityControls();
+    return of(this.clone(this.hydrateAmenityControls().find(item => item.id === controlId)!)).pipe(delay(120));
+  }
+
+  deleteAmenityControl(controlId: number): Observable<AmenityControl> {
+    const control = this.amenityControls.find(item => item.id === controlId);
+    if (!control) return throwError(() => new Error('Amenity control not found'));
+    const matchingBaseSlots = this.amenities.filter(item => !item.bookingId && this.resolveAmenityControl(item)?.id === controlId);
+    const baseSlotIds = new Set(matchingBaseSlots.map(item => item.slotId));
+    const hasBookedSlots = this.amenities.some(item => !!item.bookingId && item.status === 'BOOKED' && baseSlotIds.has(item.slotId));
+    if (hasBookedSlots) {
+      return throwError(() => new Error('This amenity still has booked slots. Disable it or wait until the bookings clear.'));
+    }
+    this.amenities = this.amenities.filter(item => !baseSlotIds.has(item.slotId));
+    this.amenityControls = this.amenityControls.filter(item => item.id !== controlId);
+    return of(this.clone(control)).pipe(delay(120));
+  }
+
+  createAmenitySlot(payload: { pgId: number; amenityType: string; slotDate: string; startTime: string; endTime: string; capacity: number; generationDays: number; facilityName?: string; resourceName?: string }): Observable<AmenityBooking> {
     const amenityType = payload.amenityType as AmenityBooking['amenityType'];
     const location = payload.facilityName?.trim() || (amenityType === 'WASHING_MACHINE' ? 'Laundry Room' : 'Common Area');
     const resourceLabel = payload.resourceName?.trim() || this.defaultAmenityResourceName(amenityType);
-    const slots: AmenityBooking[] = this.splitAmenityWindow(payload).flatMap((slot, index): AmenityBooking[] => {
-      if (amenityType === 'WASHING_MACHINE') {
-        return Array.from({ length: Math.max(1, payload.capacity) }, (_, unitIndex): AmenityBooking => ({
-          slotId: Date.now() + (index * 100) + unitIndex,
+    const slots: AmenityBooking[] = Array.from({ length: Math.max(1, Math.min(2, payload.generationDays || 1)) }, (_, dayOffset) => {
+      const slotDate = new Date(`${payload.slotDate}T00:00:00`);
+      slotDate.setDate(slotDate.getDate() + dayOffset);
+      const dateValue = slotDate.toISOString().slice(0, 10);
+      return this.splitAmenityWindow(payload).flatMap((slot, index): AmenityBooking[] => {
+        if (amenityType === 'WASHING_MACHINE') {
+          return Array.from({ length: Math.max(1, payload.capacity) }, (_, unitIndex): AmenityBooking => ({
+            slotId: Date.now() + (dayOffset * 1000) + (index * 100) + unitIndex,
+            pgId: payload.pgId,
+            amenityType,
+            facilityName: location,
+            resourceName: `${resourceLabel} ${unitIndex + 1}`,
+            slotDate: dateValue,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            capacity: 1,
+            generationDays: payload.generationDays,
+            bookingCount: 0,
+            shareable: false,
+            status: 'AVAILABLE' as const
+          }));
+        }
+        return [{
+          slotId: Date.now() + (dayOffset * 1000) + index,
           pgId: payload.pgId,
           amenityType,
           facilityName: location,
-          resourceName: `${resourceLabel} ${unitIndex + 1}`,
-          slotDate: payload.slotDate,
+          resourceName: resourceLabel,
+          slotDate: dateValue,
           startTime: slot.startTime,
           endTime: slot.endTime,
-          capacity: 1,
+          capacity: Math.max(1, payload.capacity),
+          generationDays: payload.generationDays,
           bookingCount: 0,
-          shareable: false,
+          shareable: true,
           status: 'AVAILABLE' as const
-        }));
-      }
-      return [{
-        slotId: Date.now() + index,
-        pgId: payload.pgId,
-        amenityType,
-        facilityName: location,
-        resourceName: resourceLabel,
-        slotDate: payload.slotDate,
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        capacity: Math.max(1, payload.capacity),
-        bookingCount: 0,
-        shareable: true,
-        status: 'AVAILABLE' as const
-      }] as AmenityBooking[];
-    });
+        }] as AmenityBooking[];
+      });
+    }).flat();
     this.amenities.unshift(...slots);
     return of(this.clone(slots[0])).pipe(delay(120));
   }
 
-  updateAmenitySlot(slotId: number, payload: { pgId: number; amenityType: string; slotDate: string; startTime: string; endTime: string; capacity: number; facilityName?: string; resourceName?: string }): Observable<AmenityBooking> {
+  updateAmenitySlot(slotId: number, payload: { pgId: number; amenityType: string; slotDate: string; startTime: string; endTime: string; capacity: number; generationDays: number; facilityName?: string; resourceName?: string }): Observable<AmenityBooking> {
     const index = this.amenities.findIndex(item => item.slotId === slotId && !item.bookingId);
     if (index < 0) return throwError(() => new Error('Amenity slot not found'));
     const hasBooking = this.amenities.some(item => item.slotId === slotId && !!item.bookingId && item.status === 'BOOKED');
@@ -709,16 +901,23 @@ export class MockDataService {
       startTime: payload.startTime,
       endTime: payload.endTime,
       capacity: amenityType === 'WASHING_MACHINE' ? 1 : Math.max(1, payload.capacity),
+      generationDays: payload.generationDays,
       shareable: amenityType !== 'WASHING_MACHINE'
     };
     return of(this.clone(this.amenities[index])).pipe(delay(120));
   }
 
   bookAmenity(slotId: number, isOpenInvite: boolean): Observable<AmenityBooking> {
+    this.syncAmenityControls();
     const slot = this.amenities.find(item => item.slotId === slotId && !item.bookingId);
     if (!slot) return throwError(() => new Error('Amenity slot not found'));
-    const effectiveCapacity = slot.amenityType === 'WASHING_MACHINE' ? 1 : slot.capacity;
-    const bookingCount = this.amenities.filter(item => item.slotId === slotId && item.bookingId && item.status === 'BOOKED').length;
+    if (!this.isUpcomingAmenitySlot(slot)) return throwError(() => new Error('This slot is already closed'));
+    const control = this.resolveAmenityControl(slot);
+    if (!control?.enabled) return throwError(() => new Error('This amenity is disabled by management'));
+    if (control.maintenanceMode) return throwError(() => new Error('This amenity is under maintenance'));
+    const effectiveCapacity = slot.amenityType === 'WASHING_MACHINE' ? 1 : Math.max(1, control.capacity);
+    const existingBookings = this.amenities.filter(item => item.slotId === slotId && item.bookingId && item.status === 'BOOKED');
+    const bookingCount = existingBookings.length;
     const currentTenant = this.tenants[0]?.name || 'Tenant';
     const overlaps = this.amenities
       .filter(item => !!item.bookingId && item.status === 'BOOKED' && item.tenantName === currentTenant && item.slotDate === slot.slotDate)
@@ -726,16 +925,28 @@ export class MockDataService {
         && this.timeToMinutes(slot.startTime) < this.timeToMinutes(item.endTime));
     if (overlaps) return throwError(() => new Error('You already have another amenity booking that overlaps with this time'));
     if (bookingCount >= effectiveCapacity) return throwError(() => new Error('Slot is full'));
-    if (isOpenInvite && slot.amenityType === 'WASHING_MACHINE') {
+    if (isOpenInvite && !this.isSlotShareable(slot, control)) {
       return throwError(() => new Error('Washing machines cannot be opened as shared invites'));
+    }
+    const hostBooking = existingBookings.find(item => item.openInvite);
+    if (isOpenInvite) {
+      if (hostBooking) return throwError(() => new Error('This slot already has a host'));
+      if (existingBookings.length) return throwError(() => new Error('This slot already has participants'));
+    } else if (this.isSlotShareable(slot, control) && !hostBooking) {
+      if (!existingBookings.length) return throwError(() => new Error('No host has opened this session yet'));
+      return throwError(() => new Error('This slot cannot be joined until a host opens it'));
     }
     const booking = {
       ...slot,
+      configId: control.id,
+      displayName: control.displayName,
       bookingId: Date.now(),
       tenantName: currentTenant,
       openInvite: isOpenInvite,
-      shareable: slot.amenityType !== 'WASHING_MACHINE',
+      shareable: this.isSlotShareable(slot, control),
       capacity: effectiveCapacity,
+      enabled: control.enabled,
+      maintenanceMode: control.maintenanceMode,
       status: 'BOOKED' as const
     };
     this.amenities.push(booking);
@@ -755,23 +966,33 @@ export class MockDataService {
   }
 
   joinAmenityInvite(slotId: number): Observable<AmenityBooking> {
+    this.syncAmenityControls();
     const slot = this.amenities.find(item => item.slotId === slotId && !item.bookingId);
-    if (slot?.amenityType === 'WASHING_MACHINE') {
+    if (slot && !this.isSlotShareable(slot, this.resolveAmenityControl(slot))) {
       return throwError(() => new Error('Washing machines cannot be joined as shared bookings'));
+    }
+    const hostBooking = this.amenities.find(item => item.slotId === slotId && !!item.bookingId && item.status === 'BOOKED' && item.openInvite);
+    if (!hostBooking) {
+      return throwError(() => new Error('No host has opened this session yet'));
     }
     return this.bookAmenity(slotId, false);
   }
 
-  listMenu(pgId: number, weekLabel: string): Observable<MenuItem[]> {
-    return of(this.clone(this.menu.filter(item => item.pgId === pgId && item.weekLabel === weekLabel))).pipe(delay(120));
+  listMenu(pgId: number, weekLabel?: string): Observable<MenuItem[]> {
+    const label = weekLabel?.trim();
+    const items = label
+      ? this.menu.filter(item => item.pgId === pgId && item.weekLabel === label)
+      : this.menu.filter(item => item.pgId === pgId);
+    return of(this.clone(items)).pipe(delay(120));
   }
 
   saveMenu(items: MenuItem[]): Observable<MenuItem[]> {
     const [first] = items;
     if (!first) return of([]).pipe(delay(120));
-    this.menu = this.menu.filter(item => !(item.pgId === first.pgId && item.weekLabel === first.weekLabel));
-    this.menu.push(...items.map((item, index) => ({ ...item, id: item.id || Date.now() + index })));
-    return of(this.clone(items)).pipe(delay(120));
+    this.menu = this.menu.filter(item => item.pgId !== first.pgId);
+    const saved = items.map((item, index) => ({ ...item, weekLabel: 'CURRENT', id: item.id || Date.now() + index }));
+    this.menu.push(...saved);
+    return of(this.clone(saved)).pipe(delay(120));
   }
 
   private buildPgs(): PG[] {
@@ -830,6 +1051,15 @@ export class MockDataService {
       pgId: room.pgId,
       joiningDate: '2025-08-12',
       advanceAmountPaid: 12000,
+      kycDocType: index < 3 ? ['AADHAAR', 'PASSPORT', 'DRIVING_LICENSE'][index] : '',
+      kycDocPath: index < 3 ? `mock/tenant-${index + 1}-kyc.pdf` : '',
+      kycStatus: index === 0 ? 'VERIFIED' : index === 1 ? 'REPLACEMENT_REQUESTED' : index < 3 ? 'SUBMITTED' : 'NOT_SUBMITTED',
+      kycSubmittedAt: index < 3 ? '2026-04-20T09:30:00' : '',
+      kycVerifiedAt: index === 0 ? '2026-04-21T11:00:00' : '',
+      kycVerifiedByName: index === 0 ? 'Arjun Nair' : '',
+      kycReplacementNotes: index === 1 ? 'The uploaded passport scan is too blurry. Please upload a clearer front page.' : '',
+      kycReplacementRequestedAt: index === 1 ? '2026-04-22T15:00:00' : '',
+      kycReplacementRequestedByName: index === 1 ? 'Arjun Nair' : '',
       creditWalletBalance: index === 0 ? 1200 : 0,
       status: room.status === 'VACATING' ? 'VACATING' : 'ACTIVE'
     }));
@@ -1073,27 +1303,172 @@ export class MockDataService {
   }
 
   private buildMenu(): MenuItem[] {
-    const weekLabel = this.currentWeekLabel();
     return [
-      { id: 1, pgId: 1, weekLabel, dayOfWeek: 'MONDAY', mealType: 'BREAKFAST', itemNames: 'Idli, Sambar', isVeg: true },
-      { id: 2, pgId: 1, weekLabel, dayOfWeek: 'MONDAY', mealType: 'LUNCH', itemNames: 'Rice, Dal, Poriyal', isVeg: true },
-      { id: 3, pgId: 1, weekLabel, dayOfWeek: 'MONDAY', mealType: 'DINNER', itemNames: 'Chapati, Paneer Curry', isVeg: true }
+      { id: 1, pgId: 1, weekLabel: 'CURRENT', dayOfWeek: 'MONDAY', mealType: 'BREAKFAST', itemNames: 'Idli, Sambar', isVeg: true },
+      { id: 2, pgId: 1, weekLabel: 'CURRENT', dayOfWeek: 'MONDAY', mealType: 'LUNCH', itemNames: 'Rice, Dal, Poriyal', isVeg: true },
+      { id: 3, pgId: 1, weekLabel: 'CURRENT', dayOfWeek: 'MONDAY', mealType: 'DINNER', itemNames: 'Chapati, Paneer Curry', isVeg: true }
     ];
   }
 
   private buildAmenities(): AmenityBooking[] {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    const fmt = (value: Date) => value.toISOString().slice(0, 10);
     return [
-      { slotId: 7001, pgId: 1, amenityType: 'WASHING_MACHINE', facilityName: 'Laundry Room', resourceName: 'Machine 1', slotDate: '2026-04-26', startTime: '07:00', endTime: '07:30', capacity: 1, shareable: false, status: 'AVAILABLE' },
-      { slotId: 7002, pgId: 1, amenityType: 'WASHING_MACHINE', facilityName: 'Laundry Room', resourceName: 'Machine 2', slotDate: '2026-04-26', startTime: '07:00', endTime: '07:30', capacity: 1, shareable: false, status: 'AVAILABLE' },
-      { slotId: 7003, pgId: 1, amenityType: 'WASHING_MACHINE', facilityName: 'Laundry Room', resourceName: 'Machine 1', slotDate: '2026-04-26', startTime: '07:30', endTime: '08:00', capacity: 1, shareable: false, status: 'AVAILABLE' },
-      { slotId: 7004, pgId: 1, amenityType: 'TABLE_TENNIS', facilityName: 'Common Lounge', resourceName: 'Table', slotDate: '2026-04-26', startTime: '19:00', endTime: '19:30', capacity: 2, shareable: true, status: 'AVAILABLE' },
-      { slotId: 7005, pgId: 1, amenityType: 'TABLE_TENNIS', facilityName: 'Common Lounge', resourceName: 'Table', slotDate: '2026-04-26', startTime: '19:30', endTime: '20:00', capacity: 2, shareable: true, status: 'AVAILABLE' },
-      { slotId: 7006, pgId: 1, amenityType: 'CARROM', facilityName: 'Rec Room', resourceName: 'Board', slotDate: '2026-04-27', startTime: '20:00', endTime: '20:30', capacity: 4, shareable: true, status: 'AVAILABLE' },
-      { slotId: 7007, pgId: 1, amenityType: 'CARROM', facilityName: 'Rec Room', resourceName: 'Board', slotDate: '2026-04-27', startTime: '20:30', endTime: '21:00', capacity: 4, shareable: true, status: 'AVAILABLE' },
-      { bookingId: 8101, slotId: 7001, pgId: 1, tenantName: 'Devika Rao', amenityType: 'WASHING_MACHINE', facilityName: 'Laundry Room', resourceName: 'Machine 1', slotDate: '2026-04-26', startTime: '07:00', endTime: '07:30', capacity: 1, shareable: false, status: 'BOOKED' },
-      { bookingId: 8102, slotId: 7004, pgId: 1, tenantName: 'Arjun Nair', amenityType: 'TABLE_TENNIS', facilityName: 'Common Lounge', resourceName: 'Table', slotDate: '2026-04-26', startTime: '19:00', endTime: '19:30', capacity: 2, shareable: true, openInvite: true, status: 'BOOKED' },
-      { bookingId: 8103, slotId: 7005, pgId: 1, tenantName: 'Praveen K', amenityType: 'TABLE_TENNIS', facilityName: 'Common Lounge', resourceName: 'Table', slotDate: '2026-04-26', startTime: '19:30', endTime: '20:00', capacity: 2, shareable: true, status: 'BOOKED' }
+      { slotId: 7001, pgId: 1, amenityType: 'WASHING_MACHINE', facilityName: 'Laundry Room', resourceName: 'Machine 1', slotDate: fmt(today), startTime: '07:00', endTime: '07:30', capacity: 1, shareable: false, status: 'AVAILABLE' },
+      { slotId: 7002, pgId: 1, amenityType: 'WASHING_MACHINE', facilityName: 'Laundry Room', resourceName: 'Machine 2', slotDate: fmt(today), startTime: '07:00', endTime: '07:30', capacity: 1, shareable: false, status: 'AVAILABLE' },
+      { slotId: 7003, pgId: 1, amenityType: 'WASHING_MACHINE', facilityName: 'Laundry Room', resourceName: 'Machine 1', slotDate: fmt(today), startTime: '07:30', endTime: '08:00', capacity: 1, shareable: false, status: 'AVAILABLE' },
+      { slotId: 7004, pgId: 1, amenityType: 'TABLE_TENNIS', facilityName: 'Common Lounge', resourceName: 'Table', slotDate: fmt(today), startTime: '19:00', endTime: '19:30', capacity: 2, shareable: true, status: 'AVAILABLE' },
+      { slotId: 7005, pgId: 1, amenityType: 'TABLE_TENNIS', facilityName: 'Common Lounge', resourceName: 'Table', slotDate: fmt(today), startTime: '19:30', endTime: '20:00', capacity: 2, shareable: true, status: 'AVAILABLE' },
+      { slotId: 7006, pgId: 1, amenityType: 'CARROM', facilityName: 'Rec Room', resourceName: 'Board', slotDate: fmt(tomorrow), startTime: '20:00', endTime: '20:30', capacity: 4, shareable: true, status: 'AVAILABLE' },
+      { slotId: 7007, pgId: 1, amenityType: 'CARROM', facilityName: 'Rec Room', resourceName: 'Board', slotDate: fmt(tomorrow), startTime: '20:30', endTime: '21:00', capacity: 4, shareable: true, status: 'AVAILABLE' },
+      { bookingId: 8101, slotId: 7001, pgId: 1, tenantName: 'Devika Rao', amenityType: 'WASHING_MACHINE', facilityName: 'Laundry Room', resourceName: 'Machine 1', slotDate: fmt(today), startTime: '07:00', endTime: '07:30', capacity: 1, shareable: false, status: 'BOOKED' },
+      { bookingId: 8102, slotId: 7004, pgId: 1, tenantName: 'Arjun Nair', amenityType: 'TABLE_TENNIS', facilityName: 'Common Lounge', resourceName: 'Table', slotDate: fmt(today), startTime: '19:00', endTime: '19:30', capacity: 2, shareable: true, openInvite: true, status: 'BOOKED' },
+      { bookingId: 8103, slotId: 7005, pgId: 1, tenantName: 'Praveen K', amenityType: 'TABLE_TENNIS', facilityName: 'Common Lounge', resourceName: 'Table', slotDate: fmt(today), startTime: '19:30', endTime: '20:00', capacity: 2, shareable: true, status: 'BOOKED' }
     ];
+  }
+
+  private buildAmenityControls(): AmenityControl[] {
+    let id = 9000;
+    return this.pgs.flatMap(pg => (['WASHING_MACHINE', 'TABLE_TENNIS', 'CARROM', 'BADMINTON'] as AmenityType[]).map(type => {
+      const seedSlots = this.amenities.filter(item => item.pgId === pg.id && item.amenityType === type);
+      const enabled = seedSlots.length > 0 || type === 'WASHING_MACHINE';
+      const facilityName = seedSlots[0]?.facilityName || this.defaultAmenityFacility(type);
+      const resourceName = this.baseAmenityResourceName(seedSlots[0]?.resourceName || this.defaultAmenityResourceName(type), type);
+      const unitCount = Math.max(1, new Set(seedSlots.map(item => item.resourceName || '')).size || (type === 'WASHING_MACHINE' ? 2 : 1));
+      const slotDurationMinutes = this.defaultAmenityDuration(type);
+      return {
+        id: id++,
+        pgId: pg.id,
+        amenityType: type,
+        displayName: this.defaultAmenityDisplayName(type),
+        resourceName,
+        facilityName,
+        unitCount,
+        capacity: type === 'WASHING_MACHINE' ? 1 : this.defaultAmenityCapacity(type),
+        slotDurationMinutes,
+        startTime: type === 'WASHING_MACHINE' ? '07:00' : '18:00',
+        endTime: '22:00',
+        enabled,
+        maintenanceMode: false,
+        upcomingOpenSlots: 0,
+        upcomingBookedSlots: 0
+      };
+    }));
+  }
+
+  private hydrateAmenityControls(): AmenityControl[] {
+    return this.amenityControls.map(control => {
+      const matchingSlots = this.amenities
+        .filter(item => !item.bookingId)
+        .filter(item => this.isUpcomingAmenitySlot(item))
+        .filter(item => this.matchesAmenityControl(item, control));
+      const bookedCount = matchingSlots.filter(item => (item.bookingCount || 0) > 0).length;
+      return {
+        ...control,
+        upcomingBookedSlots: bookedCount,
+        upcomingOpenSlots: Math.max(0, matchingSlots.length - bookedCount)
+      };
+    });
+  }
+
+  private syncAmenityControls() {
+    for (const control of this.amenityControls) {
+      this.syncAmenityControlSlots(control);
+    }
+  }
+
+  private syncAmenityControlSlots(control: AmenityControl) {
+    const upcomingBaseSlots = this.amenities
+      .filter(item => !item.bookingId)
+      .filter(item => this.isUpcomingAmenitySlot(item))
+      .filter(item => this.matchesAmenityControl(item, control));
+
+    if (!control.enabled || control.maintenanceMode) {
+      const removableIds = new Set(
+        upcomingBaseSlots
+          .filter(item => !this.amenities.some(booking => booking.slotId === item.slotId && !!booking.bookingId && booking.status === 'BOOKED'))
+          .map(item => item.slotId)
+      );
+      this.amenities = this.amenities.filter(item => !removableIds.has(item.slotId) || !!item.bookingId);
+      return;
+    }
+
+    const desired = this.generatedSlotsForControl(control);
+    const existingKeys = new Set(upcomingBaseSlots.map(item => this.amenitySlotKey(item)));
+    const desiredKeys = new Set(desired.map(item => this.amenitySlotKey(item)));
+
+    const removableIds = new Set(
+      upcomingBaseSlots
+        .filter(item => (item.bookingCount || 0) === 0)
+        .filter(item => !desiredKeys.has(this.amenitySlotKey(item)))
+        .map(item => item.slotId)
+    );
+
+    this.amenities = this.amenities.filter(item => !removableIds.has(item.slotId) || !!item.bookingId);
+
+    const nextIdBase = Date.now();
+    const additions = desired
+      .filter(item => !existingKeys.has(this.amenitySlotKey(item)))
+      .map((item, index) => ({ ...item, slotId: nextIdBase + index }));
+
+    if (additions.length) {
+      this.amenities.unshift(...additions);
+    }
+  }
+
+  private generatedSlotsForControl(control: AmenityControl): AmenityBooking[] {
+    const today = new Date();
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const slots: AmenityBooking[] = [];
+
+    for (let dayOffset = 0; dayOffset < 2; dayOffset++) {
+      const slotDate = new Date(startOfToday);
+      slotDate.setDate(startOfToday.getDate() + dayOffset);
+      const dateValue = slotDate.toISOString().slice(0, 10);
+      let cursor = this.timeToMinutes(control.startTime);
+      const end = this.timeToMinutes(control.endTime);
+      while (cursor < end) {
+        const next = Math.min(cursor + Math.max(1, control.slotDurationMinutes), end);
+        if (dayOffset === 0 && cursor <= (today.getHours() * 60 + today.getMinutes())) {
+          cursor = next;
+          continue;
+        }
+        for (let unit = 1; unit <= Math.max(1, control.unitCount); unit++) {
+          slots.push({
+            slotId: 0,
+            configId: control.id,
+            pgId: control.pgId,
+            amenityType: control.amenityType,
+            displayName: control.displayName,
+            facilityName: control.facilityName,
+            resourceName: control.unitCount === 1 ? control.resourceName : `${control.resourceName} ${unit}`,
+            slotDate: dateValue,
+            startTime: this.minutesToTime(cursor),
+            endTime: this.minutesToTime(next),
+            capacity: control.amenityType === 'WASHING_MACHINE' ? 1 : Math.max(1, control.capacity),
+            shareable: control.amenityType !== 'WASHING_MACHINE' && Math.max(1, control.capacity) > 1,
+            enabled: control.enabled,
+            maintenanceMode: control.maintenanceMode,
+            status: 'AVAILABLE'
+          });
+        }
+        cursor = next;
+      }
+    }
+
+    return slots;
+  }
+
+  private isUpcomingAmenitySlot(slot: AmenityBooking): boolean {
+    const today = new Date();
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const slotDate = new Date(`${slot.slotDate}T00:00:00`);
+    const diffDays = Math.floor((slotDate.getTime() - startOfToday.getTime()) / 86400000);
+    if (diffDays < 0 || diffDays > 1) return false;
+    if (diffDays > 0) return true;
+    return this.timeToMinutes(slot.startTime) > (today.getHours() * 60 + today.getMinutes());
   }
 
   private splitAmenityWindow(payload: { startTime: string; endTime: string }): Array<{ startTime: string; endTime: string }> {
@@ -1125,7 +1500,71 @@ export class MockDataService {
       case 'TABLE_TENNIS': return 'Table';
       case 'CARROM': return 'Board';
       case 'BADMINTON': return 'Court';
+      case 'CUSTOM': return 'Unit';
     }
+  }
+
+  private defaultAmenityFacility(type: AmenityType): string {
+    switch (type) {
+      case 'WASHING_MACHINE': return 'Laundry Room';
+      case 'TABLE_TENNIS': return 'Common Lounge';
+      case 'CARROM': return 'Rec Room';
+      case 'BADMINTON': return 'Badminton Court';
+      case 'CUSTOM': return 'Common Area';
+    }
+  }
+
+  private defaultAmenityCapacity(type: AmenityType): number {
+    switch (type) {
+      case 'WASHING_MACHINE': return 1;
+      case 'TABLE_TENNIS': return 2;
+      case 'CARROM': return 4;
+      case 'BADMINTON': return 4;
+      case 'CUSTOM': return 1;
+    }
+  }
+
+  private defaultAmenityDisplayName(type: AmenityType): string {
+    switch (type) {
+      case 'WASHING_MACHINE': return 'Washing Machine';
+      case 'TABLE_TENNIS': return 'Table Tennis';
+      case 'CARROM': return 'Carrom';
+      case 'BADMINTON': return 'Badminton';
+      case 'CUSTOM': return 'Custom Amenity';
+    }
+  }
+
+  private defaultAmenityDuration(type: AmenityType): number {
+    return type === 'WASHING_MACHINE' ? 30 : 60;
+  }
+
+  private baseAmenityResourceName(value: string, type: AmenityType): string {
+    if (type !== 'WASHING_MACHINE') return value.trim();
+    return value.replace(/\s+\d+$/, '').trim() || this.defaultAmenityResourceName(type);
+  }
+
+  private amenitySlotKey(slot: Pick<AmenityBooking, 'pgId' | 'amenityType' | 'facilityName' | 'resourceName' | 'slotDate' | 'startTime' | 'endTime'>): string {
+    return [slot.pgId || 0, slot.amenityType, slot.facilityName || '', slot.resourceName || '', slot.slotDate, slot.startTime, slot.endTime].join('|');
+  }
+
+  private matchesAmenityControl(slot: AmenityBooking, control: AmenityControl): boolean {
+    if (slot.configId && slot.configId === control.id) return true;
+    if ((slot.pgId || 0) !== control.pgId || slot.amenityType !== control.amenityType) return false;
+    if ((slot.facilityName || '') !== control.facilityName) return false;
+    return this.baseAmenityResourceName(slot.resourceName || '', control.amenityType) === control.resourceName;
+  }
+
+  private resolveAmenityControl(slot: AmenityBooking): AmenityControl | undefined {
+    if (slot.configId) {
+      const byId = this.amenityControls.find(item => item.id === slot.configId);
+      if (byId) return byId;
+    }
+    return this.amenityControls.find(item => this.matchesAmenityControl(slot, item));
+  }
+
+  private isSlotShareable(slot: AmenityBooking, control?: AmenityControl): boolean {
+    if (slot.amenityType === 'WASHING_MACHINE') return false;
+    return Math.max(1, control?.capacity || slot.capacity || 1) > 1;
   }
 
   private recomputePgCounts() {

@@ -6,9 +6,11 @@ import com.pgms.backend.dto.tenant.TenantResponse;
 import com.pgms.backend.entity.Room;
 import com.pgms.backend.entity.TenantProfile;
 import com.pgms.backend.entity.User;
+import com.pgms.backend.entity.enums.KycStatus;
 import com.pgms.backend.entity.enums.Role;
 import com.pgms.backend.entity.enums.RoomStatus;
 import com.pgms.backend.entity.enums.TenantStatus;
+import com.pgms.backend.exception.BadRequestException;
 import com.pgms.backend.exception.ConflictException;
 import com.pgms.backend.exception.ForbiddenException;
 import com.pgms.backend.exception.NotFoundException;
@@ -19,11 +21,18 @@ import com.pgms.backend.util.SecurityUtils;
 import jakarta.transaction.Transactional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
+import java.time.LocalDateTime;
 
 @Service
 public class TenantService {
+    private static final Path KYC_UPLOAD_ROOT = Paths.get(System.getProperty("user.dir"), "uploads", "kyc");
 
     private final TenantProfileRepository tenantProfileRepository;
     private final UserRepository userRepository;
@@ -82,6 +91,7 @@ public class TenantService {
                 .room(room)
                 .joiningDate(request.getJoiningDate())
                 .advanceAmountPaid(request.getAdvanceAmountPaid())
+                .kycStatus(KycStatus.NOT_SUBMITTED)
                 .status(TenantStatus.ACTIVE)
                 .creditWalletBalance(0.0)
                 .build());
@@ -121,12 +131,118 @@ public class TenantService {
         return toResponse(accessControlService.getCurrentTenantProfile());
     }
 
+    public List<TenantResponse> getKycForCurrentManager() {
+        return getTenantsForCurrentManager().stream()
+                .filter(tenant -> tenant.getTenantProfileId() != null)
+                .toList();
+    }
+
     @Transactional
     public TenantResponse updateCurrentTenantProfile(TenantProfileUpdateRequest request) {
         TenantProfile profile = accessControlService.getCurrentTenantProfile();
         profile.setKycDocType(request.getKycDocType());
         profile.setKycDocPath(request.getKycDocPath());
         return toResponse(tenantProfileRepository.save(profile));
+    }
+
+    @Transactional
+    public TenantResponse uploadCurrentTenantKyc(String docType, MultipartFile file) {
+        TenantProfile profile = accessControlService.getCurrentTenantProfile();
+        if (profile.getKycStatus() == KycStatus.VERIFIED) {
+            throw new BadRequestException("This KYC document is already verified. Ask your manager to request a replacement first.");
+        }
+        if (docType == null || docType.trim().isEmpty()) {
+            throw new BadRequestException("Document type is required");
+        }
+        if (file == null || file.isEmpty()) {
+            throw new BadRequestException("Document file is required");
+        }
+        String originalFileName = file.getOriginalFilename();
+        String safeFileName = sanitizeFileName(originalFileName == null || originalFileName.isBlank() ? "kyc-document" : originalFileName);
+        String extension = extensionOf(safeFileName);
+        if (!isAllowedKycExtension(extension)) {
+            throw new BadRequestException("Upload a PDF, JPG, JPEG, or PNG document");
+        }
+
+        Path tenantDir = KYC_UPLOAD_ROOT.resolve("tenant-" + profile.getId());
+        String storedName = System.currentTimeMillis() + "-" + safeFileName;
+        Path target = tenantDir.resolve(storedName);
+        try {
+            Files.createDirectories(tenantDir);
+            deleteIfPresent(resolveStoredPath(profile.getKycDocPath()));
+            file.transferTo(target);
+        } catch (IOException ex) {
+            throw new BadRequestException("Could not store KYC document");
+        }
+
+        profile.setKycDocType(docType.trim());
+        profile.setKycDocPath("tenant-" + profile.getId() + "/" + storedName);
+        profile.setKycStatus(KycStatus.SUBMITTED);
+        profile.setKycSubmittedAt(LocalDateTime.now());
+        profile.setKycVerifiedAt(null);
+        profile.setKycVerifiedByName(null);
+        profile.setKycReplacementNotes(null);
+        profile.setKycReplacementRequestedAt(null);
+        profile.setKycReplacementRequestedByName(null);
+        return toResponse(tenantProfileRepository.save(profile));
+    }
+
+    @Transactional
+    public TenantResponse verifyTenantKyc(Long tenantProfileId) {
+        TenantProfile profile = getTenantProfileOrThrow(tenantProfileId);
+        ensureCanManagePg(profile.getPg().getId());
+        if (profile.getKycDocPath() == null || profile.getKycDocPath().isBlank()) {
+            throw new BadRequestException("No KYC document has been uploaded for this tenant");
+        }
+        if (profile.getKycStatus() != KycStatus.SUBMITTED) {
+            throw new BadRequestException("Only submitted KYC documents can be verified");
+        }
+        if (profile.getKycStatus() == KycStatus.VERIFIED) {
+            return toResponse(profile);
+        }
+        User verifier = userRepository.findById(SecurityUtils.getCurrentUserId())
+                .orElseThrow(() -> new NotFoundException("Current user not found"));
+        profile.setKycStatus(KycStatus.VERIFIED);
+        profile.setKycVerifiedAt(LocalDateTime.now());
+        profile.setKycVerifiedByName(verifier.getName());
+        profile.setKycReplacementNotes(null);
+        profile.setKycReplacementRequestedAt(null);
+        profile.setKycReplacementRequestedByName(null);
+        return toResponse(tenantProfileRepository.save(profile));
+    }
+
+    @Transactional
+    public TenantResponse requestTenantKycReplacement(Long tenantProfileId, String notes) {
+        TenantProfile profile = getTenantProfileOrThrow(tenantProfileId);
+        ensureCanManagePg(profile.getPg().getId());
+        if (profile.getKycDocPath() == null || profile.getKycDocPath().isBlank()) {
+            throw new BadRequestException("No KYC document is available to replace");
+        }
+        if (profile.getKycStatus() != KycStatus.VERIFIED && profile.getKycStatus() != KycStatus.SUBMITTED) {
+            throw new BadRequestException("Replacement can only be requested for submitted or verified documents");
+        }
+        String normalizedNotes = notes == null ? "" : notes.trim();
+        if (normalizedNotes.isEmpty()) {
+            throw new BadRequestException("Replacement note is required");
+        }
+        User manager = userRepository.findById(SecurityUtils.getCurrentUserId())
+                .orElseThrow(() -> new NotFoundException("Current user not found"));
+        profile.setKycStatus(KycStatus.REPLACEMENT_REQUESTED);
+        profile.setKycReplacementNotes(normalizedNotes);
+        profile.setKycReplacementRequestedAt(LocalDateTime.now());
+        profile.setKycReplacementRequestedByName(manager.getName());
+        return toResponse(tenantProfileRepository.save(profile));
+    }
+
+    public Path getCurrentTenantKycDocumentPath() {
+        TenantProfile profile = accessControlService.getCurrentTenantProfile();
+        return resolveExistingKycPath(profile);
+    }
+
+    public Path getManagerTenantKycDocumentPath(Long tenantProfileId) {
+        TenantProfile profile = getTenantProfileOrThrow(tenantProfileId);
+        ensureCanManagePg(profile.getPg().getId());
+        return resolveExistingKycPath(profile);
     }
 
     public TenantProfile getTenantProfileOrThrow(Long id) {
@@ -198,6 +314,13 @@ public class TenantService {
                 .advanceAmountPaid(profile.getAdvanceAmountPaid())
                 .kycDocType(profile.getKycDocType())
                 .kycDocPath(profile.getKycDocPath())
+                .kycStatus(profile.getKycStatus())
+                .kycSubmittedAt(profile.getKycSubmittedAt())
+                .kycVerifiedAt(profile.getKycVerifiedAt())
+                .kycVerifiedByName(profile.getKycVerifiedByName())
+                .kycReplacementNotes(profile.getKycReplacementNotes())
+                .kycReplacementRequestedAt(profile.getKycReplacementRequestedAt())
+                .kycReplacementRequestedByName(profile.getKycReplacementRequestedByName())
                 .creditWalletBalance(profile.getCreditWalletBalance())
                 .status(profile.getStatus())
                 .isActive(profile.getUser().isActive())
@@ -206,13 +329,10 @@ public class TenantService {
 
     private void ensureCanManagePg(Long pgId) {
         Role currentRole = SecurityUtils.getCurrentUserRole();
-        if (currentRole == Role.MANAGER) {
-            accessControlService.ensureManagerAssignedToPg(pgId);
-            return;
+        if (currentRole != Role.MANAGER) {
+            throw new ForbiddenException("Only managers can manage tenant lifecycle actions");
         }
-        if (currentRole != Role.OWNER) {
-            throw new ForbiddenException("You are not allowed to manage tenants");
-        }
+        accessControlService.ensureManagerAssignedToPg(pgId);
     }
 
     private void validateTargetRoomAvailability(Room room) {
@@ -244,5 +364,42 @@ public class TenantService {
         boolean anyVacating = activeProfiles.stream().anyMatch(profile -> profile.getStatus() == TenantStatus.VACATING);
         room.setStatus(anyVacating ? RoomStatus.VACATING : RoomStatus.OCCUPIED);
         roomRepository.save(room);
+    }
+
+    private Path resolveExistingKycPath(TenantProfile profile) {
+        if (profile.getKycDocPath() == null || profile.getKycDocPath().isBlank()) {
+            throw new NotFoundException("KYC document not found");
+        }
+        Path path = resolveStoredPath(profile.getKycDocPath());
+        if (path == null || !Files.exists(path)) {
+            throw new NotFoundException("KYC document file not found");
+        }
+        return path;
+    }
+
+    private Path resolveStoredPath(String relativePath) {
+        if (relativePath == null || relativePath.isBlank()) {
+            return null;
+        }
+        return KYC_UPLOAD_ROOT.resolve(relativePath).normalize();
+    }
+
+    private void deleteIfPresent(Path path) throws IOException {
+        if (path != null && Files.exists(path)) {
+            Files.delete(path);
+        }
+    }
+
+    private String sanitizeFileName(String fileName) {
+        return fileName.replaceAll("[^A-Za-z0-9._-]", "_");
+    }
+
+    private String extensionOf(String fileName) {
+        int index = fileName.lastIndexOf('.');
+        return index >= 0 ? fileName.substring(index + 1).toLowerCase() : "";
+    }
+
+    private boolean isAllowedKycExtension(String extension) {
+        return List.of("pdf", "png", "jpg", "jpeg").contains(extension);
     }
 }

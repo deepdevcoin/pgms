@@ -57,6 +57,12 @@ public class SubletController {
         return BaseResponse.success("Sublet approved successfully", subletService.approve(id));
     }
 
+    @PutMapping("/api/manager/sublets/{id}/reject")
+    @PreAuthorize("hasRole('MANAGER')")
+    public BaseResponse<SubletResponse> reject(@PathVariable Long id) {
+        return BaseResponse.success("Sublet rejected successfully", subletService.reject(id));
+    }
+
     @PutMapping("/api/manager/sublets/{id}/check-in")
     @PreAuthorize("hasRole('MANAGER')")
     public BaseResponse<SubletResponse> checkIn(@PathVariable Long id, @Valid @RequestBody SubletCompleteRequest request) {

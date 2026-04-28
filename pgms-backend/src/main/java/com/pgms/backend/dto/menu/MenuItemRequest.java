@@ -11,7 +11,6 @@ import java.time.DayOfWeek;
 public class MenuItemRequest {
     @NotNull(message = "pgId is required")
     private Long pgId;
-    @NotBlank(message = "weekLabel is required")
     private String weekLabel;
     @NotNull(message = "dayOfWeek is required")
     private DayOfWeek dayOfWeek;

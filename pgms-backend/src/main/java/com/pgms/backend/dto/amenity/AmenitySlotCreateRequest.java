@@ -21,6 +21,7 @@ public class AmenitySlotCreateRequest {
     private LocalTime endTime;
     @NotNull(message = "Capacity is required")
     private Integer capacity;
+    private Integer generationDays;
     private String facilityName;
     private String resourceName;
 }

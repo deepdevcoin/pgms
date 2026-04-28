@@ -21,6 +21,8 @@ const COLUMN_LABELS: Record<string, string> = {
   resourceName: 'Unit',
   createdAt: 'Time',
   guestRecordStatus: 'Guest Record',
+  walletCreditAmount: 'Wallet Credit',
+  managerMessage: 'Manager Message',
   transactionType: 'Type',
   paymentMethod: 'Method',
   signedAmount: 'Amount',
@@ -34,7 +36,7 @@ export function labelForColumn(col: string): string {
 }
 
 export function isMoneyColumn(col: string): boolean {
-  return ['amount', 'rentAmount', 'fineAccrued', 'amountPaid', 'totalDue', 'remainingAmountDue', 'advanceRefundAmount', 'signedAmount', 'outstandingBefore', 'outstandingAfter', 'walletBalanceBefore', 'walletBalanceAfter'].some(key => col.includes(key));
+  return ['amount', 'rentAmount', 'fineAccrued', 'amountPaid', 'totalDue', 'remainingAmountDue', 'advanceRefundAmount', 'signedAmount', 'outstandingBefore', 'outstandingAfter', 'walletBalanceBefore', 'walletBalanceAfter', 'walletCreditAmount'].some(key => col.includes(key));
 }
 
 export function isStatusColumn(col: string): boolean {

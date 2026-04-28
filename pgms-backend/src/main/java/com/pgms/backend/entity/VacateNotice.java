@@ -57,6 +57,8 @@ public class VacateNotice {
     private String referralName;
     private String referralPhone;
     private String referralEmail;
+    @Column(length = 1000)
+    private String managerMessage;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;

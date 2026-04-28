@@ -17,4 +17,7 @@ public interface AmenityBookingRepository extends JpaRepository<AmenityBooking, 
     Optional<AmenityBooking> findFirstBySlotIdAndOpenInviteTrueAndStatusOrderByCreatedAtAsc(Long slotId, BookingStatus status);
     Optional<AmenityBooking> findFirstBySlotIdAndStatusOrderByCreatedAtAsc(Long slotId, BookingStatus status);
     List<AmenityBooking> findBySlotIdAndStatusOrderByCreatedAtAsc(Long slotId, BookingStatus status);
+    long countBySlotAmenityConfigIdAndStatus(Long amenityConfigId, BookingStatus status);
+    List<AmenityBooking> findBySlotAmenityConfigIdAndStatus(Long amenityConfigId, BookingStatus status);
+    void deleteBySlotIdIn(List<Long> slotIds);
 }

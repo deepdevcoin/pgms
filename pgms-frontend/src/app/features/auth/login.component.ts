@@ -1,7 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { AuthService } from '../../core/auth.service';
@@ -10,7 +10,7 @@ import { ApiService } from '../../core/api.service';
 @Component({
     selector: 'app-login',
     standalone: true,
-    imports: [CommonModule, FormsModule, MatIconModule],
+    imports: [CommonModule, FormsModule, MatIconModule, RouterLink],
     template: `
   <div class="wrap bg-grid">
     <div class="pane left">
@@ -58,19 +58,28 @@ import { ApiService } from '../../core/api.service';
                  placeholder="you@pgms.in" data-testid="login-email" autocomplete="email"/>
         </label>
 
-        <label class="fld">
-          <span>Password</span>
-          <input type="password" name="password" [(ngModel)]="password" required
-                 placeholder="••••••••" data-testid="login-password" autocomplete="current-password"/>
-        </label>
+	        <label class="fld">
+	          <span>Password</span>
+	          <div class="password-wrap">
+	            <input [type]="showPassword() ? 'text' : 'password'" name="password" [(ngModel)]="password" required
+	                   placeholder="••••••••" data-testid="login-password" autocomplete="current-password"/>
+	            <button class="icon-btn" type="button" (click)="showPassword.set(!showPassword())" [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'">
+	              <mat-icon>{{ showPassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
+	            </button>
+	          </div>
+	        </label>
 
-        <div class="row">
-          <label class="demo">
-            <input type="checkbox" [(ngModel)]="demo" name="demo" data-testid="login-demo-toggle"/>
-            <span>Demo mode <em>(uses seeded data)</em></span>
-          </label>
-          <span class="kbd">Enter ↵</span>
-        </div>
+	        <div class="row">
+	          <label class="demo">
+	            <input type="checkbox" [(ngModel)]="demo" name="demo" data-testid="login-demo-toggle"/>
+	            <span>Demo mode <em>(uses seeded data)</em></span>
+	          </label>
+	          <span class="kbd">Enter ↵</span>
+	        </div>
+
+	        <div class="aux-link-row">
+	          <a class="aux-link" routerLink="/forgot-password">Forgot password?</a>
+	        </div>
 
         <div class="seed-login">
           <div class="seed-label">Quick login</div>
@@ -142,12 +151,32 @@ import { ApiService } from '../../core/api.service';
     .eyebrow { font-size: 11px; letter-spacing: 0.16em; color: var(--primary); text-transform: uppercase; font-weight: 700; }
     .head h2 { margin: 6px 0 4px; font-size: 26px; letter-spacing: -0.01em; }
     .head p { margin: 0; color: var(--text-muted); font-size: 13px; }
-    .fld { display: flex; flex-direction: column; gap: 6px; }
-    .fld span { font-size: 12px; color: var(--text-muted); font-weight: 500; }
-    .fld input { background: var(--bg-elev); border: 1px solid var(--border); color: var(--text); font-family: inherit; font-size: 14px; padding: 12px 14px; border-radius: 10px; outline: none; transition: border-color 140ms ease, box-shadow 140ms ease; }
-    .fld input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(52,211,153,0.12); }
-    .row { display: flex; align-items: center; justify-content: space-between; }
-    .demo { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); cursor: pointer; }
+	    .fld { display: flex; flex-direction: column; gap: 6px; }
+	    .fld span { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+	    .fld input { background: var(--bg-elev); border: 1px solid var(--border); color: var(--text); font-family: inherit; font-size: 14px; padding: 12px 14px; border-radius: 10px; outline: none; transition: border-color 140ms ease, box-shadow 140ms ease; }
+	    .fld input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(52,211,153,0.12); }
+	    .password-wrap { position: relative; display: flex; align-items: center; }
+	    .password-wrap input { width: 100%; padding-right: 46px; }
+	    .icon-btn {
+	      position: absolute;
+	      right: 8px;
+	      width: 32px;
+	      height: 32px;
+	      border: 0;
+	      border-radius: 8px;
+	      display: grid;
+	      place-items: center;
+	      background: transparent;
+	      color: var(--text-muted);
+	      cursor: pointer;
+	    }
+	    .icon-btn:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+	    .icon-btn mat-icon { font-size: 18px; width: 18px; height: 18px; }
+	    .row { display: flex; align-items: center; justify-content: space-between; }
+	    .aux-link-row { display: flex; justify-content: flex-end; margin-top: -4px; }
+	    .aux-link { color: var(--text-muted); text-decoration: none; font-size: 12px; }
+	    .aux-link:hover { color: var(--text); }
+	    .demo { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); cursor: pointer; }
     .demo em { color: var(--text-dim); font-style: normal; }
     .seed-login { display: flex; flex-direction: column; gap: 10px; }
     .seed-label { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }
@@ -170,10 +199,11 @@ export class LoginComponent {
     private snack = inject(MatSnackBar);
 
     email = '';
-    password = '';
-    demo = this.auth.demoMode;
-    apiBase = this.auth.apiBase;
-    loading = signal(false);
+	    password = '';
+	    demo = this.auth.demoMode;
+	    apiBase = this.auth.apiBase;
+	    loading = signal(false);
+	    showPassword = signal(false);
 
     floors = [0, 1, 2, 3, 4];
     private stateOrder = ['occupied', 'occupied', 'vacant', 'occupied', 'vacating', 'occupied', 'subletting', 'occupied', 'vacant'];

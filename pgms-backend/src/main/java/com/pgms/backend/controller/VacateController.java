@@ -3,6 +3,7 @@ package com.pgms.backend.controller;
 import com.pgms.backend.dto.BaseResponse;
 import com.pgms.backend.dto.vacate.VacateApprovalRequest;
 import com.pgms.backend.dto.vacate.VacateNoticeResponse;
+import com.pgms.backend.dto.vacate.VacateRejectRequest;
 import com.pgms.backend.dto.vacate.VacateRequest;
 import com.pgms.backend.service.VacateService;
 import jakarta.validation.Valid;
@@ -54,5 +55,11 @@ public class VacateController {
     @PreAuthorize("hasRole('MANAGER')")
     public BaseResponse<VacateNoticeResponse> checkout(@PathVariable Long id) {
         return BaseResponse.success("Tenant checkout completed successfully", vacateService.checkout(id));
+    }
+
+    @PutMapping("/api/manager/vacate-notices/{id}/reject")
+    @PreAuthorize("hasRole('MANAGER')")
+    public BaseResponse<VacateNoticeResponse> reject(@PathVariable Long id, @Valid @RequestBody VacateRejectRequest request) {
+        return BaseResponse.success("Vacate notice rejected successfully", vacateService.reject(id, request.getMessage()));
     }
 }

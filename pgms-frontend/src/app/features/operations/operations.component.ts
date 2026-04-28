@@ -7,7 +7,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { Observable } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
-import { AmenityBooking, ComplaintActivity, MenuItem, NoticeReadReceipt, PaymentSummary, PaymentTransaction, PG, Role, Tenant } from '../../core/models';
+import { AmenityBooking, ComplaintActivity, MenuItem, NoticeReadReceipt, PaymentSummary, PaymentTransaction, PG, Role, Tenant, WalletInfo } from '../../core/models';
 import { MenuBoardComponent } from '../../shared/menu-board.component';
 import { PopupShellComponent } from '../../shared/popup-shell.component';
 import { DateInputComponent } from '../../shared/date-input.component';
@@ -65,6 +65,19 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
               Wallet credit from sublets is available here.
             }
           </div>
+          @if (walletInfo()?.credits?.length && moduleKey() === 'sublets') {
+            <div class="wallet-breakdown">
+              @for (entry of walletInfo()!.credits; track entry.subletRequestId + '-' + (entry.creditedAt || '')) {
+                <div class="wallet-entry">
+                  <strong>₹{{ entry.creditedAmount | number:'1.0-0' }}</strong>
+                  <span>
+                    {{ entry.occupiedDays || 0 }} day{{ (entry.occupiedDays || 0) === 1 ? '' : 's' }}
+                    · {{ entry.checkInDate | displayDate }} to {{ entry.checkOutDate | displayDate }}
+                  </span>
+                </div>
+              }
+            </div>
+          }
         </div>
       </div>
     }
@@ -81,7 +94,7 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
         [fields]="visibleFields()"
         [form]="form"
         [saving]="saving()"
-        [showLoadWeek]="moduleKey() === 'menu'"
+        [showLoadWeek]="false"
         (submitForm)="submit()"
         (loadWeek)="loadMenu()"
       />
@@ -91,15 +104,28 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
       <app-menu-planner
         [pgs]="pgs()"
         [pgId]="menuPgId()"
-        [weekLabel]="currentMenuWeekLabel()"
         [items]="menuItems()"
         [saving]="saving()"
         (pgIdChange)="setMenuPgId($event)"
-        (weekLabelChange)="setMenuWeekLabel($event)"
         (loadWeek)="loadMenu()"
         (saveWeek)="saveMenuPlanner($event)"
       />
     } @else {
+      @if (moduleKey() === 'menu') {
+        <div class="toolbar">
+          @if (auth.role() !== 'TENANT') {
+            <label class="menu-select">
+              <span>PG</span>
+              <select [ngModel]="menuPgId()" (ngModelChange)="setMenuPgId($event); loadMenu()">
+                @for (pg of pgs(); track pg.id) {
+                  <option [ngValue]="pg.id">{{ pg.name }}</option>
+                }
+              </select>
+            </label>
+          }
+          <button class="btn btn--ghost" (click)="loadMenu()"><mat-icon>refresh</mat-icon><span>Refresh</span></button>
+        </div>
+      } @else {
       <div class="toolbar">
         <div class="search">
           <mat-icon>search</mat-icon>
@@ -107,17 +133,18 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
         </div>
         <button class="btn btn--ghost" (click)="load()"><mat-icon>refresh</mat-icon><span>Refresh</span></button>
       </div>
+      }
 
       @if (loading()) {
         <div class="state card"><div class="spinner"></div><span>Loading {{ config().title.toLowerCase() }}...</span></div>
       } @else if (error()) {
         <div class="state card err"><mat-icon>error</mat-icon><span>{{ error() }}</span></div>
-      } @else if (moduleKey() === 'menu' && auth.role() === 'TENANT') {
+      } @else if (moduleKey() === 'menu') {
         <app-menu-board
           [items]="tenantMenuItems()"
           mode="week"
-          [showWeekLabel]="true"
-          emptyLabel="Weekly menu is not available for your PG yet."
+          [showWeekLabel]="false"
+          emptyLabel="Menu is not available for this PG yet."
         />
       } @else if (moduleKey() === 'amenities' && auth.role() === 'TENANT') {
         <app-amenity-slot-board
@@ -271,6 +298,22 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
       </button>
     </div>
   </app-popup-shell>
+
+  <app-popup-shell
+    [open]="confirmDialogOpen()"
+    [eyebrow]="confirmDialogEyebrow()"
+    [title]="confirmDialogTitle()"
+    [subtitle]="confirmDialogSubtitle()"
+    (closed)="closeConfirmDialog()"
+  >
+    <div class="dialog-actions">
+      <button class="btn btn--ghost" type="button" (click)="closeConfirmDialog()">Cancel</button>
+      <button class="btn btn--primary" type="button" (click)="confirmDialogProceed()">
+        <mat-icon>check</mat-icon>
+        <span>{{ confirmDialogConfirmLabel() }}</span>
+      </button>
+    </div>
+  </app-popup-shell>
   `,
   styles: [`
     .ops { display: flex; flex-direction: column; gap: 18px; }
@@ -279,7 +322,14 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
     .wallet-label { color: var(--text-muted); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
     .wallet-value { font-size: 26px; font-weight: 800; font-family: var(--font-mono); }
     .wallet-meta { margin-top: 4px; color: var(--text-muted); font-size: 12px; line-height: 1.45; max-width: 320px; }
+    .wallet-breakdown { margin-top: 12px; display: grid; gap: 8px; }
+    .wallet-entry { display: grid; gap: 2px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); }
+    .wallet-entry strong { font-size: 13px; }
+    .wallet-entry span { color: var(--text-muted); font-size: 12px; }
     .toolbar { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .menu-select { display: grid; gap: 6px; min-width: 220px; }
+    .menu-select span { color: var(--text-muted); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+    .menu-select select { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 12px; padding: 11px 12px; }
     .search { display: flex; align-items: center; gap: 8px; min-width: 280px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0 12px; }
     .search mat-icon { color: var(--text-muted); font-size: 18px; width: 18px; height: 18px; }
     .search input { border: 0; background: transparent; padding: 11px 0; }
@@ -327,8 +377,14 @@ export class OperationsComponent {
   error = signal<string | null>(null);
   showForm = signal(false);
   walletBalance = signal(0);
+  walletInfo = signal<WalletInfo | null>(null);
   paymentSummary = signal<PaymentSummary | null>(null);
   paymentTransactions = signal<PaymentTransaction[]>([]);
+  confirmDialogOpen = signal(false);
+  confirmDialogEyebrow = signal('');
+  confirmDialogTitle = signal('');
+  confirmDialogSubtitle = signal('');
+  confirmDialogConfirmLabel = signal('Confirm');
   actionDialogOpen = signal(false);
   actionDialogTitle = signal('');
   actionDialogSubtitle = signal('');
@@ -350,6 +406,7 @@ export class OperationsComponent {
   subletCheckInOpen = signal(false);
   subletCheckInRow = signal<Row | null>(null);
   subletGuestForm = { guestName: '', guestPhone: '', checkInDate: '' };
+  private confirmAction: (() => void) | null = null;
   private textActionFactory: ((value: string) => { subscribe: (handlers: { next: () => void; error: (err: any) => void }) => void }) | null = null;
   private numberActionFactory: ((value: number) => { subscribe: (handlers: { next: () => void; error: (err: any) => void }) => void }) | null = null;
   private actionHandlers: OperationsActionHandlers = {
@@ -381,36 +438,12 @@ export class OperationsComponent {
     noticeMarkRead: row => this.mutate(this.api.markNoticeRead(row['id'])),
     noticeReceipts: row => this.showReceipts(row['id'], row['title']),
     vacateApprove: row => this.mutate(this.api.approveVacateReferral(row['id'], true)),
-    vacateReject: row => this.mutate(this.api.approveVacateReferral(row['id'], false)),
+    vacateReject: row => this.openTextDialog('Reject vacate notice', 'Share a short message so the tenant knows what needs to change.', 'Manager message', 'Reject notice', message => this.api.rejectVacate(row['id'], message)),
     vacateCheckout: row => this.mutate(this.api.checkoutVacate(row['id'])),
-    serviceConfirm: row => this.openTextDialog(
-      'Confirm service visit',
-      'Share the committed visit window or assigned technician for this request.',
-      'Confirmation note',
-      'Confirm service',
-      notes => this.api.updateService(row['id'], 'CONFIRMED', notes)
-    ),
-    serviceStart: row => this.openTextDialog(
-      'Start service work',
-      'Capture the on-site update so the tenant knows the work is underway.',
-      'Work started note',
-      'Mark in progress',
-      notes => this.api.updateService(row['id'], 'IN_PROGRESS', notes)
-    ),
-    serviceComplete: row => this.openTextDialog(
-      'Complete service',
-      'Record what was fixed or delivered before closing this request.',
-      'Completion note',
-      'Complete service',
-      notes => this.api.updateService(row['id'], 'COMPLETED', notes)
-    ),
-    serviceReject: row => this.openTextDialog(
-      'Reject service request',
-      'Explain why the request cannot be fulfilled in the current form.',
-      'Rejection reason',
-      'Reject request',
-      notes => this.api.updateService(row['id'], 'REJECTED', notes)
-    ),
+    serviceConfirm: row => this.mutate(this.api.updateService(row['id'], 'CONFIRMED')),
+    serviceStart: row => this.mutate(this.api.updateService(row['id'], 'IN_PROGRESS')),
+    serviceComplete: row => this.mutate(this.api.updateService(row['id'], 'COMPLETED')),
+    serviceReject: row => this.mutate(this.api.updateService(row['id'], 'REJECTED')),
     serviceRate: row => this.openNumberDialog('Rate service', 'Give a score between 1 and 5 for the completed service.', 'Rating', 'Submit rating', rating => this.api.rateService(row['id'], rating)),
     amenityBook: row => this.mutate(this.api.bookAmenity(row['slotId'], false)),
     amenityOpenInvite: row => this.mutate(this.api.bookAmenity(row['slotId'], true)),
@@ -418,8 +451,27 @@ export class OperationsComponent {
     amenityCancel: row => this.mutate(this.api.cancelAmenity(row['bookingId'])),
     amenityDeleteSlot: row => this.mutate(this.api.deleteAmenitySlot(row['slotId'])),
     subletApprove: row => this.mutate(this.api.approveSublet(row['id'])),
-    subletCheckIn: row => this.openSubletCheckIn(row),
-    subletCheckout: row => this.mutate(this.api.checkoutSublet(row['id']))
+    subletReject: row => this.openConfirmDialog(
+      'Sublets',
+      'Disapprove this sublet request?',
+      'The tenant will be able to submit a fresh request later.',
+      'Disapprove',
+      () => this.mutate(this.api.rejectSublet(row['id']))
+    ),
+    subletCheckIn: row => this.openConfirmDialog(
+      'Sublets',
+      'Start guest check in?',
+      'You can add the guest details in the next step.',
+      'Continue',
+      () => this.openSubletCheckIn(row)
+    ),
+    subletCheckout: row => this.openConfirmDialog(
+      'Sublets',
+      'Checkout this guest?',
+      'This will complete the active sublet stay and release the guest record.',
+      'Checkout',
+      () => this.mutate(this.api.checkoutSublet(row['id']))
+    )
   };
 
   moduleKey = computed(() => this.route.snapshot.data['module'] as ModuleKey);
@@ -436,7 +488,15 @@ export class OperationsComponent {
     if (!q) return this.paymentTransactions();
     return this.paymentTransactions().filter(row => JSON.stringify(row).toLowerCase().includes(q));
   });
-  canCreate = computed(() => !this.isMenuPlannerMode() && !!this.config().fields?.length && !!this.config().createLabel);
+  canCreate = computed(() => {
+    if (this.isMenuPlannerMode()) return false;
+    if (!this.config().fields?.length || !this.config().createLabel) return false;
+    if (this.moduleKey() === 'vacate' && this.auth.role() === 'TENANT') {
+      const current = this.rows()[0];
+      return !current || current['status'] === 'REJECTED';
+    }
+    return true;
+  });
   actionsMap = computed(() => buildModuleActions(this.auth.role(), this.actionHandlers));
   actions = computed<ActionConfig[]>(() => this.actionsMap()[this.moduleKey()]);
   tenantMenuPgId = computed(() => {
@@ -500,7 +560,7 @@ export class OperationsComponent {
       : key === 'services' ? this.api.listServices()
       : key === 'amenities' ? this.api.listAmenities()
       : key === 'sublets' ? this.api.listSublets()
-      : this.api.listMenu(this.menuPgId(), this.form['weekLabel'] || this.weekLabel());
+      : this.api.listMenu(this.menuPgId());
     request.subscribe({
       next: rows => {
         this.rows.set(Array.isArray(rows) ? rows as Row[] : []);
@@ -524,12 +584,8 @@ export class OperationsComponent {
       this.snack.open('Select a PG before saving the menu.', 'Dismiss', { duration: 2400, panelClass: 'pgms-snack' });
       return;
     }
-    if (!this.currentMenuWeekLabel()) {
-      this.snack.open('Select a week before saving the menu.', 'Dismiss', { duration: 2400, panelClass: 'pgms-snack' });
-      return;
-    }
     if (!items.length) {
-      this.snack.open('Add at least one meal before saving the week.', 'Dismiss', { duration: 2400, panelClass: 'pgms-snack' });
+      this.snack.open('Add at least one meal before saving the menu.', 'Dismiss', { duration: 2400, panelClass: 'pgms-snack' });
       return;
     }
     this.saving.set(true);
@@ -537,7 +593,7 @@ export class OperationsComponent {
       next: rows => {
         this.saving.set(false);
         this.rows.set(rows as Row[]);
-        this.snack.open('Weekly menu saved', 'OK', { duration: 2000, panelClass: 'pgms-snack' });
+        this.snack.open('Menu updated', 'OK', { duration: 2000, panelClass: 'pgms-snack' });
         this.load();
       },
       error: err => {
@@ -548,6 +604,21 @@ export class OperationsComponent {
   }
 
   submit() {
+    const validationError = this.validateBeforeSubmit();
+    if (validationError) {
+      this.snack.open(validationError, 'Dismiss', { duration: 2600, panelClass: 'pgms-snack' });
+      return;
+    }
+    this.openConfirmDialog(
+      this.config().title,
+      this.submitTitle(),
+      this.submitSubtitle(),
+      'Submit',
+      () => this.executeSubmit()
+    );
+  }
+
+  private executeSubmit() {
     this.saving.set(true);
     const key = this.moduleKey();
     const request: Observable<unknown> = key === 'payments' && this.auth.role() === 'MANAGER'
@@ -559,10 +630,10 @@ export class OperationsComponent {
           : key === 'vacate'
             ? this.api.createVacate({ intendedVacateDate: this.form['intendedVacateDate'], hasReferral: !!this.form['hasReferral'], referralName: this.form['referralName'], referralPhone: this.form['referralPhone'], referralEmail: this.form['referralEmail'] })
             : key === 'services'
-              ? this.api.createService({ serviceType: this.form['serviceType'], preferredDate: this.form['preferredDate'], preferredTimeWindow: this.form['preferredTimeWindow'], requestNotes: this.form['requestNotes'] })
-              : key === 'amenities' && this.auth.role() === 'MANAGER'
-                ? this.api.createAmenitySlot({ pgId: this.numberField('pgId'), amenityType: this.form['amenityType'], slotDate: this.form['slotDate'], startTime: this.form['startTime'], endTime: this.form['endTime'], capacity: this.numberField('capacity'), facilityName: this.form['facilityName'] })
-                : key === 'sublets'
+	              ? this.api.createService({ serviceType: this.form['serviceType'], preferredDate: this.form['preferredDate'], preferredTimeWindow: this.form['preferredTimeWindow'], requestNotes: this.form['requestNotes'] })
+	              : key === 'amenities' && this.auth.role() === 'MANAGER'
+	                ? this.api.createAmenitySlot({ pgId: this.numberField('pgId'), amenityType: this.form['amenityType'], slotDate: this.form['slotDate'], startTime: this.form['startTime'], endTime: this.form['endTime'], capacity: this.numberField('capacity'), generationDays: Number(this.form['generationDays'] || 2), facilityName: this.form['facilityName'] })
+	                : key === 'sublets'
                   ? this.api.createSublet({ startDate: this.form['startDate'], endDate: this.form['endDate'], reason: this.form['reason'] })
                   : this.api.saveMenu(this.menuPayload());
     request.subscribe({
@@ -607,7 +678,6 @@ export class OperationsComponent {
       preferredTimeWindow: '6:00 PM - 8:00 PM',
       amenityType: 'WASHING_MACHINE',
       capacity: 1,
-      weekLabel: this.weekLabel(),
       dayOfWeek: 'MONDAY',
       mealType: 'BREAKFAST',
       isVeg: true,
@@ -618,7 +688,6 @@ export class OperationsComponent {
   private menuPayload(): MenuItem[] {
     return [{
       pgId: this.menuPgId(),
-      weekLabel: this.currentMenuWeekLabel(),
       dayOfWeek: this.form['dayOfWeek'],
       mealType: this.form['mealType'],
       itemNames: this.form['itemNames'],
@@ -626,18 +695,14 @@ export class OperationsComponent {
     }];
   }
 
-  private weekLabel(): string {
-    const date = new Date();
-    const utcDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    const day = utcDate.getUTCDay() || 7;
-    utcDate.setUTCDate(utcDate.getUTCDate() + 4 - day);
-    const yearStart = new Date(Date.UTC(utcDate.getUTCFullYear(), 0, 1));
-    const week = Math.ceil((((utcDate.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-    return `${utcDate.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
-  }
-
   private loadWallet() {
-    this.api.wallet().subscribe({ next: wallet => this.walletBalance.set(wallet.creditWalletBalance || 0), error: () => undefined });
+    this.api.wallet().subscribe({
+      next: wallet => {
+        this.walletInfo.set(wallet);
+        this.walletBalance.set(wallet.creditWalletBalance || 0);
+      },
+      error: () => undefined
+    });
   }
 
   private pgName(value: string): string {
@@ -653,7 +718,7 @@ export class OperationsComponent {
   }
 
   currentMenuWeekLabel(): string {
-    return String(this.form['weekLabel'] || this.weekLabel());
+    return 'CURRENT';
   }
 
   setMenuPgId(pgId: number) {
@@ -665,7 +730,7 @@ export class OperationsComponent {
   }
 
   isMenuPlannerMode(): boolean {
-    return this.moduleKey() === 'menu' && this.auth.role() !== 'TENANT';
+    return this.moduleKey() === 'menu' && this.auth.role() === 'MANAGER';
   }
 
   private numberField(key: string): number { return Number(this.form[key] || 0); }
@@ -730,6 +795,26 @@ export class OperationsComponent {
     this.subletGuestForm = { guestName: '', guestPhone: '', checkInDate: '' };
   }
 
+  openConfirmDialog(eyebrow: string, title: string, subtitle: string, confirmLabel: string, action: () => void) {
+    this.confirmAction = action;
+    this.confirmDialogEyebrow.set(eyebrow);
+    this.confirmDialogTitle.set(title);
+    this.confirmDialogSubtitle.set(subtitle);
+    this.confirmDialogConfirmLabel.set(confirmLabel);
+    this.confirmDialogOpen.set(true);
+  }
+
+  closeConfirmDialog() {
+    this.confirmDialogOpen.set(false);
+    this.confirmAction = null;
+  }
+
+  confirmDialogProceed() {
+    const action = this.confirmAction;
+    this.closeConfirmDialog();
+    action?.();
+  }
+
   submitSubletCheckIn() {
     const row = this.subletCheckInRow();
     const guestName = this.subletGuestForm.guestName.trim();
@@ -739,9 +824,77 @@ export class OperationsComponent {
       this.snack.open('Enter guest name, phone, and check in date.', 'Dismiss', { duration: 2400, panelClass: 'pgms-snack' });
       return;
     }
+    if (!/^\d{10}$/.test(guestPhone)) {
+      this.snack.open('Guest phone must be exactly 10 digits.', 'Dismiss', { duration: 2400, panelClass: 'pgms-snack' });
+      return;
+    }
     const request = this.api.checkInSublet(row['id'], { guestName, guestPhone, checkInDate });
     this.closeSubletCheckIn();
     this.mutate(request);
+  }
+
+  private validateBeforeSubmit(): string | null {
+    const key = this.moduleKey();
+    if (key === 'vacate') {
+      const date = String(this.form['intendedVacateDate'] || '');
+      if (!date) return 'Choose an intended vacate date.';
+      if (date < this.todayIso()) return 'Vacate date cannot be in the past.';
+      if (this.form['hasReferral']) {
+        if (!String(this.form['referralName'] || '').trim()) return 'Enter the referral name.';
+        if (!/^\d{10}$/.test(String(this.form['referralPhone'] || '').trim())) return 'Referral phone must be exactly 10 digits.';
+        if (!this.isEmail(String(this.form['referralEmail'] || '').trim())) return 'Enter a valid referral email.';
+      }
+    }
+    if (key === 'services') {
+      const date = String(this.form['preferredDate'] || '');
+      if (!date) return 'Choose a preferred service date.';
+      if (date < this.todayIso()) return 'Preferred service date cannot be in the past.';
+    }
+    if (key === 'sublets') {
+      const startDate = String(this.form['startDate'] || '');
+      const endDate = String(this.form['endDate'] || '');
+      if (!startDate || !endDate) return 'Choose both sublet start and end dates.';
+      if (startDate < this.todayIso()) return 'Sublet start date cannot be in the past.';
+      if (endDate <= startDate) return 'Sublet end date must be after the start date.';
+      if (!String(this.form['reason'] || '').trim()) return 'Add a reason for the sublet request.';
+    }
+    return null;
+  }
+
+  private submitTitle(): string {
+    return this.moduleKey() === 'vacate'
+      ? 'Submit vacate request?'
+      : this.moduleKey() === 'sublets'
+        ? 'Submit sublet request?'
+        : this.moduleKey() === 'services'
+          ? 'Book this service request?'
+          : this.moduleKey() === 'complaints'
+            ? 'Raise this complaint?'
+            : this.moduleKey() === 'notices'
+              ? 'Publish this notice?'
+              : 'Submit this request?';
+  }
+
+  private submitSubtitle(): string {
+    return this.moduleKey() === 'vacate'
+      ? 'We will send this notice to the manager for review.'
+      : this.moduleKey() === 'sublets'
+        ? 'The manager will review the dates before a guest can check in.'
+        : this.moduleKey() === 'services'
+          ? 'This service booking will go into the manager dispatch queue.'
+          : this.moduleKey() === 'complaints'
+            ? 'This complaint will be recorded in your request history.'
+            : this.moduleKey() === 'notices'
+              ? 'The selected audience will see this notice once it is published.'
+              : 'Please confirm before continuing.';
+  }
+
+  private todayIso(): string {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  private isEmail(value: string): boolean {
+    return !!value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   }
 
   submitActionDialog() {

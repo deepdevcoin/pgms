@@ -3,7 +3,9 @@ package com.pgms.backend.controller;
 import com.pgms.backend.dto.BaseResponse;
 import com.pgms.backend.dto.amenity.AmenityBookingRequest;
 import com.pgms.backend.dto.amenity.AmenityBookingResponse;
-import com.pgms.backend.dto.amenity.AmenitySlotCreateRequest;
+import com.pgms.backend.dto.amenity.AmenityConfigCreateRequest;
+import com.pgms.backend.dto.amenity.AmenityConfigResponse;
+import com.pgms.backend.dto.amenity.AmenityConfigUpdateRequest;
 import com.pgms.backend.dto.amenity.AmenitySlotUpdateRequest;
 import com.pgms.backend.service.AmenityService;
 import jakarta.validation.Valid;
@@ -27,10 +29,29 @@ public class AmenityController {
         this.amenityService = amenityService;
     }
 
-    @PostMapping("/api/manager/amenities/slots")
+    @PostMapping("/api/manager/amenities/configs")
     @PreAuthorize("hasRole('MANAGER')")
-    public BaseResponse<AmenityBookingResponse> createSlot(@Valid @RequestBody AmenitySlotCreateRequest request) {
-        return BaseResponse.success("Amenity slot created successfully", amenityService.createSlot(request));
+    public BaseResponse<AmenityConfigResponse> createConfig(@Valid @RequestBody AmenityConfigCreateRequest request) {
+        return BaseResponse.success("Amenity control created successfully", amenityService.createManagerConfig(request));
+    }
+
+    @GetMapping("/api/manager/amenities/configs")
+    @PreAuthorize("hasRole('MANAGER')")
+    public BaseResponse<List<AmenityConfigResponse>> managerConfigs() {
+        return BaseResponse.success("Amenity controls fetched successfully", amenityService.getManagerConfigs());
+    }
+
+    @PutMapping("/api/manager/amenities/configs/{id}")
+    @PreAuthorize("hasRole('MANAGER')")
+    public BaseResponse<AmenityConfigResponse> updateManagerConfig(@PathVariable Long id, @Valid @RequestBody AmenityConfigUpdateRequest request) {
+        return BaseResponse.success("Amenity control updated successfully", amenityService.updateManagerConfig(id, request));
+    }
+
+    @DeleteMapping("/api/manager/amenities/configs/{id}")
+    @PreAuthorize("hasRole('MANAGER')")
+    public BaseResponse<Void> deleteManagerConfig(@PathVariable Long id) {
+        amenityService.deleteManagerConfig(id);
+        return BaseResponse.success("Amenity control deleted successfully", null);
     }
 
     @GetMapping({"/api/manager/amenities/slots", "/api/manager/amenities/bookings"})

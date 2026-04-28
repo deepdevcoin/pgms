@@ -1,5 +1,6 @@
 package com.pgms.backend.entity;
 
+import com.pgms.backend.entity.enums.KycStatus;
 import com.pgms.backend.entity.enums.TenantStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -17,8 +18,11 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Data
 @Entity
@@ -53,6 +57,24 @@ public class TenantProfile {
     private String kycDocType;
 
     private String kycDocPath;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(nullable = false, length = 32)
+    @Builder.Default
+    private KycStatus kycStatus = KycStatus.NOT_SUBMITTED;
+
+    private LocalDateTime kycSubmittedAt;
+
+    private LocalDateTime kycVerifiedAt;
+
+    private String kycVerifiedByName;
+
+    private String kycReplacementNotes;
+
+    private LocalDateTime kycReplacementRequestedAt;
+
+    private String kycReplacementRequestedByName;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

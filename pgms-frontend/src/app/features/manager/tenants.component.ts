@@ -294,8 +294,8 @@ interface TenantMoveForm {
     .wallet span { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
     .wallet strong { font-family: var(--font-mono); font-size: 14px; }
     .empty { padding: 32px; color: var(--text-muted); text-align: center; }
-    .backdrop { position: fixed; inset: 0; background: rgba(3,6,15,0.55); z-index: 40; }
-    .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 420px; max-width: 96vw; z-index: 50; padding: 24px; border-radius: 0; overflow: auto; }
+    .backdrop { position: fixed; inset: 0; background: rgba(3,6,15,0.55); z-index: 60; }
+    .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 420px; max-width: 96vw; z-index: 61; padding: 24px; border-radius: 0; overflow: auto; }
     .drawer header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 20px; }
     .icon { border: 1px solid var(--border); background: transparent; color: var(--text-muted); border-radius: 10px; padding: 6px; cursor: pointer; }
     .finance-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
@@ -354,8 +354,8 @@ export class TenantsComponent {
   form = this.blankForm();
   moveForm: TenantMoveForm = { pgId: 0, roomId: 0 };
 
-  canManage = computed(() => this.auth.role() === 'MANAGER' || this.auth.role() === 'OWNER');
-  canOnboard = computed(() => this.canManage());
+  canManage = computed(() => this.auth.role() === 'MANAGER');
+  canOnboard = computed(() => this.auth.role() === 'MANAGER');
   subtitle = computed(() => `${this.tenants().length} tenants ${this.auth.role() === 'OWNER' ? 'across your portfolio' : 'across your assigned PGs'}.`);
   vacantRooms = computed(() => this.rooms().filter(room => this.hasAvailableBed(room)));
   moveRoomOptions = computed(() => this.allRooms()

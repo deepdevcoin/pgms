@@ -17,6 +17,7 @@ import java.util.Objects;
 
 @Service
 public class MenuService {
+    private static final String CURRENT_MENU_LABEL = "CURRENT";
 
     private final MenuItemRepository menuItemRepository;
     private final PgService pgService;
@@ -50,15 +51,14 @@ public class MenuService {
             throw new BadRequestException("At least one menu item is required");
         }
         Long pgId = requests.get(0).getPgId();
-        String weekLabel = normalizeWeekLabel(requests.get(0).getWeekLabel());
+        String weekLabel = CURRENT_MENU_LABEL;
         validateWriteAccess(pgId);
 
         boolean inconsistentPayload = requests.stream().anyMatch(request ->
                 !Objects.equals(request.getPgId(), pgId)
-                        || !normalizeWeekLabel(request.getWeekLabel()).equals(weekLabel)
         );
         if (inconsistentPayload) {
-            throw new BadRequestException("All menu items must belong to the same PG and week");
+            throw new BadRequestException("All menu items must belong to the same PG");
         }
 
         boolean duplicateMeals = requests.stream()
@@ -102,14 +102,15 @@ public class MenuService {
 
     private void validateWriteAccess(Long pgId) {
         Role currentRole = SecurityUtils.getCurrentUserRole();
-        if (currentRole == Role.MANAGER) {
-            accessControlService.ensureManagerAssignedToPg(pgId);
+        if (currentRole != Role.MANAGER) {
+            throw new ForbiddenException("Only managers can update menus");
         }
+        accessControlService.ensureManagerAssignedToPg(pgId);
     }
 
     private String normalizeWeekLabel(String weekLabel) {
         if (weekLabel == null || weekLabel.isBlank()) {
-            throw new BadRequestException("weekLabel is required");
+            return CURRENT_MENU_LABEL;
         }
         return weekLabel.trim();
     }

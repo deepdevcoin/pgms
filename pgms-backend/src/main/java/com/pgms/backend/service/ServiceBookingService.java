@@ -107,18 +107,19 @@ public class ServiceBookingService {
     @Transactional
     public ServiceBookingResponse updateStatusForOwner(Long id, ServiceStatusUpdateRequest request) {
         ServiceBooking booking = serviceBookingRepository.findById(id).orElseThrow(() -> new NotFoundException("Service booking not found"));
-        return updateStatusInternal(booking, request);
+        return updateStatusInternal(booking, request, false);
     }
 
     private ServiceBookingResponse updateStatusInternal(ServiceBooking booking, ServiceStatusUpdateRequest request) {
+        return updateStatusInternal(booking, request, true);
+    }
+
+    private ServiceBookingResponse updateStatusInternal(ServiceBooking booking,
+                                                        ServiceStatusUpdateRequest request,
+                                                        boolean requireClosureNotes) {
         ServiceStatus nextStatus = request.getStatus();
         validateTransition(booking.getStatus(), nextStatus);
         String managerNotes = normalizeOptionalText(request.getNotes());
-        if ((nextStatus == ServiceStatus.REJECTED || nextStatus == ServiceStatus.COMPLETED) && managerNotes == null) {
-            throw new BadRequestException(nextStatus == ServiceStatus.REJECTED
-                    ? "Rejection reason is required"
-                    : "Completion note is required");
-        }
         LocalDateTime now = LocalDateTime.now();
         booking.setStatus(nextStatus);
         if (managerNotes != null) {

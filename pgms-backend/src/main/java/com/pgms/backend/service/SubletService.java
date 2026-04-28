@@ -1,5 +1,6 @@
 package com.pgms.backend.service;
 
+import com.pgms.backend.dto.payment.WalletCreditEntryResponse;
 import com.pgms.backend.dto.payment.WalletResponse;
 import com.pgms.backend.dto.sublet.SubletCompleteRequest;
 import com.pgms.backend.dto.sublet.SubletCheckoutResponse;
@@ -45,11 +46,13 @@ public class SubletService {
 
     @Transactional
     public SubletResponse createRequest(SubletCreateRequest request) {
+        TenantProfile tenantProfile = accessControlService.getCurrentTenantProfile();
+        validateCreateRequest(tenantProfile, request);
         SubletRequest sublet = subletRequestRepository.save(SubletRequest.builder()
-                .tenantProfile(accessControlService.getCurrentTenantProfile())
+                .tenantProfile(tenantProfile)
                 .startDate(request.getStartDate())
                 .endDate(request.getEndDate())
-                .reason(request.getReason())
+                .reason(request.getReason().trim())
                 .status(SubletStatus.PENDING)
                 .createdAt(LocalDateTime.now())
                 .build());
@@ -62,7 +65,26 @@ public class SubletService {
     }
 
     public WalletResponse getWallet() {
-        return new WalletResponse(accessControlService.getCurrentTenantProfile().getCreditWalletBalance());
+        TenantProfile tenantProfile = accessControlService.getCurrentTenantProfile();
+        List<WalletCreditEntryResponse> credits = subletRequestRepository
+                .findByTenantProfileIdOrderByCreatedAtDesc(tenantProfile.getId())
+                .stream()
+                .filter(item -> item.getWalletCreditAmount() != null && item.getWalletCreditAmount() > 0)
+                .map(item -> WalletCreditEntryResponse.builder()
+                        .subletRequestId(item.getId())
+                        .roomNumber(item.getTenantProfile().getRoom().getRoomNumber())
+                        .startDate(item.getStartDate())
+                        .endDate(item.getEndDate())
+                        .checkInDate(item.getCheckInDate())
+                        .checkOutDate(item.getCheckOutDate())
+                        .occupiedDays(item.getWalletCreditDays())
+                        .roomMonthlyRent(item.getTenantProfile().getRoom().getMonthlyRent())
+                        .creditedAmount(item.getWalletCreditAmount())
+                        .creditedAt(item.getWalletCreditedAt())
+                        .note(buildWalletNote(item))
+                        .build())
+                .toList();
+        return new WalletResponse(tenantProfile.getCreditWalletBalance(), credits);
     }
 
     public List<SubletResponse> getManagerSublets() {
@@ -86,6 +108,19 @@ public class SubletService {
     }
 
     @Transactional
+    public SubletResponse reject(Long id) {
+        SubletRequest request = getForManager(id);
+        if (request.getStatus() != SubletStatus.PENDING) {
+            throw new BadRequestException("Only pending sublets can be rejected");
+        }
+        request.setStatus(SubletStatus.REJECTED);
+        request.setManagerDecisionNote("Rejected by manager");
+        request.getTenantProfile().getRoom().setStatus(RoomStatus.OCCUPIED);
+        tenantProfileRepository.save(request.getTenantProfile());
+        return toResponse(subletRequestRepository.save(request));
+    }
+
+    @Transactional
     public SubletResponse checkIn(Long id, SubletCompleteRequest request) {
         SubletRequest sublet = getForManager(id);
         if (sublet.getStatus() == SubletStatus.ACTIVE) {
@@ -96,6 +131,9 @@ public class SubletService {
         }
         if (request.getCheckInDate().isBefore(sublet.getStartDate()) || request.getCheckInDate().isAfter(sublet.getEndDate())) {
             throw new BadRequestException("Check in date must be within the approved sublet window");
+        }
+        if (!request.getGuestPhone().matches("\\d{10}")) {
+            throw new BadRequestException("Guest phone must be exactly 10 digits");
         }
         if (subletGuestRepository.findBySubletRequestId(sublet.getId()).isPresent()) {
             throw new BadRequestException("A guest record already exists for this sublet");
@@ -148,6 +186,9 @@ public class SubletService {
         profile.setCreditWalletBalance(walletBefore + credit);
         profile.getRoom().setStatus(RoomStatus.OCCUPIED);
         tenantProfileRepository.save(profile);
+        sublet.setWalletCreditDays(occupiedDays);
+        sublet.setWalletCreditAmount(credit);
+        sublet.setWalletCreditedAt(LocalDateTime.now());
 
         SubletResponse response = toResponse(subletRequestRepository.save(sublet));
         return new SubletCheckoutResponse(response, credit);
@@ -172,7 +213,38 @@ public class SubletService {
                 .checkOutDate(sublet.getCheckOutDate())
                 .subletGuestId(guest != null ? guest.getId() : null)
                 .guestRecordStatus(guest != null ? guest.getStatus() : null)
+                .managerDecisionNote(sublet.getManagerDecisionNote())
+                .walletCreditDays(sublet.getWalletCreditDays())
+                .walletCreditAmount(sublet.getWalletCreditAmount())
+                .walletCreditedAt(sublet.getWalletCreditedAt())
                 .build();
+    }
+
+    private void validateCreateRequest(TenantProfile tenantProfile, SubletCreateRequest request) {
+        LocalDate today = LocalDate.now();
+        if (request.getStartDate().isBefore(today)) {
+            throw new BadRequestException("Sublet start date cannot be in the past");
+        }
+        if (!request.getEndDate().isAfter(request.getStartDate())) {
+            throw new BadRequestException("Sublet end date must be after the start date");
+        }
+        if (request.getReason() == null || request.getReason().trim().isEmpty()) {
+            throw new BadRequestException("Reason is required");
+        }
+        boolean hasOpenRequest = subletRequestRepository.findByTenantProfileIdOrderByCreatedAtDesc(tenantProfile.getId()).stream()
+                .anyMatch(item -> item.getStatus() == SubletStatus.PENDING
+                        || item.getStatus() == SubletStatus.APPROVED
+                        || item.getStatus() == SubletStatus.ACTIVE);
+        if (hasOpenRequest) {
+            throw new BadRequestException("You already have an active sublet request");
+        }
+    }
+
+    private String buildWalletNote(SubletRequest item) {
+        long days = item.getWalletCreditDays() != null ? item.getWalletCreditDays() : 0;
+        return days > 0
+                ? days + " day" + (days == 1 ? "" : "s") + " credited from sublet stay"
+                : "Wallet credit from completed sublet";
     }
 
     private SubletRequest getForManager(Long id) {

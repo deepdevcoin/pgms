@@ -36,6 +36,10 @@ public class AmenitySlot {
     @JoinColumn(name = "pg_id", nullable = false)
     private Pg pg;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "amenity_config_id")
+    private AmenityConfig amenityConfig;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private AmenityType amenityType;

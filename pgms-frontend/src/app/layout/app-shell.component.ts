@@ -156,6 +156,7 @@ export class AppShellComponent {
             { icon: 'campaign', label: 'Notices', route: '/manager/notices', testId: 'nav-manager-notices' },
             { icon: 'home_repair_service', label: 'Services', route: '/manager/services', testId: 'nav-manager-services' },
             { icon: 'event_available', label: 'Amenities', route: '/manager/amenities', testId: 'nav-manager-amenities' },
+            { icon: 'verified_user', label: 'KYC', route: '/manager/kyc', testId: 'nav-manager-kyc' },
             { icon: 'restaurant_menu', label: 'Menu', route: '/manager/menu', testId: 'nav-manager-menu' },
             { icon: 'sync_alt', label: 'Sublets', route: '/manager/sublets', testId: 'nav-manager-sublets' }
         ];
@@ -167,6 +168,7 @@ export class AppShellComponent {
             { icon: 'campaign', label: 'Notices', route: '/tenant/notices', testId: 'nav-tenant-notices' },
             { icon: 'home_repair_service', label: 'Services', route: '/tenant/services', testId: 'nav-tenant-services' },
             { icon: 'event_available', label: 'Amenities', route: '/tenant/amenities', testId: 'nav-tenant-amenities' },
+            { icon: 'verified_user', label: 'KYC', route: '/tenant/kyc', testId: 'nav-tenant-kyc' },
             { icon: 'restaurant_menu', label: 'Menu', route: '/tenant/menu', testId: 'nav-tenant-menu' },
             { icon: 'sync_alt', label: 'Sublets', route: '/tenant/sublets', testId: 'nav-tenant-sublets' }
         ];

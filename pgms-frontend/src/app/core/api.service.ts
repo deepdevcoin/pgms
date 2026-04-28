@@ -5,9 +5,9 @@ import { environment } from '../../environments/environment';
 import { AuthService } from './auth.service';
 import { MockDataService } from './mock-data.service';
 import {
-  AmenityBooking, Complaint, ComplaintActivity, LoginResponse, Manager, ManagerSummary, MenuItem,
+  AmenityBooking, AmenityControl, Complaint, ComplaintActivity, LoginResponse, Manager, ManagerSummary, MenuItem,
   Notice, NoticeReadReceipt, OwnerSummary, PaymentOverview, PG, PgCreatePayload, PgUpdatePayload, RentRecord, Room, RoomCreatePayload,
-  RoomStatus, RoomUpdatePayload, ServiceBooking, SubletRequest, Tenant, VacateNotice
+  RoomStatus, RoomUpdatePayload, ServiceBooking, SubletRequest, Tenant, VacateNotice, WalletInfo
 } from './models';
 import {
   asCollection, mapComplaint, mapComplaintActivity, mapLogin, mapManager, mapManagerSummary, mapOwnerSummary,
@@ -63,6 +63,13 @@ export class ApiService {
   changePassword(userId: number, newPassword: string): Observable<void> {
     if (this.isDemo()) return of(void 0);
     return this.post<unknown>(environment.endpoints.auth.changePassword, { userId, newPassword }).pipe(
+      map(() => void 0)
+    );
+  }
+
+  resetPassword(email: string, newPassword: string): Observable<void> {
+    if (this.isDemo()) return of(void 0);
+    return this.post<unknown>(environment.endpoints.auth.resetPassword, { email, newPassword }).pipe(
       map(() => void 0)
     );
   }
@@ -189,6 +196,71 @@ export class ApiService {
       mock: this.mock.tenantProfile(),
       isEmpty: tenant => !tenant.userId && !tenant.name
     });
+  }
+
+  tenantKycProfile(): Observable<Tenant> {
+    if (this.isDemo()) return this.mock.tenantProfile();
+    return this.get<unknown>(environment.endpoints.kyc.tenantProfile).pipe(
+      map(response => mapTenant(unwrapApiPayload(response)))
+    );
+  }
+
+  uploadTenantKyc(docType: string, file: File): Observable<Tenant> {
+    if (this.isDemo()) return this.mock.uploadTenantKyc(docType, file.name);
+    const formData = new FormData();
+    formData.append('docType', docType);
+    formData.append('file', file);
+    return this.http.post<unknown>(this.url(environment.endpoints.kyc.tenantUpload), formData).pipe(
+      map(response => mapTenant(unwrapApiPayload(response))),
+      catchError(error => {
+        const normalized = this.describeError(error);
+        this.lastError.set(normalized);
+        return throwError(() => new Error(normalized));
+      })
+    );
+  }
+
+  downloadTenantKycDocument(): Observable<Blob> {
+    if (this.isDemo()) return this.mock.downloadTenantKycDocument();
+    return this.http.get(this.url(environment.endpoints.kyc.tenantDocument), { responseType: 'blob' }).pipe(
+      catchError(error => {
+        const normalized = this.describeError(error);
+        this.lastError.set(normalized);
+        return throwError(() => new Error(normalized));
+      })
+    );
+  }
+
+  listManagerKyc(): Observable<Tenant[]> {
+    if (this.isDemo()) return this.mock.listManagerKyc();
+    return this.get<unknown>(environment.endpoints.kyc.managerList).pipe(
+      map(response => asCollection(response).map(mapTenant))
+    );
+  }
+
+  verifyTenantKyc(tenantProfileId: number): Observable<Tenant> {
+    if (this.isDemo()) return this.mock.verifyTenantKyc(tenantProfileId);
+    return this.put<unknown>(this.path(environment.endpoints.kyc.managerVerify, { id: tenantProfileId }), {}).pipe(
+      map(response => mapTenant(unwrapApiPayload(response)))
+    );
+  }
+
+  requestTenantKycReplacement(tenantProfileId: number, notes: string): Observable<Tenant> {
+    if (this.isDemo()) return this.mock.requestTenantKycReplacement(tenantProfileId, notes);
+    return this.put<unknown>(this.path(environment.endpoints.kyc.managerRequestReplacement, { id: tenantProfileId }), { notes }).pipe(
+      map(response => mapTenant(unwrapApiPayload(response)))
+    );
+  }
+
+  downloadManagerKycDocument(tenantProfileId: number): Observable<Blob> {
+    if (this.isDemo()) return this.mock.downloadManagerKycDocument(tenantProfileId);
+    return this.http.get(this.url(this.path(environment.endpoints.kyc.managerDocument, { id: tenantProfileId })), { responseType: 'blob' }).pipe(
+      catchError(error => {
+        const normalized = this.describeError(error);
+        this.lastError.set(normalized);
+        return throwError(() => new Error(normalized));
+      })
+    );
   }
 
   createTenant(payload: {
@@ -376,6 +448,10 @@ export class ApiService {
     return this.put<VacateNotice>(this.path(environment.endpoints.vacate.approveReferral, { id }), { approve });
   }
 
+  rejectVacate(id: number, message: string): Observable<VacateNotice> {
+    return this.put<VacateNotice>(this.path(environment.endpoints.vacate.reject, { id }), { message });
+  }
+
   checkoutVacate(id: number): Observable<VacateNotice> {
     return this.put<VacateNotice>(this.path(environment.endpoints.vacate.checkout, { id }), {});
   }
@@ -414,12 +490,62 @@ export class ApiService {
     return this.get<unknown>(path).pipe(map(response => asCollection(response) as AmenityBooking[]));
   }
 
-  createAmenitySlot(payload: { pgId: number; amenityType: string; slotDate: string; startTime: string; endTime: string; capacity: number; facilityName?: string; resourceName?: string }): Observable<AmenityBooking> {
+  listAmenityControls(): Observable<AmenityControl[]> {
+    if (this.isDemo()) return this.mock.listAmenityControls();
+    return this.get<unknown>(environment.endpoints.amenities.managerConfigs).pipe(map(response => asCollection(response) as AmenityControl[]));
+  }
+
+  updateAmenityControl(controlId: number, payload: { enabled: boolean; maintenanceMode: boolean }): Observable<AmenityControl> {
+    if (this.isDemo()) return this.mock.updateAmenityControl(controlId, payload);
+    return this.put<AmenityControl>(this.path(environment.endpoints.amenities.managerUpdateConfig, { id: controlId }), payload);
+  }
+
+  createAmenityControl(payload: {
+    pgId: number;
+    amenityType: string;
+    displayName: string;
+    resourceName: string;
+    facilityName: string;
+    unitCount: number;
+    capacity: number;
+    slotDurationMinutes: number;
+    startTime: string;
+    endTime: string;
+    enabled: boolean;
+    maintenanceMode: boolean;
+  }): Observable<AmenityControl> {
+    if (this.isDemo()) return this.mock.createAmenityControl(payload as any);
+    return this.post<AmenityControl>(environment.endpoints.amenities.managerCreateConfig, payload);
+  }
+
+  saveAmenityControl(controlId: number, payload: {
+    amenityType: string;
+    displayName: string;
+    resourceName: string;
+    facilityName: string;
+    unitCount: number;
+    capacity: number;
+    slotDurationMinutes: number;
+    startTime: string;
+    endTime: string;
+    enabled: boolean;
+    maintenanceMode: boolean;
+  }): Observable<AmenityControl> {
+    if (this.isDemo()) return this.mock.saveAmenityControl(controlId, payload as any);
+    return this.put<AmenityControl>(this.path(environment.endpoints.amenities.managerUpdateConfig, { id: controlId }), payload);
+  }
+
+  deleteAmenityControl(controlId: number): Observable<void> {
+    if (this.isDemo()) return this.mock.deleteAmenityControl(controlId).pipe(map(() => void 0));
+    return this.delete<unknown>(this.path(environment.endpoints.amenities.managerDeleteConfig, { id: controlId })).pipe(map(() => void 0));
+  }
+
+  createAmenitySlot(payload: { pgId: number; amenityType: string; slotDate: string; startTime: string; endTime: string; capacity: number; generationDays: number; facilityName?: string; resourceName?: string }): Observable<AmenityBooking> {
     if (this.isDemo()) return this.mock.createAmenitySlot(payload);
     return this.post<AmenityBooking>(environment.endpoints.amenities.managerSlots, payload);
   }
 
-  updateAmenitySlot(slotId: number, payload: { pgId: number; amenityType: string; slotDate: string; startTime: string; endTime: string; capacity: number; facilityName?: string; resourceName?: string }): Observable<AmenityBooking> {
+  updateAmenitySlot(slotId: number, payload: { pgId: number; amenityType: string; slotDate: string; startTime: string; endTime: string; capacity: number; generationDays: number; facilityName?: string; resourceName?: string }): Observable<AmenityBooking> {
     if (this.isDemo()) return this.mock.updateAmenitySlot(slotId, payload);
     return this.put<AmenityBooking>(this.path(environment.endpoints.amenities.managerUpdateSlot, { id: slotId }), payload);
   }
@@ -444,18 +570,18 @@ export class ApiService {
     return this.post<AmenityBooking>(this.path(environment.endpoints.amenities.joinInvite, { slotId }), {});
   }
 
-  listMenu(pgId: number, weekLabel: string): Observable<MenuItem[]> {
+  listMenu(pgId: number, weekLabel?: string): Observable<MenuItem[]> {
     if (this.isDemo()) return this.mock.listMenu(pgId, weekLabel);
     const path = this.role() === 'OWNER' ? environment.endpoints.menu.ownerList : environment.endpoints.menu.list;
-    return this.get<unknown>(path, { params: { pgId, weekLabel } }).pipe(
+    const params = weekLabel ? { pgId, weekLabel } : { pgId };
+    return this.get<unknown>(path, { params }).pipe(
       map(response => asCollection(response) as MenuItem[])
     );
   }
 
   saveMenu(items: MenuItem[]): Observable<MenuItem[]> {
     if (this.isDemo()) return this.mock.saveMenu(items);
-    const path = this.role() === 'OWNER' ? environment.endpoints.menu.ownerSave : environment.endpoints.menu.save;
-    return this.post<unknown>(path, items).pipe(map(response => asCollection(response) as MenuItem[]));
+    return this.post<unknown>(environment.endpoints.menu.save, items).pipe(map(response => asCollection(response) as MenuItem[]));
   }
 
   listSublets(): Observable<SubletRequest[]> {
@@ -471,6 +597,10 @@ export class ApiService {
     return this.put<SubletRequest>(this.path(environment.endpoints.sublets.approve, { id }), {});
   }
 
+  rejectSublet(id: number): Observable<SubletRequest> {
+    return this.put<SubletRequest>(this.path(environment.endpoints.sublets.reject, { id }), {});
+  }
+
   checkInSublet(id: number, payload: { guestName: string; guestPhone: string; checkInDate: string }): Observable<SubletRequest> {
     return this.put<SubletRequest>(this.path(environment.endpoints.sublets.checkIn, { id }), payload);
   }
@@ -481,8 +611,8 @@ export class ApiService {
     );
   }
 
-  wallet(): Observable<{ creditWalletBalance: number }> {
-    return this.get<{ creditWalletBalance: number }>(environment.endpoints.sublets.wallet);
+  wallet(): Observable<WalletInfo> {
+    return this.get<WalletInfo>(environment.endpoints.sublets.wallet);
   }
 
   private request<T>(method: HttpMethod, path: string, options?: RequestOptions): Observable<T> {

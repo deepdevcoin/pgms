@@ -7,16 +7,15 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { ServiceBooking, ServiceStatus } from '../../core/models';
 import { DisplayDatePipe } from '../../shared/display-date.pipe';
-import { PopupShellComponent } from '../../shared/popup-shell.component';
 
 type DeskFilter = 'ALL' | 'REQUESTED' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED';
 
 @Component({
   selector: 'app-service-desk',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatIconModule, DisplayDatePipe, PopupShellComponent],
+  imports: [CommonModule, FormsModule, MatIconModule, DisplayDatePipe],
   template: `
-    <section class="service-desk fade-up">
+    <section class="service-desk fade-up" [class.service-desk--owner]="role() === 'OWNER'">
       <header class="masthead surface">
         <div class="masthead-copy">
           <div class="crumb">Service Desk</div>
@@ -50,12 +49,12 @@ type DeskFilter = 'ALL' | 'REQUESTED' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED
         <article class="summary-card">
           <span class="summary-label">Completed</span>
           <strong class="summary-value">{{ completedCount() }}</strong>
-          <small class="summary-meta">Closed with service notes</small>
+          <small class="summary-meta">Closed requests</small>
         </article>
         <article class="summary-card summary-card--danger">
           <span class="summary-label">Rejected</span>
           <strong class="summary-value">{{ rejectedCount() }}</strong>
-          <small class="summary-meta">Requests blocked with reason</small>
+          <small class="summary-meta">Requests declined</small>
         </article>
       </section>
 
@@ -177,25 +176,25 @@ type DeskFilter = 'ALL' | 'REQUESTED' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED
 
               <div class="actions">
                 @if (canAct(service, 'CONFIRMED')) {
-                  <button class="btn btn--primary" type="button" (click)="openAction('Confirm service', 'Share the committed visit window or technician note.', 'Confirmation note', 'CONFIRMED', service)">
+                  <button class="btn btn--primary" type="button" (click)="updateServiceStatus(service, 'CONFIRMED')">
                     <mat-icon>event_available</mat-icon>
                     <span>Confirm</span>
                   </button>
                 }
                 @if (canAct(service, 'IN_PROGRESS')) {
-                  <button class="btn btn--primary" type="button" (click)="openAction('Start service work', 'Capture the on-site update for the tenant.', 'Work started note', 'IN_PROGRESS', service)">
+                  <button class="btn btn--primary" type="button" (click)="updateServiceStatus(service, 'IN_PROGRESS')">
                     <mat-icon>play_circle</mat-icon>
                     <span>Start</span>
                   </button>
                 }
                 @if (canAct(service, 'COMPLETED')) {
-                  <button class="btn btn--primary" type="button" (click)="openAction('Complete service', 'Record what was fixed or delivered before closing.', 'Completion note', 'COMPLETED', service)">
+                  <button class="btn btn--primary" type="button" (click)="updateServiceStatus(service, 'COMPLETED')">
                     <mat-icon>task_alt</mat-icon>
                     <span>Complete</span>
                   </button>
                 }
                 @if (canAct(service, 'REJECTED')) {
-                  <button class="btn btn--danger" type="button" (click)="openAction('Reject request', 'Explain why this request cannot be handled in the current form.', 'Rejection reason', 'REJECTED', service)">
+                  <button class="btn btn--danger" type="button" (click)="updateServiceStatus(service, 'REJECTED')">
                     <mat-icon>cancel</mat-icon>
                     <span>Reject</span>
                   </button>
@@ -212,25 +211,6 @@ type DeskFilter = 'ALL' | 'REQUESTED' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED
       }
     </section>
 
-    <app-popup-shell
-      [open]="dialogOpen()"
-      eyebrow="Services"
-      [title]="dialogTitle()"
-      [subtitle]="dialogSubtitle()"
-      (closed)="closeDialog()"
-    >
-      <label class="fld">
-        <span>{{ dialogLabel() }}</span>
-        <textarea [(ngModel)]="dialogValue" name="serviceDialogValue"></textarea>
-      </label>
-      <div class="dialog-actions">
-        <button class="btn btn--ghost" type="button" (click)="closeDialog()">Cancel</button>
-        <button class="btn btn--primary" type="button" (click)="submitDialog()">
-          <mat-icon>check</mat-icon>
-          <span>Save</span>
-        </button>
-      </div>
-    </app-popup-shell>
   `,
   styles: [`
     .service-desk { display: flex; flex-direction: column; gap: 18px; }
@@ -264,6 +244,13 @@ type DeskFilter = 'ALL' | 'REQUESTED' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED
     .row-title { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .row-meta, .stamp, .detail-sub, .note-label { color: var(--text-muted); font-size: 12px; }
     .row-note, .note-block p { margin: 0; line-height: 1.5; }
+    .service-desk--owner .row,
+    .service-desk--owner .row-title strong,
+    .service-desk--owner .row-note { color: #f8fafc; }
+    .service-desk--owner .row-meta,
+    .service-desk--owner .queue-flag,
+    .service-desk--owner .stamp { color: rgba(226,232,240,0.82); }
+    .service-desk--owner .queue-flag--hot { color: #a5b4fc; }
     .row-side { display: grid; justify-items: end; align-content: space-between; gap: 8px; text-align: right; }
     .queue-flag { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
     .queue-flag--hot { color: var(--primary); }
@@ -286,10 +273,6 @@ type DeskFilter = 'ALL' | 'REQUESTED' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED
     .state--inline { min-height: 280px; }
     .spinner { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.9s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .fld { display: flex; flex-direction: column; gap: 8px; }
-    .fld span { color: var(--text-muted); font-size: 12px; font-weight: 600; }
-    .fld textarea { width: 100%; min-height: 120px; background: var(--bg-elev); border: 1px solid var(--border); color: var(--text); border-radius: 12px; padding: 12px 14px; font-family: inherit; resize: vertical; }
-    .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
     @media (max-width: 1100px) {
       .masthead { flex-direction: column; }
       .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -312,14 +295,7 @@ export class ServiceDeskComponent {
   error = signal<string | null>(null);
   selected = signal<ServiceBooking | null>(null);
   statusFilter = signal<DeskFilter>('ALL');
-  dialogOpen = signal(false);
-  dialogTitle = signal('');
-  dialogSubtitle = signal('');
-  dialogLabel = signal('');
-  dialogTargetStatus = signal<ServiceStatus | null>(null);
-  dialogTargetService = signal<ServiceBooking | null>(null);
   query = '';
-  dialogValue = '';
 
   role = this.auth.role;
   filteredRows = computed(() => {
@@ -415,37 +391,11 @@ export class ServiceDeskComponent {
     return false;
   }
 
-  openAction(title: string, subtitle: string, label: string, status: ServiceStatus, service: ServiceBooking) {
-    this.dialogTitle.set(title);
-    this.dialogSubtitle.set(subtitle);
-    this.dialogLabel.set(label);
-    this.dialogTargetStatus.set(status);
-    this.dialogTargetService.set(service);
-    this.dialogValue = '';
-    this.dialogOpen.set(true);
-  }
-
-  closeDialog() {
-    this.dialogOpen.set(false);
-    this.dialogTargetStatus.set(null);
-    this.dialogTargetService.set(null);
-    this.dialogValue = '';
-  }
-
-  submitDialog() {
-    const status = this.dialogTargetStatus();
-    const service = this.dialogTargetService();
-    const note = this.dialogValue.trim();
-    if (!status || !service) return;
-    if ((status === 'REJECTED' || status === 'COMPLETED') && !note) {
-      this.snack.open('Please enter a note before saving.', 'Dismiss', { duration: 2200, panelClass: 'pgms-snack' });
-      return;
-    }
-    this.api.updateService(service.id, status, note).subscribe({
+  updateServiceStatus(service: ServiceBooking, status: ServiceStatus) {
+    this.api.updateService(service.id, status).subscribe({
       next: updated => {
         this.rows.set(this.rows().map(item => item.id === updated.id ? updated : item));
         this.selected.set(updated);
-        this.closeDialog();
         this.snack.open('Service updated', 'OK', { duration: 1800, panelClass: 'pgms-snack' });
       },
       error: err => this.snack.open(err?.message || 'Could not update service', 'Dismiss', { duration: 2800, panelClass: 'pgms-snack' })

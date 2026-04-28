@@ -7,7 +7,8 @@ export const environment = {
   endpoints: {
     auth: {
       login: '/auth/login',
-      changePassword: '/auth/change-password'
+      changePassword: '/auth/change-password',
+      resetPassword: '/auth/reset-password'
     },
     pgs: {
       ownerList: '/owner/pgs',
@@ -43,6 +44,15 @@ export const environment = {
       ownerAccountStatus: '/owner/tenants/:id/account-status',
       archive: '/manager/tenants/:id',
       ownerArchive: '/owner/tenants/:id'
+    },
+    kyc: {
+      tenantProfile: '/tenant/kyc',
+      tenantUpload: '/tenant/kyc/document',
+      tenantDocument: '/tenant/kyc/document',
+      managerList: '/manager/kyc',
+      managerVerify: '/manager/kyc/:id/verify',
+      managerRequestReplacement: '/manager/kyc/:id/request-replacement',
+      managerDocument: '/manager/kyc/:id/document'
     },
     analytics: {
       ownerSummary: '/analytics/owner-summary',
@@ -88,6 +98,7 @@ export const environment = {
       tenant: '/tenant/vacate',
       manager: '/manager/vacate-notices',
       approveReferral: '/manager/vacate-notices/:id/approve-referral',
+      reject: '/manager/vacate-notices/:id/reject',
       checkout: '/manager/vacate-notices/:id/checkout'
     },
     services: {
@@ -99,6 +110,10 @@ export const environment = {
       ownerUpdate: '/owner/services/:id/update-status'
     },
     amenities: {
+      managerConfigs: '/manager/amenities/configs',
+      managerCreateConfig: '/manager/amenities/configs',
+      managerUpdateConfig: '/manager/amenities/configs/:id',
+      managerDeleteConfig: '/manager/amenities/configs/:id',
       managerSlots: '/manager/amenities/slots',
       managerUpdateSlot: '/manager/amenities/slots/:id',
       managerDeleteSlot: '/manager/amenities/slots/:id',
@@ -120,6 +135,7 @@ export const environment = {
       wallet: '/tenant/wallet',
       manager: '/manager/sublets',
       approve: '/manager/sublets/:id/approve',
+      reject: '/manager/sublets/:id/reject',
       checkIn: '/manager/sublets/:id/check-in',
       checkout: '/manager/sublets/:id/checkout'
     }

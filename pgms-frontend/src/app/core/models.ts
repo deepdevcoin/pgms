@@ -1,4 +1,5 @@
 export type Role = 'OWNER' | 'MANAGER' | 'TENANT';
+export type KycStatus = 'NOT_SUBMITTED' | 'SUBMITTED' | 'REPLACEMENT_REQUESTED' | 'VERIFIED';
 
 export type RoomStatus = 'VACANT' | 'PARTIAL' | 'OCCUPIED' | 'SUBLETTING' | 'VACATING' | 'MAINTENANCE';
 export type CleaningStatus = 'CLEAN' | 'DIRTY' | 'IN_PROGRESS';
@@ -94,6 +95,13 @@ export interface Tenant {
   advanceAmountPaid?: number;
   kycDocType?: string;
   kycDocPath?: string;
+  kycStatus?: KycStatus;
+  kycSubmittedAt?: string;
+  kycVerifiedAt?: string;
+  kycVerifiedByName?: string;
+  kycReplacementNotes?: string;
+  kycReplacementRequestedAt?: string;
+  kycReplacementRequestedByName?: string;
   creditWalletBalance?: number;
   status?: 'ACTIVE' | 'VACATING' | 'ARCHIVED';
   isActive?: boolean;
@@ -146,9 +154,9 @@ export type ComplaintActivityType = 'CREATED' | 'COMMENT' | 'STATUS_CHANGE';
 export type VacateStatus = 'PENDING' | 'REFERRAL_PENDING' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
 export type ServiceStatus = 'REQUESTED' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED';
 export type ServiceType = 'CLEANING' | 'LINEN_CHANGE' | 'PEST_CONTROL' | 'PLUMBING' | 'ELECTRICAL';
-export type AmenityType = 'WASHING_MACHINE' | 'TABLE_TENNIS' | 'CARROM' | 'BADMINTON';
+export type AmenityType = 'WASHING_MACHINE' | 'TABLE_TENNIS' | 'CARROM' | 'BADMINTON' | 'CUSTOM';
 export type BookingStatus = 'AVAILABLE' | 'BOOKED' | 'CANCELLED' | 'COMPLETED';
-export type SubletStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
+export type SubletStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'ACTIVE' | 'COMPLETED';
 export type NoticeTargetType = 'ALL_PGS' | 'SPECIFIC_PG' | 'ALL_MANAGERS' | 'SPECIFIC_TENANT';
 export type MealType = 'BREAKFAST' | 'LUNCH' | 'DINNER';
 
@@ -261,6 +269,25 @@ export interface NoticeReadReceipt {
   readAt: string;
 }
 
+export interface WalletCreditEntry {
+  subletRequestId: number;
+  roomNumber?: string;
+  startDate?: string;
+  endDate?: string;
+  checkInDate?: string;
+  checkOutDate?: string;
+  occupiedDays?: number;
+  roomMonthlyRent?: number;
+  creditedAmount: number;
+  creditedAt?: string;
+  note?: string;
+}
+
+export interface WalletInfo {
+  creditWalletBalance: number;
+  credits: WalletCreditEntry[];
+}
+
 export interface VacateNotice {
   id: number;
   tenantProfileId?: number;
@@ -274,6 +301,7 @@ export interface VacateNotice {
   referralName?: string;
   referralPhone?: string;
   referralEmail?: string;
+  managerMessage?: string;
 }
 
 export interface ServiceBooking {
@@ -302,28 +330,51 @@ export interface ServiceBooking {
 export interface AmenityBooking {
   bookingId?: number;
   slotId: number;
+  configId?: number;
   pgId?: number;
   tenantName?: string;
   hostName?: string;
   bookedByName?: string;
   amenityType: AmenityType;
+  displayName?: string;
   facilityName?: string;
   resourceName?: string;
   slotDate: string;
   startTime: string;
   endTime: string;
   capacity: number;
+  generationDays?: number;
   bookingCount?: number;
   openInvite?: boolean;
   joinable?: boolean;
   shareable?: boolean;
+  enabled?: boolean;
+  maintenanceMode?: boolean;
   status?: BookingStatus;
+}
+
+export interface AmenityControl {
+  id: number;
+  pgId: number;
+  amenityType: AmenityType;
+  displayName: string;
+  resourceName: string;
+  facilityName: string;
+  unitCount: number;
+  capacity: number;
+  slotDurationMinutes: number;
+  startTime: string;
+  endTime: string;
+  enabled: boolean;
+  maintenanceMode: boolean;
+  upcomingOpenSlots: number;
+  upcomingBookedSlots: number;
 }
 
 export interface MenuItem {
   id?: number;
   pgId: number;
-  weekLabel: string;
+  weekLabel?: string;
   dayOfWeek: string;
   mealType: MealType;
   itemNames: string;
@@ -347,4 +398,8 @@ export interface SubletRequest {
   checkOutDate?: string;
   subletGuestId?: number;
   guestRecordStatus?: 'ACTIVE' | 'CHECKED_OUT';
+  managerDecisionNote?: string;
+  walletCreditDays?: number;
+  walletCreditAmount?: number;
+  walletCreditedAt?: string;
 }

@@ -22,4 +22,5 @@ public class VacateNoticeResponse {
     private String referralName;
     private String referralPhone;
     private String referralEmail;
+    private String managerMessage;
 }

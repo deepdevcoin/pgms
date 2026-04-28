@@ -13,6 +13,10 @@ export const routes: Routes = [
     canActivate: [authGuard]
   },
   {
+    path: 'forgot-password',
+    loadComponent: () => import('./features/auth/forgot-password.component').then(m => m.ForgotPasswordComponent)
+  },
+  {
     path: 'owner',
     canActivate: [authGuard, roleGuard(['OWNER'])],
     loadComponent: () => import('./layout/app-shell.component').then(m => m.AppShellComponent),
@@ -47,6 +51,7 @@ export const routes: Routes = [
       { path: 'notices', loadComponent: () => import('./features/operations/operations.component').then(m => m.OperationsComponent), data: { module: 'notices' } },
       { path: 'services', loadComponent: () => import('./features/services/service-desk.component').then(m => m.ServiceDeskComponent) },
       { path: 'amenities', loadComponent: () => import('./features/manager/manager-amenities.component').then(m => m.ManagerAmenitiesComponent) },
+      { path: 'kyc', loadComponent: () => import('./features/kyc/manager-kyc-review.component').then(m => m.ManagerKycReviewComponent) },
       { path: 'menu', loadComponent: () => import('./features/operations/operations.component').then(m => m.OperationsComponent), data: { module: 'menu' } },
       { path: 'sublets', loadComponent: () => import('./features/operations/operations.component').then(m => m.OperationsComponent), data: { module: 'sublets' } }
     ]
@@ -64,6 +69,7 @@ export const routes: Routes = [
       { path: 'notices', loadComponent: () => import('./features/operations/operations.component').then(m => m.OperationsComponent), data: { module: 'notices' } },
       { path: 'services', loadComponent: () => import('./features/operations/operations.component').then(m => m.OperationsComponent), data: { module: 'services' } },
       { path: 'amenities', loadComponent: () => import('./features/operations/operations.component').then(m => m.OperationsComponent), data: { module: 'amenities' } },
+      { path: 'kyc', loadComponent: () => import('./features/kyc/tenant-kyc.component').then(m => m.TenantKycComponent) },
       { path: 'menu', loadComponent: () => import('./features/operations/operations.component').then(m => m.OperationsComponent), data: { module: 'menu' } },
       { path: 'sublets', loadComponent: () => import('./features/operations/operations.component').then(m => m.OperationsComponent), data: { module: 'sublets' } }
     ]

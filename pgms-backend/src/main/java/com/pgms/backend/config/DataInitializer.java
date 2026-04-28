@@ -404,6 +404,7 @@ public class DataInitializer {
             case TABLE_TENNIS -> "Table";
             case BADMINTON -> "Court";
             case CARROM -> "Board";
+            case CUSTOM -> "Unit";
         };
     }
 

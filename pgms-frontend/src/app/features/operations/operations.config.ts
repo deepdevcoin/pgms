@@ -27,6 +27,7 @@ export interface OperationsActionHandlers {
   amenityCancel: (row: Record<string, any>) => void;
   amenityDeleteSlot: (row: Record<string, any>) => void;
   subletApprove: (row: Record<string, any>) => void;
+  subletReject: (row: Record<string, any>) => void;
   subletCheckIn: (row: Record<string, any>) => void;
   subletCheckout: (row: Record<string, any>) => void;
 }
@@ -100,7 +101,7 @@ export function buildModuleConfig(role: Role | null, pgOptions: string[], pgName
       crumb: 'Lifecycle',
       title: 'Vacate Notices',
       subtitle: role === 'TENANT' ? 'Submit and track your vacate request.' : 'Manage vacate notices, referrals and checkout.',
-      columns: ['tenantName', 'roomNumber', 'intendedVacateDate', 'status', 'refundEligible', 'advanceRefundAmount', 'referralName'],
+      columns: ['tenantName', 'roomNumber', 'intendedVacateDate', 'status', 'refundEligible', 'advanceRefundAmount', 'referralName', 'managerMessage'],
       createLabel: role === 'TENANT' ? 'Request vacate' : undefined,
       fields: role === 'TENANT' ? [
         { key: 'intendedVacateDate', label: 'Vacate date', type: 'date' },
@@ -115,7 +116,7 @@ export function buildModuleConfig(role: Role | null, pgOptions: string[], pgName
       title: 'Service Bookings',
       subtitle: role === 'TENANT'
         ? 'Request housekeeping and maintenance support with clear timing and follow-through.'
-        : 'Triage requests, coordinate visits, and close the loop with clean service notes.',
+        : 'Triage requests, coordinate visits, and move work forward without extra friction.',
       columns: role === 'TENANT'
         ? ['serviceType', 'preferredDate', 'preferredTimeWindow', 'status', 'createdAt', 'serviceSummary', 'rating']
         : ['tenantName', 'pgName', 'roomNumber', 'serviceType', 'preferredDate', 'preferredTimeWindow', 'status', 'serviceSummary', 'rating'],
@@ -148,26 +149,18 @@ export function buildModuleConfig(role: Role | null, pgOptions: string[], pgName
       ] : []
     },
     menu: {
-      crumb: 'Meals',
-      title: 'Weekly Menu',
-      subtitle: 'View and publish meal plans by PG and week.',
-      columns: ['pgId', 'weekLabel', 'dayOfWeek', 'mealType', 'itemNames', 'isVeg'],
-      createLabel: role === 'OWNER' || role === 'MANAGER' ? 'Edit meal' : undefined,
-      fields: [
-        { key: 'pgId', label: 'PG ID', type: 'number' },
-        { key: 'weekLabel', label: 'Week label', type: 'text' },
-        { key: 'dayOfWeek', label: 'Day', type: 'select', options: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'], show: r => r === 'OWNER' || r === 'MANAGER' },
-        { key: 'mealType', label: 'Meal', type: 'select', options: ['BREAKFAST', 'LUNCH', 'DINNER'], show: r => r === 'OWNER' || r === 'MANAGER' },
-        { key: 'itemNames', label: 'Items', type: 'text', show: r => r === 'OWNER' || r === 'MANAGER' },
-        { key: 'isVeg', label: 'Veg', type: 'checkbox', show: r => r === 'OWNER' || r === 'MANAGER' }
-      ]
+      crumb: '',
+      title: '',
+      subtitle: '',
+      columns: ['pgId', 'dayOfWeek', 'mealType', 'itemNames', 'isVeg'],
+      fields: []
     },
     sublets: {
       crumb: 'Credits',
       title: 'Sublets',
       subtitle: role === 'TENANT' ? 'Request a temporary sublet and earn wallet credit.' : 'Approve sublets and complete guest checkout.',
       columns: role === 'TENANT'
-        ? ['roomNumber', 'startDate', 'endDate', 'status', 'guestName', 'checkInDate', 'checkOutDate']
+        ? ['roomNumber', 'startDate', 'endDate', 'status', 'guestName', 'checkInDate', 'checkOutDate', 'walletCreditAmount']
         : ['tenantName', 'pgName', 'roomNumber', 'startDate', 'endDate', 'status', 'guestName', 'guestPhone', 'guestRecordStatus', 'checkInDate', 'checkOutDate'],
       createLabel: role === 'TENANT' ? 'Request sublet' : undefined,
       fields: role === 'TENANT' ? [
@@ -184,7 +177,7 @@ export function buildModuleActions(role: Role | null, handlers: OperationsAction
     payments: [
       { label: 'Pay', icon: 'payments', show: row => role === 'TENANT' && row['remainingAmountDue'] > 0, run: handlers.payRent },
       { label: 'Use wallet', icon: 'account_balance_wallet', show: row => role === 'TENANT' && row['remainingAmountDue'] > 0 && row['walletAvailable'] > 0, run: handlers.applyCredit },
-      { label: 'Waive fine', icon: 'money_off', show: row => (role === 'MANAGER' || role === 'OWNER') && row['fineAccrued'] > 0, run: handlers.waiveFine }
+      { label: 'Waive fine', icon: 'money_off', show: row => role === 'MANAGER' && row['fineAccrued'] > 0, run: handlers.waiveFine }
     ],
     complaints: [
       { label: 'In progress', icon: 'hourglass_top', show: row => role !== 'TENANT' && (row['status'] === 'OPEN' || row['status'] === 'ESCALATED'), run: handlers.complaintInProgress },
@@ -194,13 +187,13 @@ export function buildModuleActions(role: Role | null, handlers: OperationsAction
       { label: 'Timeline', icon: 'history', show: () => true, run: handlers.complaintTimeline },
       { label: 'Close', icon: 'check_circle', show: row => role !== 'TENANT' && row['status'] === 'RESOLVED', run: handlers.complaintClose }
     ],
-    notices: [
-      { label: 'Mark read', icon: 'done_all', show: row => !row['read'], run: handlers.noticeMarkRead },
-      { label: 'Receipts', icon: 'visibility', show: () => role !== 'TENANT', run: handlers.noticeReceipts }
-    ],
+	    notices: [
+	      { label: 'Mark read', icon: 'done_all', show: row => role === 'TENANT' && !row['read'], run: handlers.noticeMarkRead },
+	      { label: 'View views', icon: 'visibility', show: () => role !== 'TENANT', run: handlers.noticeReceipts }
+	    ],
     vacate: [
       { label: 'Approve referral', icon: 'how_to_reg', show: row => role === 'MANAGER' && row['referralName'] && row['status'] === 'REFERRAL_PENDING', run: handlers.vacateApprove },
-      { label: 'Reject referral', icon: 'person_remove', show: row => role === 'MANAGER' && row['referralName'] && row['status'] === 'REFERRAL_PENDING', run: handlers.vacateReject },
+      { label: 'Reject', icon: 'person_remove', show: row => role === 'MANAGER' && row['status'] !== 'COMPLETED' && row['status'] !== 'REJECTED', run: handlers.vacateReject },
       { label: 'Checkout', icon: 'logout', show: row => role === 'MANAGER' && row['status'] !== 'COMPLETED' && row['status'] !== 'REFERRAL_PENDING', run: handlers.vacateCheckout }
     ],
     services: [
@@ -210,16 +203,17 @@ export function buildModuleActions(role: Role | null, handlers: OperationsAction
       { label: 'Reject', icon: 'cancel', show: row => role === 'MANAGER' && (row['status'] === 'REQUESTED' || row['status'] === 'CONFIRMED'), run: handlers.serviceReject },
       { label: 'Rate', icon: 'star', show: row => role === 'TENANT' && row['status'] === 'COMPLETED' && !row['rating'], run: handlers.serviceRate }
     ],
-    amenities: [
-      { label: 'Book', icon: 'event', show: row => role === 'TENANT' && !row['bookingId'], run: handlers.amenityBook },
-      { label: 'Open invite', icon: 'groups', show: row => role === 'TENANT' && !row['bookingId'] && !!row['shareable'], run: handlers.amenityOpenInvite },
-      { label: 'Join', icon: 'group_add', show: row => role === 'TENANT' && row['openInvite'], run: handlers.amenityJoin },
-      { label: 'Cancel', icon: 'event_busy', show: row => role === 'TENANT' && row['bookingId'], run: handlers.amenityCancel },
-      { label: 'Delete', icon: 'delete', show: row => role === 'MANAGER' && Number(row['bookingCount'] || 0) === 0, run: handlers.amenityDeleteSlot }
-    ],
+	    amenities: [
+	      { label: 'Book', icon: 'event', show: row => role === 'TENANT' && !row['bookingId'] && !row['shareable'], run: handlers.amenityBook },
+	      { label: 'Host session', icon: 'groups', show: row => role === 'TENANT' && !row['bookingId'] && !!row['shareable'] && !row['hostName'], run: handlers.amenityOpenInvite },
+	      { label: 'Join', icon: 'group_add', show: row => role === 'TENANT' && !!row['joinable'], run: handlers.amenityJoin },
+	      { label: 'Cancel', icon: 'event_busy', show: row => role === 'TENANT' && row['bookingId'], run: handlers.amenityCancel },
+	      { label: 'Delete', icon: 'delete', show: row => role === 'MANAGER' && Number(row['bookingCount'] || 0) === 0, run: handlers.amenityDeleteSlot }
+	    ],
     menu: [],
     sublets: [
       { label: 'Approve', icon: 'check_circle', show: row => role === 'MANAGER' && row['status'] === 'PENDING', run: handlers.subletApprove },
+      { label: 'Disapprove', icon: 'cancel', show: row => role === 'MANAGER' && row['status'] === 'PENDING', run: handlers.subletReject },
       { label: 'Check in', icon: 'login', show: row => role === 'MANAGER' && row['status'] === 'APPROVED', run: handlers.subletCheckIn },
       { label: 'Checkout', icon: 'logout', show: row => role === 'MANAGER' && row['status'] === 'ACTIVE', run: handlers.subletCheckout }
     ]

@@ -27,24 +27,24 @@ public class MenuController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('OWNER','MANAGER','TENANT')")
-    public BaseResponse<List<MenuItemResponse>> getMenu(@RequestParam Long pgId, @RequestParam String weekLabel) {
+    public BaseResponse<List<MenuItemResponse>> getMenu(@RequestParam Long pgId, @RequestParam(required = false) String weekLabel) {
         return BaseResponse.success("Menu fetched successfully", menuService.getMenu(pgId, weekLabel));
     }
 
     @GetMapping("/owner")
     @PreAuthorize("hasRole('OWNER')")
-    public BaseResponse<List<MenuItemResponse>> getOwnerMenu(@RequestParam Long pgId, @RequestParam String weekLabel) {
+    public BaseResponse<List<MenuItemResponse>> getOwnerMenu(@RequestParam Long pgId, @RequestParam(required = false) String weekLabel) {
         return BaseResponse.success("Menu fetched successfully", menuService.getMenu(pgId, weekLabel));
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('OWNER','MANAGER')")
+    @PreAuthorize("hasRole('MANAGER')")
     public BaseResponse<List<MenuItemResponse>> upsert(@Valid @RequestBody List<MenuItemRequest> requests) {
         return BaseResponse.success("Menu saved successfully", menuService.upsertMenu(requests));
     }
 
     @PostMapping("/owner")
-    @PreAuthorize("hasRole('OWNER')")
+    @PreAuthorize("hasRole('MANAGER')")
     public BaseResponse<List<MenuItemResponse>> upsertOwner(@Valid @RequestBody List<MenuItemRequest> requests) {
         return BaseResponse.success("Menu saved successfully", menuService.upsertMenu(requests));
     }
