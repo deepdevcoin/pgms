@@ -12,6 +12,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -39,6 +40,13 @@ public class SubletController {
         return BaseResponse.success("Sublet requests fetched successfully", subletService.getTenantSublets());
     }
 
+    @DeleteMapping("/api/tenant/sublet/{id}")
+    @PreAuthorize("hasRole('TENANT')")
+    public BaseResponse<Void> delete(@PathVariable Long id) {
+        subletService.deletePendingRequest(id);
+        return BaseResponse.success("Sublet request deleted successfully", null);
+    }
+
     @GetMapping("/api/tenant/wallet")
     @PreAuthorize("hasRole('TENANT')")
     public BaseResponse<WalletResponse> wallet() {
@@ -55,6 +63,12 @@ public class SubletController {
     @PreAuthorize("hasRole('MANAGER')")
     public BaseResponse<SubletResponse> approve(@PathVariable Long id) {
         return BaseResponse.success("Sublet approved successfully", subletService.approve(id));
+    }
+
+    @PutMapping("/api/manager/sublets/{id}/unapprove")
+    @PreAuthorize("hasRole('MANAGER')")
+    public BaseResponse<SubletResponse> unapprove(@PathVariable Long id) {
+        return BaseResponse.success("Sublet moved back to pending successfully", subletService.unapprove(id));
     }
 
     @PutMapping("/api/manager/sublets/{id}/reject")

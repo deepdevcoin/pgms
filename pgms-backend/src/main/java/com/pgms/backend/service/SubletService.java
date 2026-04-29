@@ -64,6 +64,20 @@ public class SubletService {
                 .stream().map(this::toResponse).toList();
     }
 
+    @Transactional
+    public void deletePendingRequest(Long id) {
+        TenantProfile tenantProfile = accessControlService.getCurrentTenantProfile();
+        SubletRequest request = subletRequestRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Sublet request not found"));
+        if (!request.getTenantProfile().getId().equals(tenantProfile.getId())) {
+            throw new NotFoundException("Sublet request not found");
+        }
+        if (request.getStatus() != SubletStatus.PENDING) {
+            throw new BadRequestException("Only pending sublet requests can be deleted");
+        }
+        subletRequestRepository.delete(request);
+    }
+
     public WalletResponse getWallet() {
         TenantProfile tenantProfile = accessControlService.getCurrentTenantProfile();
         List<WalletCreditEntryResponse> credits = subletRequestRepository
@@ -103,6 +117,19 @@ public class SubletService {
         }
         request.setStatus(SubletStatus.APPROVED);
         request.getTenantProfile().getRoom().setStatus(RoomStatus.SUBLETTING);
+        tenantProfileRepository.save(request.getTenantProfile());
+        return toResponse(subletRequestRepository.save(request));
+    }
+
+    @Transactional
+    public SubletResponse unapprove(Long id) {
+        SubletRequest request = getForManager(id);
+        if (request.getStatus() != SubletStatus.APPROVED) {
+            throw new BadRequestException("Only approved sublets can be moved back to pending");
+        }
+        request.setStatus(SubletStatus.PENDING);
+        request.setManagerDecisionNote("Approval removed by manager");
+        request.getTenantProfile().getRoom().setStatus(RoomStatus.OCCUPIED);
         tenantProfileRepository.save(request.getTenantProfile());
         return toResponse(subletRequestRepository.save(request));
     }

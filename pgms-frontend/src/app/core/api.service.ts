@@ -593,8 +593,16 @@ export class ApiService {
     return this.post<SubletRequest>(environment.endpoints.sublets.tenant, payload);
   }
 
+  deleteSublet(id: number): Observable<void> {
+    return this.delete<unknown>(this.path(environment.endpoints.sublets.delete, { id })).pipe(map(() => void 0));
+  }
+
   approveSublet(id: number): Observable<SubletRequest> {
     return this.put<SubletRequest>(this.path(environment.endpoints.sublets.approve, { id }), {});
+  }
+
+  unapproveSublet(id: number): Observable<SubletRequest> {
+    return this.put<SubletRequest>(this.path(environment.endpoints.sublets.unapprove, { id }), {});
   }
 
   rejectSublet(id: number): Observable<SubletRequest> {

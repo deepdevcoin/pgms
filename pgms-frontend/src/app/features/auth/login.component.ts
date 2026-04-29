@@ -155,16 +155,6 @@ import { ApiService } from '../../core/api.service';
     .c-occupied { background: var(--status-occupied-bg); border-color: var(--status-occupied-border); }
     .c-vacating { background: var(--status-vacating-bg); border-color: var(--status-vacating-border); }
     .c-subletting { background: var(--status-subletting-bg); border-color: var(--status-subletting-border); }
-    @keyframes building-fade-in {
-      from {
-        opacity: 0;
-        transform: perspective(800px) rotateX(28deg) rotateZ(-8deg) translateY(8px);
-      }
-      to {
-        opacity: 0.85;
-        transform: perspective(800px) rotateX(28deg) rotateZ(-8deg) translateY(0);
-      }
-    }
 
     .right { display: grid; place-items: center; background: var(--bg); }
     .form { width: 100%; max-width: 420px; padding: 32px; display: flex; flex-direction: column; gap: 16px; }

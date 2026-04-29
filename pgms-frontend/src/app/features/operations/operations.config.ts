@@ -27,7 +27,9 @@ export interface OperationsActionHandlers {
   amenityCancel: (row: Record<string, any>) => void;
   amenityDeleteSlot: (row: Record<string, any>) => void;
   subletApprove: (row: Record<string, any>) => void;
+  subletUnapprove: (row: Record<string, any>) => void;
   subletReject: (row: Record<string, any>) => void;
+  subletDelete: (row: Record<string, any>) => void;
   subletCheckIn: (row: Record<string, any>) => void;
   subletCheckout: (row: Record<string, any>) => void;
 }
@@ -212,7 +214,9 @@ export function buildModuleActions(role: Role | null, handlers: OperationsAction
 	    ],
     menu: [],
     sublets: [
+      { label: 'Delete', icon: 'delete', show: row => role === 'TENANT' && row['status'] === 'PENDING', run: handlers.subletDelete },
       { label: 'Approve', icon: 'check_circle', show: row => role === 'MANAGER' && row['status'] === 'PENDING', run: handlers.subletApprove },
+      { label: 'Unapprove', icon: 'undo', show: row => role === 'MANAGER' && row['status'] === 'APPROVED', run: handlers.subletUnapprove },
       { label: 'Disapprove', icon: 'cancel', show: row => role === 'MANAGER' && row['status'] === 'PENDING', run: handlers.subletReject },
       { label: 'Check in', icon: 'login', show: row => role === 'MANAGER' && row['status'] === 'APPROVED', run: handlers.subletCheckIn },
       { label: 'Checkout', icon: 'logout', show: row => role === 'MANAGER' && row['status'] === 'ACTIVE', run: handlers.subletCheckout }

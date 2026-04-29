@@ -451,6 +451,20 @@ export class OperationsComponent {
     amenityCancel: row => this.mutate(this.api.cancelAmenity(row['bookingId'])),
     amenityDeleteSlot: row => this.mutate(this.api.deleteAmenitySlot(row['slotId'])),
     subletApprove: row => this.mutate(this.api.approveSublet(row['id'])),
+    subletUnapprove: row => this.openConfirmDialog(
+      'Sublets',
+      'Move this sublet back to pending?',
+      'This will remove the current approval so the request can be reviewed again.',
+      'Move to pending',
+      () => this.mutate(this.api.unapproveSublet(row['id']))
+    ),
+    subletDelete: row => this.openConfirmDialog(
+      'Sublets',
+      'Delete this sublet request?',
+      'You can create a fresh request later if you still need the sublet.',
+      'Delete request',
+      () => this.mutate(this.api.deleteSublet(row['id']))
+    ),
     subletReject: row => this.openConfirmDialog(
       'Sublets',
       'Disapprove this sublet request?',

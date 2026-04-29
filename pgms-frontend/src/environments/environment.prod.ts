@@ -132,9 +132,11 @@ export const environment = {
     },
     sublets: {
       tenant: '/tenant/sublet',
+      delete: '/tenant/sublet/:id',
       wallet: '/tenant/wallet',
       manager: '/manager/sublets',
       approve: '/manager/sublets/:id/approve',
+      unapprove: '/manager/sublets/:id/unapprove',
       reject: '/manager/sublets/:id/reject',
       checkIn: '/manager/sublets/:id/check-in',
       checkout: '/manager/sublets/:id/checkout'

@@ -236,14 +236,15 @@ type DeskFilter = 'ALL' | 'REQUESTED' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED
     .workspace { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.9fr); gap: 16px; }
     .section-head, .detail-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
     .list { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
-    .row { width: 100%; text-align: left; display: flex; justify-content: space-between; gap: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); padding: 14px; cursor: pointer; position: relative; overflow: hidden; }
+    .row { width: 100%; text-align: left; display: flex; justify-content: space-between; gap: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); padding: 14px; cursor: pointer; position: relative; overflow: hidden; color: var(--text); }
     .row::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 4px; background: transparent; }
     .row--active { border-color: var(--primary); box-shadow: inset 0 0 0 1px rgba(99,102,241,0.18); }
     .row--active::before { background: var(--primary); }
     .row-main { display: grid; gap: 6px; min-width: 0; }
     .row-title { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .row-title strong { color: var(--text); }
     .row-meta, .stamp, .detail-sub, .note-label { color: var(--text-muted); font-size: 12px; }
-    .row-note, .note-block p { margin: 0; line-height: 1.5; }
+    .row-note, .note-block p { margin: 0; line-height: 1.5; color: var(--text); }
     .service-desk--owner .row,
     .service-desk--owner .row-title strong,
     .service-desk--owner .row-note { color: #f8fafc; }
