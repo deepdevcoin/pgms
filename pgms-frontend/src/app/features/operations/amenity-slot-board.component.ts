@@ -22,10 +22,7 @@ type ResourceGroup = { key: string; title: string; subtitle: string; dates: Reso
         @if (bookedRows().length) {
           <section class="lane lane--booked">
             <div class="lane-head">
-              <div>
-                <div class="lane-title">Your bookings</div>
-                <div class="lane-subtitle">Current reservations, grouped away from the booking grid.</div>
-              </div>
+              <div class="lane-title">Your bookings</div>
               <div class="lane-meta">{{ bookedRows().length }} active</div>
             </div>
 
@@ -66,10 +63,7 @@ type ResourceGroup = { key: string; title: string; subtitle: string; dates: Reso
         @if (machineResources().length) {
           <section class="lane">
             <div class="lane-head">
-              <div>
-                <div class="lane-title">Machines</div>
-                <div class="lane-subtitle">Pick the machine first, then choose any free time slot in it.</div>
-              </div>
+              <div class="lane-title">Machines</div>
               <div class="lane-meta">{{ machineResources().length }} machine{{ machineResources().length === 1 ? '' : 's' }}</div>
             </div>
 
@@ -116,10 +110,7 @@ type ResourceGroup = { key: string; title: string; subtitle: string; dates: Reso
         @if (sharedResources().length) {
           <section class="lane">
             <div class="lane-head">
-              <div>
-                <div class="lane-title">Shared games</div>
-                <div class="lane-subtitle">Pick the board or court first, then host or join a time slot in it.</div>
-              </div>
+              <div class="lane-title">Shared games</div>
               <div class="lane-meta">{{ sharedResources().length }} resource{{ sharedResources().length === 1 ? '' : 's' }}</div>
             </div>
 
@@ -185,13 +176,13 @@ type ResourceGroup = { key: string; title: string; subtitle: string; dates: Reso
     }
   `,
   styles: [`
-    .board { display: grid; gap: 18px; }
+    .board { display: grid; gap: 14px; }
     .lane {
       display: grid;
-      gap: 14px;
-      padding: 18px;
+      gap: 10px;
+      padding: 14px;
       border: 1px solid var(--border);
-      border-radius: 16px;
+      border-radius: 14px;
       background: var(--surface);
     }
     .lane--booked {
@@ -203,27 +194,27 @@ type ResourceGroup = { key: string; title: string; subtitle: string; dates: Reso
     .lane-head {
       display: flex;
       justify-content: space-between;
-      gap: 12px;
-      align-items: flex-end;
+      gap: 10px;
+      align-items: center;
       flex-wrap: wrap;
     }
-    .lane-title { font-size: 18px; font-weight: 800; }
-    .lane-subtitle, .lane-meta { color: var(--text-muted); font-size: 12px; }
+    .lane-title { font-size: 16px; font-weight: 800; }
+    .lane-meta { color: var(--text-muted); font-size: 11px; }
 
     .booking-strip,
     .resource-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
     }
 
     .booking-card,
     .resource-card {
       display: grid;
-      gap: 12px;
-      padding: 14px;
+      gap: 10px;
+      padding: 12px;
       border: 1px solid var(--border);
-      border-radius: 14px;
+      border-radius: 12px;
       background: rgba(255,255,255,0.02);
       min-width: 0;
     }
@@ -239,7 +230,7 @@ type ResourceGroup = { key: string; title: string; subtitle: string; dates: Reso
     }
     .booking-title,
     .resource-title {
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 700;
     }
     .booking-sub,
@@ -247,15 +238,15 @@ type ResourceGroup = { key: string; title: string; subtitle: string; dates: Reso
     .booking-note,
     .resource-subtitle {
       color: var(--text-muted);
-      font-size: 12px;
-      line-height: 1.45;
+      font-size: 11px;
+      line-height: 1.35;
     }
     .booking-note strong { color: var(--text); }
 
     .date-block {
       display: grid;
-      gap: 8px;
-      padding-top: 4px;
+      gap: 6px;
+      padding-top: 6px;
       border-top: 1px solid rgba(255,255,255,0.05);
     }
     .date-head {
@@ -264,25 +255,25 @@ type ResourceGroup = { key: string; title: string; subtitle: string; dates: Reso
       gap: 10px;
       align-items: center;
     }
-    .date-head strong { font-size: 13px; }
-    .date-head span { font-size: 12px; color: var(--text-muted); }
+    .date-head strong { font-size: 12px; }
+    .date-head span { font-size: 11px; color: var(--text-muted); }
 
     .slot-pill-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: 8px;
+      grid-template-columns: repeat(auto-fit, minmax(98px, 1fr));
+      gap: 6px;
     }
     .slot-pill {
       display: grid;
       gap: 2px;
-      padding: 10px 12px;
-      border-radius: 12px;
+      padding: 8px 9px;
+      border-radius: 10px;
       border: 1px solid var(--border);
       background: var(--bg-elev);
       color: var(--text);
       cursor: pointer;
       text-align: left;
-      min-height: 58px;
+      min-height: 48px;
     }
     .slot-pill--booked {
       border-color: rgba(34,197,94,0.35);
@@ -303,25 +294,25 @@ type ResourceGroup = { key: string; title: string; subtitle: string; dates: Reso
       opacity: 0.82;
     }
     .slot-pill-time {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 700;
     }
     .slot-pill-state {
-      font-size: 11px;
+      font-size: 10px;
       color: var(--text-muted);
     }
 
     .shared-slot-list {
       display: grid;
-      gap: 8px;
+      gap: 6px;
     }
     .shared-slot {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      gap: 10px;
-      padding: 10px 12px;
+      gap: 8px;
+      padding: 8px 10px;
       border: 1px solid rgba(255,255,255,0.05);
-      border-radius: 12px;
+      border-radius: 10px;
       background: rgba(255,255,255,0.02);
       align-items: center;
     }
@@ -331,17 +322,17 @@ type ResourceGroup = { key: string; title: string; subtitle: string; dates: Reso
     }
     .shared-slot-copy {
       display: grid;
-      gap: 2px;
+      gap: 1px;
       min-width: 0;
     }
     .shared-slot-copy strong {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 700;
     }
     .shared-slot-copy span {
-      font-size: 12px;
+      font-size: 11px;
       color: var(--text-muted);
-      line-height: 1.4;
+      line-height: 1.3;
     }
     .shared-slot-copy span strong { color: var(--text); }
     .shared-slot-action {
@@ -353,11 +344,11 @@ type ResourceGroup = { key: string; title: string; subtitle: string; dates: Reso
     }
 
     .mini-badge {
-      padding: 5px 9px;
+      padding: 4px 8px;
       border-radius: 999px;
       background: rgba(255,255,255,0.06);
       color: var(--text-muted);
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
       white-space: nowrap;
     }
@@ -373,17 +364,18 @@ type ResourceGroup = { key: string; title: string; subtitle: string; dates: Reso
     .btn {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      border-radius: 12px;
-      height: 38px;
-      padding: 0 12px;
+      gap: 6px;
+      border-radius: 10px;
+      height: 34px;
+      padding: 0 10px;
       border: 1px solid var(--border);
       background: var(--bg-elev);
       color: var(--text);
       cursor: pointer;
       font-weight: 600;
+      font-size: 12px;
     }
-    .btn mat-icon { width: 16px; height: 16px; font-size: 16px; }
+    .btn mat-icon { width: 14px; height: 14px; font-size: 14px; }
     .btn--primary {
       background: rgba(96,165,250,0.14);
       border-color: rgba(96,165,250,0.38);

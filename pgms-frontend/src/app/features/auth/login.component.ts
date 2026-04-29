@@ -33,7 +33,7 @@ import { ApiService } from '../../core/api.service';
         </div>
       </div>
 
-      <div class="mini-building fade-up" aria-hidden="true">
+      <div class="mini-building" aria-hidden="true">
         @for (f of floors; track f) {
           <div class="floor">
             @for (s of rowStates(f); track $index) {
@@ -138,13 +138,33 @@ import { ApiService } from '../../core/api.service';
     .dot.occupied { background: var(--status-occupied-text); }
     .dot.vacating { background: var(--status-vacating-text); }
     .dot.subletting { background: var(--status-subletting-text); }
-    .mini-building { position: absolute; bottom: 48px; right: -40px; display: flex; flex-direction: column; gap: 6px; opacity: 0.85; transform: perspective(800px) rotateX(28deg) rotateZ(-8deg); transform-origin: bottom right; }
+    .mini-building {
+      position: absolute;
+      bottom: 48px;
+      right: -40px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      opacity: 0.85;
+      transform-origin: bottom right;
+      animation: building-fade-in 420ms ease-out;
+    }
     .mini-building .floor { display: flex; gap: 10px; }
     .mini-building .cell { width: 28px; height: 22px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08); }
     .c-vacant { background: var(--status-vacant-bg); border-color: var(--status-vacant-border); }
     .c-occupied { background: var(--status-occupied-bg); border-color: var(--status-occupied-border); }
     .c-vacating { background: var(--status-vacating-bg); border-color: var(--status-vacating-border); }
     .c-subletting { background: var(--status-subletting-bg); border-color: var(--status-subletting-border); }
+    @keyframes building-fade-in {
+      from {
+        opacity: 0;
+        transform: perspective(800px) rotateX(28deg) rotateZ(-8deg) translateY(8px);
+      }
+      to {
+        opacity: 0.85;
+        transform: perspective(800px) rotateX(28deg) rotateZ(-8deg) translateY(0);
+      }
+    }
 
     .right { display: grid; place-items: center; background: var(--bg); }
     .form { width: 100%; max-width: 420px; padding: 32px; display: flex; flex-direction: column; gap: 16px; }
