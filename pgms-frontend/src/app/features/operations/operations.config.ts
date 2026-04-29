@@ -13,6 +13,7 @@ export interface OperationsActionHandlers {
   complaintTimeline: (row: Record<string, any>) => void;
   noticeMarkRead: (row: Record<string, any>) => void;
   noticeReceipts: (row: Record<string, any>) => void;
+  noticeDelete: (row: Record<string, any>) => void;
   vacateApprove: (row: Record<string, any>) => void;
   vacateReject: (row: Record<string, any>) => void;
   vacateCheckout: (row: Record<string, any>) => void;
@@ -58,7 +59,15 @@ function serviceTypeLabel(option: string): string {
   return serviceTypeLabels[option] || option;
 }
 
-export function buildModuleConfig(role: Role | null, pgOptions: string[], pgName: (value: string) => string): Record<ModuleKey, ModuleConfig> {
+export function buildModuleConfig(
+  role: Role | null,
+  pgOptions: string[],
+  pgName: (value: string) => string,
+  pgSearchText: (value: string) => string = value => value,
+  tenantOptions: string[] = [],
+  tenantName: (value: string) => string = value => `Tenant ${value}`,
+  tenantSearchText: (value: string) => string = value => value
+): Record<ModuleKey, ModuleConfig> {
   return {
     payments: {
       crumb: 'Finance',
@@ -79,8 +88,8 @@ export function buildModuleConfig(role: Role | null, pgOptions: string[], pgName
       createLabel: role === 'TENANT' ? 'Raise complaint' : undefined,
       fields: role === 'TENANT' ? [
         { key: 'category', label: 'Category', type: 'select', options: ['MAINTENANCE', 'NOISE', 'HYGIENE', 'FOOD', 'OTHER', 'AGAINST_MANAGER'] },
-        { key: 'description', label: 'Description', type: 'textarea' },
-        { key: 'attachmentPath', label: 'Attachment path', type: 'text' }
+        { key: 'description', label: 'Description', type: 'textarea', minLength: 5, maxLength: 1000 },
+        { key: 'attachmentPath', label: 'Attachment path', type: 'text', required: false, maxLength: 255 }
       ] : []
     },
     notices: {
@@ -89,14 +98,16 @@ export function buildModuleConfig(role: Role | null, pgOptions: string[], pgName
       subtitle: 'Announcements with read tracking.',
       columns: role === 'TENANT'
         ? ['title', 'content', 'createdByName', 'createdAt']
-        : ['title', 'targetType', 'createdByName', 'createdAt', 'readCount'],
+        : role === 'MANAGER'
+          ? ['title', 'content', 'targetType', 'createdByName', 'createdAt']
+          : ['title', 'targetType', 'createdByName', 'createdAt', 'readCount'],
       createLabel: role === 'OWNER' || role === 'MANAGER' ? 'Compose notice' : undefined,
       fields: role === 'OWNER' || role === 'MANAGER' ? [
-        { key: 'title', label: 'Title', type: 'text' },
-        { key: 'content', label: 'Content', type: 'textarea' },
-        { key: 'targetType', label: 'Target', type: 'select', options: role === 'OWNER' ? ['ALL_PGS', 'SPECIFIC_PG', 'ALL_MANAGERS', 'SPECIFIC_TENANT'] : ['SPECIFIC_PG', 'SPECIFIC_TENANT'] },
-        { key: 'targetPgId', label: 'Target PG ID', type: 'number' },
-        { key: 'targetUserId', label: 'Target user ID', type: 'number' }
+        { key: 'title', label: 'Title', type: 'text', minLength: 3, maxLength: 120 },
+        { key: 'content', label: 'Content', type: 'textarea', minLength: 5 },
+        { key: 'targetType', label: 'Target', type: 'select', options: role === 'OWNER' ? ['ALL_PGS', 'ALL_TENANTS', 'SPECIFIC_PG', 'ALL_MANAGERS', 'SPECIFIC_TENANT'] : ['SPECIFIC_PG', 'SPECIFIC_TENANT'], optionLabel: option => serviceTypeLabel(option) },
+        { key: 'targetPgId', label: 'Target PG', type: 'search-select', options: pgOptions, optionLabel: option => pgName(option), optionSearchText: option => pgSearchText(option), visibleWhen: form => form['targetType'] === 'SPECIFIC_PG' },
+        { key: 'targetUserId', label: 'Target tenant', type: 'search-select', options: tenantOptions, optionLabel: option => tenantName(option), optionSearchText: option => tenantSearchText(option), visibleWhen: form => form['targetType'] === 'SPECIFIC_TENANT' }
       ] : []
     },
     vacate: {
@@ -110,9 +121,9 @@ export function buildModuleConfig(role: Role | null, pgOptions: string[], pgName
       fields: role === 'TENANT' ? [
         { key: 'intendedVacateDate', label: 'Vacate date (15+ days)', type: 'date' },
         { key: 'hasReferral', label: 'Has referral', type: 'checkbox' },
-        { key: 'referralName', label: 'Referral name', type: 'text', visibleWhen: form => !!form['hasReferral'] },
-        { key: 'referralPhone', label: 'Referral phone', type: 'text', visibleWhen: form => !!form['hasReferral'] },
-        { key: 'referralEmail', label: 'Referral email', type: 'text', visibleWhen: form => !!form['hasReferral'] }
+        { key: 'referralName', label: 'Referral name', type: 'text', minLength: 2, maxLength: 80, visibleWhen: form => !!form['hasReferral'] },
+        { key: 'referralPhone', label: 'Referral phone', type: 'text', minLength: 10, maxLength: 10, pattern: '[0-9]{10}', visibleWhen: form => !!form['hasReferral'] },
+        { key: 'referralEmail', label: 'Referral email', type: 'text', maxLength: 120, visibleWhen: form => !!form['hasReferral'] }
       ] : []
     },
     services: {
@@ -129,7 +140,7 @@ export function buildModuleConfig(role: Role | null, pgOptions: string[], pgName
         { key: 'serviceType', label: 'Service type', type: 'select', options: ['CLEANING', 'LINEN_CHANGE', 'PEST_CONTROL', 'PLUMBING', 'ELECTRICAL'], optionLabel: serviceTypeLabel },
         { key: 'preferredDate', label: 'Preferred date', type: 'date' },
         { key: 'preferredTimeWindow', label: 'Preferred time window', type: 'select', options: serviceTimeWindowOptions },
-        { key: 'requestNotes', label: 'Request details', type: 'textarea', wide: true }
+        { key: 'requestNotes', label: 'Request details', type: 'textarea', wide: true, minLength: 5, maxLength: 1000 }
       ] : []
     },
     amenities: {
@@ -145,11 +156,11 @@ export function buildModuleConfig(role: Role | null, pgOptions: string[], pgName
       fields: role === 'MANAGER' ? [
         { key: 'pgId', label: 'PG', type: 'select', options: pgOptions, optionLabel: option => pgName(option) },
         { key: 'amenityType', label: 'Amenity', type: 'select', options: ['WASHING_MACHINE', 'TABLE_TENNIS', 'CARROM', 'BADMINTON'] },
-        { key: 'facilityName', label: 'Location', type: 'text' },
+        { key: 'facilityName', label: 'Location', type: 'text', minLength: 2, maxLength: 80 },
         { key: 'slotDate', label: 'Date', type: 'date' },
         { key: 'startTime', label: 'Start', type: 'time' },
         { key: 'endTime', label: 'End', type: 'time' },
-        { key: 'capacity', label: 'Units / seats', type: 'number' }
+        { key: 'capacity', label: 'Units / seats', type: 'number', min: '1', step: '1' }
       ] : []
     },
     menu: {
@@ -170,7 +181,7 @@ export function buildModuleConfig(role: Role | null, pgOptions: string[], pgName
       fields: role === 'TENANT' ? [
         { key: 'startDate', label: 'Start date', type: 'date' },
         { key: 'endDate', label: 'End date', type: 'date', minKey: 'startDate' },
-        { key: 'reason', label: 'Reason', type: 'textarea' }
+        { key: 'reason', label: 'Reason', type: 'textarea', minLength: 5, maxLength: 1000 }
       ] : []
     }
   };
@@ -191,10 +202,10 @@ export function buildModuleActions(role: Role | null, handlers: OperationsAction
       { label: 'Timeline', icon: 'history', show: () => true, run: handlers.complaintTimeline },
       { label: 'Close', icon: 'check_circle', show: row => role !== 'TENANT' && row['status'] === 'RESOLVED', run: handlers.complaintClose }
     ],
-	    notices: [
-	      { label: 'Mark read', icon: 'done_all', show: row => role === 'TENANT' && !row['read'], run: handlers.noticeMarkRead },
-	      { label: 'View views', icon: 'visibility', show: () => role !== 'TENANT', run: handlers.noticeReceipts }
-	    ],
+    notices: [
+      { label: 'View views', icon: 'visibility', show: row => role !== 'TENANT' && !!row['isPublisher'], run: handlers.noticeReceipts },
+      { label: 'Delete', icon: 'delete', show: row => role !== 'TENANT' && !!row['isPublisher'], run: handlers.noticeDelete }
+    ],
     vacate: [
       { label: 'Approve referral', icon: 'how_to_reg', show: row => role === 'MANAGER' && row['referralName'] && row['status'] === 'REFERRAL_PENDING', run: handlers.vacateApprove },
       { label: 'Reject', icon: 'person_remove', show: row => role === 'MANAGER' && row['status'] !== 'COMPLETED' && row['status'] !== 'REJECTED', run: handlers.vacateReject },

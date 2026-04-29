@@ -26,9 +26,9 @@ import { PopupShellComponent } from '../../shared/popup-shell.component';
 
     @if (showForm()) {
       <form class="form card" (ngSubmit)="createManager()">
-        <label class="fld"><span>Name</span><input [(ngModel)]="form.name" name="name" /></label>
-        <label class="fld"><span>Email</span><input [(ngModel)]="form.email" name="email" type="email" /></label>
-        <label class="fld"><span>Phone</span><input [(ngModel)]="form.phone" name="phone" /></label>
+        <label class="fld"><span>Name</span><input [(ngModel)]="form.name" name="name" required minlength="2" maxlength="80" /></label>
+        <label class="fld"><span>Email</span><input [(ngModel)]="form.email" name="email" type="email" required maxlength="120" /></label>
+        <label class="fld"><span>Phone</span><input [(ngModel)]="form.phone" name="phone" required minlength="10" maxlength="10" pattern="[0-9]{10}" inputmode="numeric" /></label>
         <label class="fld wide"><span>Assigned PGs</span>
           <select multiple [(ngModel)]="form.pgIds" name="pgIds">
             @for (pg of pgs(); track pg.id) { <option [ngValue]="pg.id">{{ pg.name }}</option> }
@@ -151,6 +151,11 @@ export class ManagersComponent {
   }
 
   createManager() {
+    const error = this.validateManagerForm();
+    if (error) {
+      this.snack.open(error, 'Dismiss', { duration: 2800, panelClass: 'pgms-snack' });
+      return;
+    }
     this.saving.set(true);
     this.api.createManager(this.form).subscribe({
       next: () => {
@@ -181,6 +186,20 @@ export class ManagersComponent {
   }
 
   blankForm() { return { name: '', email: '', phone: '', designation: '', pgIds: [] as number[] }; }
+
+  private validateManagerForm(): string | null {
+    const name = String(this.form.name || '').trim();
+    const email = String(this.form.email || '').trim();
+    const phone = String(this.form.phone || '').trim();
+    if (name.length < 2) return 'Manager name must be at least 2 characters.';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Enter a valid manager email.';
+    if (!/^\d{10}$/.test(phone)) return 'Manager phone must be exactly 10 digits.';
+    if (!this.form.pgIds.length) return 'Assign at least one PG.';
+    this.form.name = name;
+    this.form.email = email;
+    this.form.phone = phone;
+    return null;
+  }
 
   closeAssignment() {
     this.assignmentOpen.set(false);

@@ -157,7 +157,7 @@ export type ServiceType = 'CLEANING' | 'LINEN_CHANGE' | 'PEST_CONTROL' | 'PLUMBI
 export type AmenityType = 'WASHING_MACHINE' | 'TABLE_TENNIS' | 'CARROM' | 'BADMINTON' | 'CUSTOM';
 export type BookingStatus = 'AVAILABLE' | 'BOOKED' | 'CANCELLED' | 'COMPLETED';
 export type SubletStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'ACTIVE' | 'COMPLETED';
-export type NoticeTargetType = 'ALL_PGS' | 'SPECIFIC_PG' | 'ALL_MANAGERS' | 'SPECIFIC_TENANT';
+export type NoticeTargetType = 'ALL_PGS' | 'ALL_TENANTS' | 'SPECIFIC_PG' | 'ALL_MANAGERS' | 'SPECIFIC_TENANT';
 export type MealType = 'BREAKFAST' | 'LUNCH' | 'DINNER';
 
 export interface RentRecord {
@@ -256,6 +256,7 @@ export interface Notice {
   targetType: NoticeTargetType;
   targetPgId?: number;
   targetUserId?: number;
+  createdById?: number;
   createdByName?: string;
   createdAt?: string;
   read?: boolean;

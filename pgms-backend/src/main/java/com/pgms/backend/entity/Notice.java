@@ -36,7 +36,7 @@ public class Notice {
     private String title;
 
     @Lob
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "longtext")
     private String content;
 
     @Enumerated(EnumType.STRING)

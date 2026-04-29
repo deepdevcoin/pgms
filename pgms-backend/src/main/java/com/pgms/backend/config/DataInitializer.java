@@ -106,7 +106,6 @@ public class DataInitializer {
         User finalManager = manager;
         ManagerProfile managerProfile = managerProfileRepository.findByUserId(manager.getId())
                 .orElseGet(() -> ManagerProfile.builder().user(finalManager).build());
-        managerProfile.setDesignation("Operations Manager");
         managerProfile.setPgIds(String.valueOf(pg.getId()));
         managerProfileRepository.save(managerProfile);
 

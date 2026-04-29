@@ -13,7 +13,6 @@ public class ManagerResponse {
     private String name;
     private String email;
     private String phone;
-    private String designation;
     private boolean active;
     private boolean firstLogin;
     private List<Long> pgIds;

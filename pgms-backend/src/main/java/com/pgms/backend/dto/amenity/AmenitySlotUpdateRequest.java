@@ -1,6 +1,7 @@
 package com.pgms.backend.dto.amenity;
 
 import com.pgms.backend.entity.enums.AmenityType;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -20,7 +21,9 @@ public class AmenitySlotUpdateRequest {
     @NotNull(message = "End time is required")
     private LocalTime endTime;
     @NotNull(message = "Capacity is required")
+    @Min(value = 1, message = "Capacity must be at least 1")
     private Integer capacity;
+    @Min(value = 1, message = "Generation days must be at least 1")
     private Integer generationDays;
     private String facilityName;
     private String resourceName;

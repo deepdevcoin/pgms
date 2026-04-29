@@ -624,7 +624,7 @@ export class MockDataService {
     return of(this.clone(this.notices)).pipe(delay(120));
   }
 
-  createNotice(payload: { title: string; content: string; targetType: string; targetPgId?: number; targetUserId?: number }, createdByName: string): Observable<Notice> {
+  createNotice(payload: { title: string; content: string; targetType: string; targetPgId?: number; targetUserId?: number }, createdByName: string, createdById = 1): Observable<Notice> {
     const notice: Notice = {
       id: Date.now(),
       title: payload.title,
@@ -632,6 +632,7 @@ export class MockDataService {
       targetType: payload.targetType as Notice['targetType'],
       targetPgId: payload.targetPgId,
       targetUserId: payload.targetUserId,
+      createdById,
       createdByName,
       createdAt: new Date().toISOString(),
       read: false,
@@ -657,6 +658,12 @@ export class MockDataService {
 
   noticeReceipts(id: number): Observable<NoticeReadReceipt[]> {
     return of(this.clone(this.noticeReceiptsById[id] || [])).pipe(delay(120));
+  }
+
+  deleteNotice(id: number): Observable<void> {
+    this.notices = this.notices.filter(item => item.id !== id);
+    delete this.noticeReceiptsById[id];
+    return of(void 0).pipe(delay(120));
   }
 
   listAmenities(role: Role | null): Observable<AmenityBooking[]> {
@@ -1205,8 +1212,8 @@ export class MockDataService {
 
   private buildNotices(): Notice[] {
     return [
-      { id: 1, title: 'Water shutdown', content: 'Maintenance from 2 PM to 4 PM', targetType: 'ALL_PGS', createdByName: 'StayMate Owner', createdAt: '2026-04-24T08:00:00', read: false, readCount: 2 },
-      { id: 2, title: 'Floor audit', content: 'Inspection tomorrow morning', targetType: 'ALL_MANAGERS', createdByName: 'StayMate Owner', createdAt: '2026-04-23T12:00:00', read: true, readCount: 1 }
+      { id: 1, title: 'Water shutdown', content: 'Maintenance from 2 PM to 4 PM', targetType: 'ALL_PGS', createdById: 1, createdByName: 'StayMate Owner', createdAt: '2026-04-24T08:00:00', read: false, readCount: 2 },
+      { id: 2, title: 'Floor audit', content: 'Inspection tomorrow morning', targetType: 'ALL_MANAGERS', createdById: 1, createdByName: 'StayMate Owner', createdAt: '2026-04-23T12:00:00', read: true, readCount: 1 }
     ];
   }
 

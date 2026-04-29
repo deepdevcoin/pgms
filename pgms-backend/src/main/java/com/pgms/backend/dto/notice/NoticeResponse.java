@@ -15,6 +15,7 @@ public class NoticeResponse {
     private NoticeTargetType targetType;
     private Long targetPgId;
     private Long targetUserId;
+    private Long createdById;
     private String createdByName;
     private LocalDateTime createdAt;
     private boolean read;

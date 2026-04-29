@@ -50,11 +50,11 @@ interface TenantMoveForm {
 
     @if (canOnboard() && showForm()) {
       <form class="form card" (ngSubmit)="createTenant()">
-        <label class="fld"><span>Name</span><input [(ngModel)]="form.name" name="name" required /></label>
-        <label class="fld"><span>Email</span><input [(ngModel)]="form.email" name="email" type="email" required /></label>
-        <label class="fld"><span>Phone</span><input [(ngModel)]="form.phone" name="phone" required /></label>
+        <label class="fld"><span>Name</span><input [(ngModel)]="form.name" name="name" required minlength="2" maxlength="80" /></label>
+        <label class="fld"><span>Email</span><input [(ngModel)]="form.email" name="email" type="email" required maxlength="120" /></label>
+        <label class="fld"><span>Phone</span><input [(ngModel)]="form.phone" name="phone" required minlength="10" maxlength="10" pattern="[0-9]{10}" inputmode="numeric" /></label>
         <label class="fld"><span>Joining date</span><app-date-input [(value)]="form.joiningDate"></app-date-input></label>
-        <label class="fld"><span>Advance paid</span><input [(ngModel)]="form.advanceAmountPaid" name="advanceAmountPaid" type="number" required /></label>
+        <label class="fld"><span>Advance paid</span><input [(ngModel)]="form.advanceAmountPaid" name="advanceAmountPaid" type="number" min="0" step="1" required /></label>
         <label class="fld"><span>PG</span>
           <select [(ngModel)]="selectedPgId" name="pg" (ngModelChange)="loadRooms($event)">
             @for (pg of pgs(); track pg.id) { <option [ngValue]="pg.id">{{ pg.name }}</option> }
@@ -437,6 +437,11 @@ export class TenantsComponent {
   }
 
   createTenant() {
+    const error = this.validateTenantForm();
+    if (error) {
+      this.snack.open(error, 'Dismiss', { duration: 2800, panelClass: 'pgms-snack' });
+      return;
+    }
     this.saving.set(true);
     this.api.createTenant(this.form).subscribe({
       next: () => {
@@ -524,6 +529,25 @@ export class TenantsComponent {
       joiningDate: new Date().toISOString().slice(0, 10),
       advanceAmountPaid: 0
     };
+  }
+
+  private validateTenantForm(): string | null {
+    const name = String(this.form.name || '').trim();
+    const email = String(this.form.email || '').trim();
+    const phone = String(this.form.phone || '').trim();
+    const advance = Number(this.form.advanceAmountPaid);
+    if (name.length < 2) return 'Tenant name must be at least 2 characters.';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Enter a valid tenant email.';
+    if (!/^\d{10}$/.test(phone)) return 'Tenant phone must be exactly 10 digits.';
+    if (!this.form.joiningDate) return 'Choose a joining date.';
+    if (!Number.isFinite(advance) || advance < 0) return 'Advance paid cannot be negative.';
+    if (!this.selectedPgId) return 'Choose a PG.';
+    if (!this.form.roomId) return 'Choose an available room.';
+    this.form.name = name;
+    this.form.email = email;
+    this.form.phone = phone;
+    this.form.advanceAmountPaid = advance;
+    return null;
   }
 
   pgName(pgId?: number): string {

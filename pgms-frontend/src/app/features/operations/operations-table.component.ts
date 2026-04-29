@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input } from '@angular/core';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { Role } from '../../core/models';
 import { ActionConfig, CellClassValue, ModuleKey, Row } from './operations.types';
@@ -33,6 +33,13 @@ import { ActionConfig, CellClassValue, ModuleKey, Row } from './operations.types
           [class.tr--payments]="moduleKey === 'payments'"
           [class.tr--compact]="compact"
           [class.tr--ops-compact]="compact && moduleKey !== 'payments'"
+          [class.tr--notice]="moduleKey === 'notices'"
+          [class.tr--clickable]="clickableRows"
+          [attr.tabindex]="clickableRows ? 0 : null"
+          [attr.role]="clickableRows ? 'button' : null"
+          (click)="selectRow(row)"
+          (keydown.enter)="selectRow(row)"
+          (keydown.space)="selectRow(row, $event)"
         >
           @for (col of columns; track col) {
             <div
@@ -61,8 +68,10 @@ import { ActionConfig, CellClassValue, ModuleKey, Row } from './operations.types
                 <div class="detail-block">
                   <div class="detail-kicker">Request</div>
                   <div class="detail-main">{{ row['requestNotes'] || 'No service note provided.' }}</div>
-                  <div class="detail-kicker">Operations</div>
-                  <div class="detail-notes" [class.detail-notes--empty]="!row['managerNotes']">{{ row['managerNotes'] || 'No manager update yet.' }}</div>
+                  @if (row['managerNotes']) {
+                    <div class="detail-kicker">Operations</div>
+                    <div class="detail-notes">{{ row['managerNotes'] }}</div>
+                  }
                   <div class="detail-meta">{{ serviceMeta(row) }}</div>
                 </div>
               } @else {
@@ -74,7 +83,7 @@ import { ActionConfig, CellClassValue, ModuleKey, Row } from './operations.types
             <div class="actions" [class.actions--compact]="compact" [class.actions--payments-compact]="moduleKey === 'payments' && compact">
               @for (action of actions; track action.label) {
                 @if (action.show(row, role)) {
-                  <button class="icon" type="button" (click)="action.run(row)" [title]="action.label" [class.action-pill]="moduleKey === 'payments' && !compact">
+                  <button class="icon" type="button" (click)="runAction(action, row, $event)" [title]="action.label" [class.action-pill]="moduleKey === 'payments' && !compact">
                     <mat-icon>{{ action.icon }}</mat-icon>
                     @if (moduleKey === 'payments' && !compact) { <span>{{ action.label }}</span> }
                   </button>
@@ -99,12 +108,16 @@ import { ActionConfig, CellClassValue, ModuleKey, Row } from './operations.types
     .tr--compact { padding: 12px 14px; font-size: 12px; gap: 10px; }
     .tr--ops-compact { padding: 10px 12px; font-size: 12px; gap: 8px; min-height: 52px; }
     .tr:last-child { border-bottom: 0; }
+    .tr--notice { align-items: start; padding-top: 18px; padding-bottom: 18px; }
+    .tr--clickable { cursor: pointer; transition: background 120ms ease, border-color 120ms ease; }
+    .tr--clickable:hover, .tr--clickable:focus-visible { background: rgba(255,255,255,0.03); outline: none; }
     .money { font-family: var(--font-mono); }
     .cell--status { display: flex; align-items: center; }
     .cell--details { display: block; }
     .cell--right, .head-cell--right, .head-cell--actions { text-align: right; }
     .head-cell--compact-actions { padding-right: 2px; }
     .cell--wrap { white-space: normal; line-height: 1.45; }
+    .tr--notice .cell--wrap { line-height: 1.55; }
     .detail-block { display: grid; gap: 6px; }
     .detail-kicker { color: var(--text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
     .detail-main { color: var(--text); line-height: 1.5; }
@@ -141,6 +154,7 @@ export class OperationsTableComponent {
   @Input() role: Role | null = null;
   @Input() moduleKey: ModuleKey = 'complaints';
   @Input() showActions = true;
+  @Input() clickableRows = false;
   @Input() actionColumnLabel = 'Actions';
   @Input() compact = false;
   @Input() minWidth = '';
@@ -151,6 +165,7 @@ export class OperationsTableComponent {
   @Input() statusColumn: (col: string) => boolean = () => false;
   @Input() pillClass: (status: unknown) => string = () => '';
   @Input() cellClass: (row: Row, col: string) => CellClassValue = () => '';
+  @Output() rowClick = new EventEmitter<Row>();
 
   gridTemplate(): string {
     if (this.moduleKey === 'payments' && this.compact) {
@@ -161,6 +176,9 @@ export class OperationsTableComponent {
     }
     if (this.compact && this.moduleKey === 'services') {
       return this.compactServiceTemplate();
+    }
+    if (this.moduleKey === 'notices') {
+      return this.noticeTemplate();
     }
     const cells = this.columns.map(col => this.columnWidth(col));
     if (this.showActions) cells.push(this.moduleKey === 'payments' ? (this.compact ? 'minmax(118px, 136px)' : 'minmax(156px, 190px)') : 'minmax(92px, 132px)');
@@ -177,6 +195,9 @@ export class OperationsTableComponent {
     }
     if (this.compact && this.moduleKey === 'services') {
       return this.columns.includes('tenantName') ? '1120px' : '920px';
+    }
+    if (this.moduleKey === 'notices') {
+      return this.showActions ? '860px' : '720px';
     }
     const base = this.showActions ? 170 : 0;
     return `${Math.max(680, this.columns.length * (this.compact ? (this.moduleKey === 'payments' ? 88 : 112) : 128) + base)}px`;
@@ -197,6 +218,20 @@ export class OperationsTableComponent {
     if (['roomNumber', 'billingMonth', 'dueDate', 'slotDate', 'startDate', 'endDate', 'startTime', 'endTime', 'createdAt'].includes(col)) return 'minmax(108px, 0.9fr)';
     if (this.moneyColumn(col)) return 'minmax(108px, 0.88fr)';
     return 'minmax(100px, 1fr)';
+  }
+
+  private noticeTemplate(): string {
+    const cells: string[] = this.columns.map(col => {
+      if (col === 'title') return 'minmax(180px, 1.2fr)';
+      if (col === 'content') return 'minmax(260px, 1.8fr)';
+      if (col === 'targetType') return 'minmax(132px, 0.95fr)';
+      if (col === 'createdByName') return 'minmax(140px, 1fr)';
+      if (col === 'createdAt') return 'minmax(128px, 0.9fr)';
+      if (col === 'readCount') return 'minmax(88px, 0.65fr)';
+      return this.columnWidth(col);
+    });
+    if (this.showActions) cells.push('minmax(92px, 120px)');
+    return cells.join(' ');
   }
 
   private compactPaymentTemplate(): string {
@@ -262,5 +297,16 @@ export class OperationsTableComponent {
     const formattedStamp = stamp ? this.value({ createdAt: stamp }, 'createdAt') : 'Awaiting next update';
     const rated = row['rating'] ? ` · Rated ${row['rating']}/5` : '';
     return `${label} ${formattedStamp}${rated}`;
+  }
+
+  selectRow(row: Row, event?: Event) {
+    if (!this.clickableRows) return;
+    event?.preventDefault();
+    this.rowClick.emit(row);
+  }
+
+  runAction(action: ActionConfig, row: Row, event: Event) {
+    event.stopPropagation();
+    action.run(row);
   }
 }

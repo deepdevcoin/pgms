@@ -15,7 +15,5 @@ public class ManagerCreateRequest {
     private String email;
     @NotBlank(message = "Phone is required")
     private String phone;
-    @NotBlank(message = "Designation is required")
-    private String designation;
     private List<Long> pgIds;
 }

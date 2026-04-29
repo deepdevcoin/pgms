@@ -92,7 +92,9 @@ export const environment = {
       read: '/notices/:id/read',
       ownerRead: '/notices/owner/:id/read',
       receipts: '/notices/:id/receipts',
-      ownerReceipts: '/notices/owner/:id/receipts'
+      ownerReceipts: '/notices/owner/:id/receipts',
+      delete: '/notices/:id',
+      ownerDelete: '/notices/owner/:id'
     },
     vacate: {
       tenant: '/tenant/vacate',

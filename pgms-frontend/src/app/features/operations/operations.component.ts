@@ -157,6 +157,62 @@ import { ActionConfig, FieldConfig, ModuleKey, Row } from './operations.types';
         />
       } @else if (filteredRows().length === 0) {
         <div class="state card"><mat-icon>inbox</mat-icon><span>No records found.</span></div>
+      } @else if (moduleKey() === 'notices' && auth.role() === 'MANAGER') {
+        <div class="notice-sections">
+          <section class="notice-section">
+            <div class="notice-section-head">
+              <h2>Created by me</h2>
+              <span>{{ managerCreatedNoticeRows().length }} notice{{ managerCreatedNoticeRows().length === 1 ? '' : 's' }}</span>
+            </div>
+            @if (managerCreatedNoticeRows().length === 0) {
+              <div class="state card state--compact"><mat-icon>campaign</mat-icon><span>No notices created by you.</span></div>
+            } @else {
+              <app-operations-table
+                [columns]="managerCreatedNoticeColumns()"
+                [rows]="managerCreatedNoticeRows()"
+                [actions]="actions()"
+                [role]="auth.role()"
+                [moduleKey]="moduleKey()"
+                [showActions]="true"
+                [clickableRows]="noticeRowsClickable()"
+                [label]="label.bind(this)"
+                [value]="value.bind(this)"
+                [rowKey]="rowKey.bind(this)"
+                [moneyColumn]="moneyColumn.bind(this)"
+                [statusColumn]="statusColumn.bind(this)"
+                [pillClass]="pillClass.bind(this)"
+                (rowClick)="handleRowClick($event)"
+              />
+            }
+          </section>
+
+          <section class="notice-section">
+            <div class="notice-section-head">
+              <h2>Received notices</h2>
+              <span>{{ managerReceivedNoticeRows().length }} notice{{ managerReceivedNoticeRows().length === 1 ? '' : 's' }}</span>
+            </div>
+            @if (managerReceivedNoticeRows().length === 0) {
+              <div class="state card state--compact"><mat-icon>inbox</mat-icon><span>No received notices.</span></div>
+            } @else {
+              <app-operations-table
+                [columns]="managerReceivedNoticeColumns()"
+                [rows]="managerReceivedNoticeRows()"
+                [actions]="actions()"
+                [role]="auth.role()"
+                [moduleKey]="moduleKey()"
+                [showActions]="false"
+                [clickableRows]="noticeRowsClickable()"
+                [label]="label.bind(this)"
+                [value]="value.bind(this)"
+                [rowKey]="rowKey.bind(this)"
+                [moneyColumn]="moneyColumn.bind(this)"
+                [statusColumn]="statusColumn.bind(this)"
+                [pillClass]="pillClass.bind(this)"
+                (rowClick)="handleRowClick($event)"
+              />
+            }
+          </section>
+        </div>
       } @else {
         <app-operations-table
           [columns]="config().columns"
@@ -164,6 +220,8 @@ import { ActionConfig, FieldConfig, ModuleKey, Row } from './operations.types';
           [actions]="actions()"
           [role]="auth.role()"
           [moduleKey]="moduleKey()"
+          [showActions]="showActionColumn()"
+          [clickableRows]="noticeRowsClickable()"
           [compact]="compactTable()"
           [minWidth]="moduleKey() === 'payments' ? '100%' : ''"
           [label]="label.bind(this)"
@@ -172,6 +230,7 @@ import { ActionConfig, FieldConfig, ModuleKey, Row } from './operations.types';
           [moneyColumn]="moneyColumn.bind(this)"
           [statusColumn]="statusColumn.bind(this)"
           [pillClass]="pillClass.bind(this)"
+          (rowClick)="handleRowClick($event)"
         />
 
         @if (moduleKey() === 'payments') {
@@ -225,6 +284,18 @@ import { ActionConfig, FieldConfig, ModuleKey, Row } from './operations.types';
         <span>{{ actionDialogConfirmLabel() }}</span>
       </button>
     </div>
+  </app-popup-shell>
+
+  <app-popup-shell
+    [open]="noticePreviewOpen()"
+    eyebrow="Notice"
+    [title]="noticePreviewTitle()"
+    [subtitle]="noticePreviewSubtitle()"
+    (closed)="closeNoticePreview()"
+  >
+    <article class="notice-preview">
+      <p>{{ noticePreviewContent() }}</p>
+    </article>
   </app-popup-shell>
 
   <app-popup-shell
@@ -353,6 +424,7 @@ import { ActionConfig, FieldConfig, ModuleKey, Row } from './operations.types';
     .search mat-icon { color: var(--text-muted); font-size: 18px; width: 18px; height: 18px; }
     .search input { border: 0; background: transparent; padding: 11px 0; }
     .state { min-height: 180px; display: grid; place-items: center; gap: 10px; padding: 28px; color: var(--text-muted); text-align: center; }
+    .state--compact { min-height: 104px; }
     .state.err { color: var(--danger); }
     .spinner { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.9s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -379,6 +451,24 @@ import { ActionConfig, FieldConfig, ModuleKey, Row } from './operations.types';
     .receipt-meta, .receipt-time { color: var(--text-muted); font-size: 12px; }
     .receipt-time { text-align: right; }
     .receipt-message { color: var(--text); font-size: 13px; line-height: 1.5; white-space: pre-line; }
+    .notice-preview {
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg);
+    }
+    .notice-preview p {
+      margin: 0;
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.7;
+      white-space: pre-line;
+    }
+    .notice-sections { display: grid; gap: 18px; }
+    .notice-section { display: grid; gap: 10px; }
+    .notice-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 2px; }
+    .notice-section-head h2 { margin: 0; font-size: 16px; line-height: 1.3; }
+    .notice-section-head span { color: var(--text-muted); font-size: 12px; }
     .rating-picker { display: flex; gap: 6px; align-items: center; }
     .rating-star {
       width: 40px;
@@ -408,6 +498,7 @@ export class OperationsComponent {
 
   rows = signal<Row[]>([]);
   pgs = signal<PG[]>([]);
+  tenants = signal<Tenant[]>([]);
   tenantProfile = signal<Tenant | null>(null);
   loading = signal(false);
   saving = signal(false);
@@ -429,6 +520,8 @@ export class OperationsComponent {
   actionDialogLabel = signal('');
   actionDialogType = signal<'text' | 'number' | 'rating'>('text');
   actionDialogConfirmLabel = signal('Save');
+  noticePreviewOpen = signal(false);
+  noticePreviewRow = signal<Row | null>(null);
   receiptsOpen = signal(false);
   receiptsLoading = signal(false);
   selectedNoticeTitle = signal('');
@@ -475,6 +568,13 @@ export class OperationsComponent {
     complaintTimeline: row => this.showComplaintTimeline(row),
     noticeMarkRead: row => this.mutate(this.api.markNoticeRead(row['id'])),
     noticeReceipts: row => this.showReceipts(row['id'], row['title']),
+    noticeDelete: row => this.openConfirmDialog(
+      'Notices',
+      'Delete this notice?',
+      'This will remove the notice and its read receipts for everyone.',
+      'Delete notice',
+      () => this.mutate(this.api.deleteNotice(row['id']))
+    ),
     vacateApprove: row => this.mutate(this.api.approveVacateReferral(row['id'], true)),
     vacateReject: row => this.openTextDialog('Reject vacate notice', 'Share a short message so the tenant knows what needs to change.', 'Manager message', 'Reject notice', message => this.api.rejectVacate(row['id'], message)),
     vacateCheckout: row => this.mutate(this.api.checkoutVacate(row['id'])),
@@ -527,7 +627,15 @@ export class OperationsComponent {
   };
 
   moduleKey = computed(() => this.route.snapshot.data['module'] as ModuleKey);
-  configMap = computed(() => buildModuleConfig(this.auth.role(), this.pgs().map(pg => String(pg.id)), option => this.pgName(option)));
+  configMap = computed(() => buildModuleConfig(
+    this.auth.role(),
+    this.pgs().map(pg => String(pg.id)),
+    option => this.pgName(option),
+    option => this.pgSearchText(option),
+    this.tenants().map(tenant => String(tenant.userId)),
+    option => this.tenantName(option),
+    option => this.tenantSearchText(option)
+  ));
   config = computed(() => this.configMap()[this.moduleKey()]);
   visibleFields = computed(() => (this.config().fields || [])
     .filter(field => !field.show || field.show(this.auth.role()))
@@ -537,6 +645,8 @@ export class OperationsComponent {
     if (!q) return this.rows();
     return this.rows().filter(row => JSON.stringify(row).toLowerCase().includes(q));
   });
+  managerCreatedNoticeRows = computed(() => this.filteredRows().filter(row => !!row['isPublisher']));
+  managerReceivedNoticeRows = computed(() => this.filteredRows().filter(row => !row['isPublisher']));
   filteredTransactions = computed(() => {
     const q = this.query.toLowerCase().trim();
     if (!q) return this.paymentTransactions();
@@ -553,6 +663,8 @@ export class OperationsComponent {
   });
   actionsMap = computed(() => buildModuleActions(this.auth.role(), this.actionHandlers));
   actions = computed<ActionConfig[]>(() => this.actionsMap()[this.moduleKey()]);
+  managerCreatedNoticeColumns = computed(() => ['title', 'content', 'targetType', 'createdAt', 'readCount']);
+  managerReceivedNoticeColumns = computed(() => ['title', 'content', 'targetType', 'createdByName', 'createdAt']);
   tenantMenuPgId = computed(() => {
     if (this.auth.role() !== 'TENANT') return 0;
     const fromProfile = Number(this.tenantProfile()?.pgId || 0);
@@ -575,10 +687,20 @@ export class OperationsComponent {
       next: pgs => {
         this.pgs.set(pgs);
         if (!this.form['pgId'] && pgs.length) this.form['pgId'] = pgs[0].id;
+        if (!this.form['targetPgId'] && pgs.length) this.form['targetPgId'] = pgs[0].id;
         if (this.moduleKey() === 'menu') this.load();
       },
       error: () => undefined
     });
+    if (this.auth.role() === 'OWNER' || this.auth.role() === 'MANAGER') {
+      this.api.listTenants().subscribe({
+        next: tenants => {
+          this.tenants.set(tenants);
+          if (!this.form['targetUserId'] && tenants.length) this.form['targetUserId'] = tenants[0].userId;
+        },
+        error: () => undefined
+      });
+    }
     this.resetForm();
     this.load();
   }
@@ -617,12 +739,12 @@ export class OperationsComponent {
       : this.api.listMenu(this.menuPgId());
     request.subscribe({
       next: rows => {
-        this.rows.set(Array.isArray(rows) ? rows as Row[] : []);
+        const nextRows = Array.isArray(rows) ? rows as Row[] : [];
+        this.rows.set(key === 'notices' ? this.enrichNoticeRows(nextRows) : nextRows);
         this.paymentSummary.set(null);
         this.paymentTransactions.set([]);
         this.loading.set(false);
         if (key === 'sublets' && this.auth.role() === 'TENANT') this.loadWallet();
-        if (key === 'notices' && this.auth.role() === 'TENANT') this.autoMarkTenantNotices(this.rows());
       },
       error: (err: { message?: string }) => {
         this.error.set(err?.message || 'Could not load data');
@@ -680,7 +802,13 @@ export class OperationsComponent {
       : key === 'complaints'
         ? this.api.createComplaint({ category: this.form['category'], description: this.form['description'], attachmentPath: this.form['attachmentPath'] })
         : key === 'notices'
-          ? this.api.createNotice({ title: this.form['title'], content: this.form['content'], targetType: this.form['targetType'], targetPgId: this.optionalNumber('targetPgId'), targetUserId: this.optionalNumber('targetUserId') })
+          ? this.api.createNotice({
+              title: this.form['title'],
+              content: this.form['content'],
+              targetType: this.form['targetType'],
+              targetPgId: this.form['targetType'] === 'SPECIFIC_PG' ? this.optionalNumber('targetPgId') : undefined,
+              targetUserId: this.form['targetType'] === 'SPECIFIC_TENANT' ? this.optionalNumber('targetUserId') : undefined
+            })
           : key === 'vacate'
             ? this.api.createVacate({ intendedVacateDate: this.form['intendedVacateDate'], hasReferral: !!this.form['hasReferral'], referralName: this.form['referralName'], referralPhone: this.form['referralPhone'], referralEmail: this.form['referralEmail'] })
             : key === 'services'
@@ -706,6 +834,12 @@ export class OperationsComponent {
   }
 
   value(row: Row, col: string): string {
+    if (this.moduleKey() === 'notices' && col === 'content') {
+      return this.truncateNoticeText(row[col]);
+    }
+    if (this.moduleKey() === 'notices' && col === 'readCount' && !row['isPublisher']) {
+      return '-';
+    }
     return formatRowValue(row, col, value => this.pgName(value));
   }
 
@@ -727,7 +861,7 @@ export class OperationsComponent {
   private resetForm() {
     this.form = {
       category: 'MAINTENANCE',
-      targetType: 'ALL_PGS',
+      targetType: this.auth.role() === 'MANAGER' ? 'SPECIFIC_PG' : 'ALL_PGS',
       serviceType: 'CLEANING',
       preferredTimeWindow: '6:00 PM - 8:00 PM',
       amenityType: 'WASHING_MACHINE',
@@ -736,7 +870,9 @@ export class OperationsComponent {
       mealType: 'BREAKFAST',
       isVeg: true,
       intendedVacateDate: this.minimumVacateDateIso(),
-      pgId: this.auth.role() === 'TENANT' ? this.tenantProfile()?.pgId : this.pgs()[0]?.id
+      pgId: this.auth.role() === 'TENANT' ? this.tenantProfile()?.pgId : this.pgs()[0]?.id,
+      targetPgId: this.pgs()[0]?.id,
+      targetUserId: this.tenants()[0]?.userId
     };
   }
 
@@ -763,6 +899,38 @@ export class OperationsComponent {
   private pgName(value: string): string {
     const id = Number(value);
     return this.pgs().find(pg => pg.id === id)?.name || `PG ${value}`;
+  }
+
+  private pgSearchText(value: string): string {
+    const id = Number(value);
+    const pg = this.pgs().find(item => item.id === id);
+    return pg ? `${pg.id} ${pg.name} ${pg.address}` : value;
+  }
+
+  private tenantName(value: string): string {
+    const id = Number(value);
+    const tenant = this.tenants().find(item => item.userId === id);
+    if (!tenant) return `Tenant ${value}`;
+    const room = tenant.roomNumber ? ` · Room ${tenant.roomNumber}` : '';
+    const pg = tenant.pgName ? ` · ${tenant.pgName}` : '';
+    return `${tenant.name}${room}${pg}`;
+  }
+
+  private tenantSearchText(value: string): string {
+    const id = Number(value);
+    const tenant = this.tenants().find(item => item.userId === id);
+    if (!tenant) return value;
+    return [
+      tenant.userId,
+      tenant.tenantProfileId,
+      tenant.name,
+      tenant.email,
+      tenant.phone,
+      tenant.pgId,
+      tenant.pgName,
+      tenant.roomId,
+      tenant.roomNumber
+    ].filter(item => item !== undefined && item !== null && item !== '').join(' ');
   }
 
   menuPgId(): number {
@@ -920,6 +1088,8 @@ export class OperationsComponent {
 
   private validateBeforeSubmit(): string | null {
     const key = this.moduleKey();
+    const fieldError = this.validateVisibleFields();
+    if (fieldError) return fieldError;
     if (key === 'vacate') {
       const date = String(this.form['intendedVacateDate'] || '');
       if (!date) return 'Choose an intended vacate date.';
@@ -935,6 +1105,20 @@ export class OperationsComponent {
       if (!date) return 'Choose a preferred service date.';
       if (date < this.todayIso()) return 'Preferred service date cannot be in the past.';
     }
+    if (key === 'notices') {
+      if (!String(this.form['title'] || '').trim()) return 'Enter a notice title.';
+      if (!String(this.form['content'] || '').trim()) return 'Enter the notice message.';
+      if (this.form['targetType'] === 'SPECIFIC_PG' && !this.optionalNumber('targetPgId')) return 'Choose a target PG.';
+      if (this.form['targetType'] === 'SPECIFIC_TENANT' && !this.optionalNumber('targetUserId')) return 'Choose a target tenant.';
+    }
+    if (key === 'amenities') {
+      const capacity = Number(this.form['capacity']);
+      if (!Number.isInteger(capacity) || capacity < 1) return 'Units / seats must be at least 1.';
+      if (!this.form['slotDate']) return 'Choose an amenity date.';
+      if (String(this.form['slotDate']) < this.todayIso()) return 'Amenity date cannot be in the past.';
+      if (!this.form['startTime'] || !this.form['endTime']) return 'Choose both start and end time.';
+      if (String(this.form['endTime']) <= String(this.form['startTime'])) return 'End time must be after start time.';
+    }
     if (key === 'sublets') {
       const startDate = String(this.form['startDate'] || '');
       const endDate = String(this.form['endDate'] || '');
@@ -942,6 +1126,26 @@ export class OperationsComponent {
       if (startDate < this.todayIso()) return 'Sublet start date cannot be in the past.';
       if (endDate < startDate) return 'Sublet end date cannot be before the start date.';
       if (!String(this.form['reason'] || '').trim()) return 'Add a reason for the sublet request.';
+    }
+    return null;
+  }
+
+  private validateVisibleFields(): string | null {
+    for (const field of this.visibleFields()) {
+      if (field.type === 'checkbox' || field.required === false) continue;
+      if (field.visibleWhen && !field.visibleWhen(this.form)) continue;
+      const value = this.form[field.key];
+      const text = String(value ?? '').trim();
+      if (text === '') return `${field.label} is required.`;
+      if (field.type === 'number') {
+        const numberValue = Number(value);
+        if (!Number.isFinite(numberValue)) return `${field.label} must be a valid number.`;
+        if (field.min !== undefined && numberValue < Number(field.min)) return `${field.label} must be at least ${field.min}.`;
+        if (field.max !== undefined && numberValue > Number(field.max)) return `${field.label} must be at most ${field.max}.`;
+      }
+      if (field.minLength && text.length < field.minLength) return `${field.label} must be at least ${field.minLength} characters.`;
+      if (field.maxLength && text.length > field.maxLength) return `${field.label} must be at most ${field.maxLength} characters.`;
+      if (field.pattern && !(new RegExp(`^${field.pattern}$`).test(text))) return `${field.label} is invalid.`;
     }
     return null;
   }
@@ -1104,13 +1308,71 @@ export class OperationsComponent {
     return 'Comment added';
   }
 
-  private autoMarkTenantNotices(rows: Row[]) {
-    const unreadIds = rows.filter(row => !row['read']).map(row => Number(row['id'])).filter(id => id > 0);
-    if (!unreadIds.length) return;
-    this.rows.set(rows.map(row => row['read'] ? row : { ...row, read: true }));
-    unreadIds.forEach(id => {
-      this.api.markNoticeRead(id).subscribe({ error: () => undefined });
+  showActionColumn(): boolean {
+    if (this.moduleKey() !== 'notices') return true;
+    if (this.auth.role() === 'TENANT') return false;
+    return this.filteredRows().some(row => this.actions().some(action => action.show(row, this.auth.role())));
+  }
+
+  noticeRowsClickable(): boolean {
+    return this.moduleKey() === 'notices';
+  }
+
+  handleRowClick(row: Row) {
+    if (!this.noticeRowsClickable()) return;
+    this.openNoticePreview(row);
+  }
+
+  closeNoticePreview() {
+    this.noticePreviewOpen.set(false);
+    this.noticePreviewRow.set(null);
+  }
+
+  noticePreviewTitle(): string {
+    return String(this.noticePreviewRow()?.['title'] || 'Notice');
+  }
+
+  noticePreviewContent(): string {
+    return String(this.noticePreviewRow()?.['content'] || 'No message provided.');
+  }
+
+  noticePreviewSubtitle(): string {
+    const row = this.noticePreviewRow();
+    if (!row) return '';
+    const publisher = String(row['createdByName'] || 'Publisher');
+    const createdAt = this.value(row, 'createdAt');
+    return createdAt && createdAt !== '-' ? `${publisher} · ${createdAt}` : publisher;
+  }
+
+  private openNoticePreview(row: Row) {
+    this.noticePreviewRow.set(row);
+    this.noticePreviewOpen.set(true);
+    this.markNoticeRead(row);
+  }
+
+  private markNoticeRead(row: Row) {
+    const id = Number(row['id']);
+    if (!id || row['read'] || row['isPublisher']) return;
+    this.rows.set(this.rows().map(item => Number(item['id']) === id ? { ...item, read: true } : item));
+    this.api.markNoticeRead(id).subscribe({
+      error: () => {
+        this.rows.set(this.rows().map(item => Number(item['id']) === id ? { ...item, read: false } : item));
+        this.snack.open('Could not send read receipt', 'Dismiss', { duration: 2600, panelClass: 'pgms-snack' });
+      }
     });
+  }
+
+  private truncateNoticeText(value: unknown): string {
+    const text = String(value || '').trim();
+    return text.length > 50 ? `${text.slice(0, 50).trimEnd()}...` : text || '-';
+  }
+
+  private enrichNoticeRows(rows: Row[]): Row[] {
+    const currentUserId = this.auth.user()?.userId;
+    return rows.map(row => ({
+      ...row,
+      isPublisher: !!currentUserId && Number(row['createdById']) === currentUserId
+    }));
   }
 
   paymentSummaryCards() {

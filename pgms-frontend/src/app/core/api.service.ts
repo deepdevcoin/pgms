@@ -409,7 +409,7 @@ export class ApiService {
   }
 
   createNotice(payload: { title: string; content: string; targetType: string; targetPgId?: number; targetUserId?: number }): Observable<Notice> {
-    if (this.isDemo()) return this.mock.createNotice(payload, this.auth.user()?.name || 'Owner');
+    if (this.isDemo()) return this.mock.createNotice(payload, this.auth.user()?.name || 'Owner', this.auth.user()?.userId || 0);
     const path = this.role() === 'OWNER' ? environment.endpoints.notices.ownerCreate : environment.endpoints.notices.create;
     return this.post<Notice>(path, payload);
   }
@@ -427,7 +427,15 @@ export class ApiService {
     const path = this.role() === 'OWNER'
       ? this.path(environment.endpoints.notices.ownerReceipts, { id })
       : this.path(environment.endpoints.notices.receipts, { id });
-    return this.get<NoticeReadReceipt[]>(path);
+    return this.get<unknown>(path).pipe(map(response => asCollection(response) as NoticeReadReceipt[]));
+  }
+
+  deleteNotice(id: number): Observable<void> {
+    if (this.isDemo()) return this.mock.deleteNotice(id);
+    const path = this.role() === 'OWNER'
+      ? this.path(environment.endpoints.notices.ownerDelete, { id })
+      : this.path(environment.endpoints.notices.delete, { id });
+    return this.delete<unknown>(path).pipe(map(() => void 0));
   }
 
   listVacates(): Observable<VacateNotice[]> {

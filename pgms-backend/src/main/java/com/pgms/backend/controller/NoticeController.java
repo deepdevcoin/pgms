@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -72,5 +73,19 @@ public class NoticeController {
     @PreAuthorize("hasRole('OWNER')")
     public BaseResponse<List<NoticeReadReceiptResponse>> ownerReceipts(@PathVariable Long id) {
         return BaseResponse.success("Notice read receipts fetched successfully", noticeService.getReadReceipts(id));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('OWNER','MANAGER')")
+    public BaseResponse<Void> deleteNotice(@PathVariable Long id) {
+        noticeService.deleteNotice(id);
+        return BaseResponse.success("Notice deleted successfully", null);
+    }
+
+    @DeleteMapping("/owner/{id}")
+    @PreAuthorize("hasRole('OWNER')")
+    public BaseResponse<Void> deleteOwnerNotice(@PathVariable Long id) {
+        noticeService.deleteNotice(id);
+        return BaseResponse.success("Notice deleted successfully", null);
     }
 }

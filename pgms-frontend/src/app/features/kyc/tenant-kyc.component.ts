@@ -53,7 +53,7 @@ import { DisplayDatePipe } from '../../shared/display-date.pipe';
           <div class="section-head">
             <div>
               <div class="section-kicker">Upload</div>
-              <h2>{{ canUpload() ? (profile()?.kycDocPath ? 'Replace document' : 'Submit document') : 'Document on file' }}</h2>
+              <h2>{{ uploadPanelTitle() }}</h2>
             </div>
           </div>
 
@@ -72,6 +72,15 @@ import { DisplayDatePipe } from '../../shared/display-date.pipe';
                 <strong>Verified and locked</strong>
               </div>
               <p>Your current KYC file is verified. You can replace it only after your manager sends a replacement request with notes.</p>
+            </div>
+          } @else if (profile()?.kycStatus === 'SUBMITTED' && profile()?.kycDocPath) {
+            <div class="notice-block notice-block--ok">
+              <div class="notice-head">
+                <strong>{{ replacementUploaded() ? 'Replacement uploaded' : 'Document submitted' }}</strong>
+                <small>{{ profile()?.kycSubmittedAt | displayDate:'datetime' }}</small>
+              </div>
+              <p>{{ replacementUploaded() ? 'Your replacement file is now waiting for manager review. The old replacement request is closed.' : 'Your document is waiting for manager review.' }}</p>
+              <div class="notice-meta">You can view the submitted file while review is pending.</div>
             </div>
           }
 
@@ -173,6 +182,7 @@ import { DisplayDatePipe } from '../../shared/display-date.pipe';
     .actions { display: flex; gap: 10px; flex-wrap: wrap; }
     .notice-block { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
     .notice-block--warn { border-color: rgba(251,191,36,0.32); background: rgba(251,191,36,0.08); }
+    .notice-block--ok { border-color: rgba(34,197,94,0.3); background: rgba(34,197,94,0.08); }
     .notice-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
     .notice-head small, .notice-meta { color: var(--text-muted); font-size: 12px; }
     .notice-block p { margin: 0; line-height: 1.5; }
@@ -200,11 +210,12 @@ export class TenantKycComponent {
 
   profile = signal<Tenant | null>(null);
   saving = signal(false);
+  replacementUploaded = signal(false);
   selectedFile = signal<File | null>(null);
   selectedFileName = computed(() => this.selectedFile()?.name || '');
   canUpload = computed(() => {
     const status = this.profile()?.kycStatus;
-    return !status || status === 'NOT_SUBMITTED' || status === 'SUBMITTED' || status === 'REPLACEMENT_REQUESTED';
+    return !status || status === 'NOT_SUBMITTED' || status === 'REPLACEMENT_REQUESTED';
   });
   showReplacementRequest = computed(() => this.profile()?.kycStatus === 'REPLACEMENT_REQUESTED' && !!this.profile()?.kycReplacementNotes);
   docType = 'AADHAAR';
@@ -217,6 +228,7 @@ export class TenantKycComponent {
     this.api.tenantKycProfile().subscribe({
       next: profile => {
         this.profile.set(profile);
+        this.replacementUploaded.set(false);
         this.selectedFile.set(null);
         if (profile.kycDocType) {
           this.docType = profile.kycDocType;
@@ -233,6 +245,7 @@ export class TenantKycComponent {
 
   upload() {
     const file = this.selectedFile();
+    const wasReplacement = this.profile()?.kycStatus === 'REPLACEMENT_REQUESTED';
     if (!file) {
       this.snack.open('Choose a document before uploading.', 'Dismiss', { duration: 2200, panelClass: 'pgms-snack' });
       return;
@@ -241,7 +254,14 @@ export class TenantKycComponent {
     this.api.uploadTenantKyc(this.docType, file).subscribe({
       next: profile => {
         this.saving.set(false);
-        this.profile.set(profile);
+        this.profile.set({
+          ...profile,
+          kycStatus: 'SUBMITTED',
+          kycReplacementNotes: '',
+          kycReplacementRequestedAt: '',
+          kycReplacementRequestedByName: ''
+        });
+        this.replacementUploaded.set(wasReplacement);
         this.selectedFile.set(null);
         this.snack.open('KYC document uploaded', 'OK', { duration: 2200, panelClass: 'pgms-snack' });
       },
@@ -276,6 +296,12 @@ export class TenantKycComponent {
   uploadLabel(): string {
     if (this.profile()?.kycStatus === 'REPLACEMENT_REQUESTED') return 'Upload replacement';
     return this.profile()?.kycDocPath ? 'Replace document' : 'Upload document';
+  }
+
+  uploadPanelTitle(): string {
+    if (this.canUpload()) return this.profile()?.kycDocPath ? 'Replace document' : 'Submit document';
+    if (this.profile()?.kycStatus === 'SUBMITTED') return this.replacementUploaded() ? 'Replacement submitted' : 'Document submitted';
+    return 'Document on file';
   }
 
   private openBlob(blob: Blob) {

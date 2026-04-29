@@ -6,11 +6,17 @@ export type Row = Record<string, any>;
 export interface FieldConfig {
   key: string;
   label: string;
-  type: 'text' | 'number' | 'date' | 'time' | 'textarea' | 'select' | 'checkbox';
+  type: 'text' | 'number' | 'date' | 'time' | 'textarea' | 'select' | 'search-select' | 'checkbox';
   options?: string[];
   optionLabel?: (option: string) => string;
+  optionSearchText?: (option: string) => string;
   min?: string;
   max?: string;
+  step?: string;
+  required?: boolean;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: string;
   minKey?: string;
   maxKey?: string;
   wide?: boolean;

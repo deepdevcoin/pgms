@@ -10,4 +10,5 @@ public interface NoticeRepository extends JpaRepository<Notice, Long> {
     List<Notice> findByTargetTypeOrderByCreatedAtDesc(NoticeTargetType targetType);
     List<Notice> findByTargetPgIdOrderByCreatedAtDesc(Long pgId);
     List<Notice> findByTargetUserIdOrderByCreatedAtDesc(Long userId);
+    List<Notice> findByCreatedByIdOrderByCreatedAtDesc(Long userId);
 }

@@ -10,4 +10,5 @@ public interface NoticeReadRepository extends JpaRepository<NoticeRead, Long> {
     Optional<NoticeRead> findByNoticeIdAndUserId(Long noticeId, Long userId);
     List<NoticeRead> findByNoticeId(Long noticeId);
     List<NoticeRead> findByNoticeIdOrderByReadAtDesc(Long noticeId);
+    void deleteByNoticeId(Long noticeId);
 }

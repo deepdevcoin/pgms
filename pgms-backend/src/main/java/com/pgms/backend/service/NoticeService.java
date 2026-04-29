@@ -6,6 +6,7 @@ import com.pgms.backend.dto.notice.NoticeResponse;
 import com.pgms.backend.entity.Notice;
 import com.pgms.backend.entity.NoticeRead;
 import com.pgms.backend.entity.Pg;
+import com.pgms.backend.entity.TenantProfile;
 import com.pgms.backend.entity.User;
 import com.pgms.backend.entity.enums.NoticeTargetType;
 import com.pgms.backend.entity.enums.Role;
@@ -14,6 +15,7 @@ import com.pgms.backend.exception.NotFoundException;
 import com.pgms.backend.repository.NoticeReadRepository;
 import com.pgms.backend.repository.NoticeRepository;
 import com.pgms.backend.repository.PgRepository;
+import com.pgms.backend.repository.TenantProfileRepository;
 import com.pgms.backend.repository.UserRepository;
 import com.pgms.backend.util.SecurityUtils;
 import jakarta.transaction.Transactional;
@@ -33,17 +35,20 @@ public class NoticeService {
     private final NoticeReadRepository noticeReadRepository;
     private final UserRepository userRepository;
     private final PgRepository pgRepository;
+    private final TenantProfileRepository tenantProfileRepository;
     private final AccessControlService accessControlService;
 
     public NoticeService(NoticeRepository noticeRepository,
                          NoticeReadRepository noticeReadRepository,
                          UserRepository userRepository,
                          PgRepository pgRepository,
+                         TenantProfileRepository tenantProfileRepository,
                          AccessControlService accessControlService) {
         this.noticeRepository = noticeRepository;
         this.noticeReadRepository = noticeReadRepository;
         this.userRepository = userRepository;
         this.pgRepository = pgRepository;
+        this.tenantProfileRepository = tenantProfileRepository;
         this.accessControlService = accessControlService;
     }
 
@@ -52,16 +57,23 @@ public class NoticeService {
         Role role = SecurityUtils.getCurrentUserRole();
         Map<Long, Notice> notices = new LinkedHashMap<>();
         noticeRepository.findByTargetTypeOrderByCreatedAtDesc(NoticeTargetType.ALL_PGS).forEach(n -> notices.put(n.getId(), n));
+        if (role == Role.OWNER) {
+            noticeRepository.findAll().forEach(n -> notices.put(n.getId(), n));
+        }
         if (role == Role.MANAGER) {
             noticeRepository.findByTargetTypeOrderByCreatedAtDesc(NoticeTargetType.ALL_MANAGERS).forEach(n -> notices.put(n.getId(), n));
             accessControlService.getAssignedPgIdsForCurrentManager()
                     .forEach(pgId -> noticeRepository.findByTargetPgIdOrderByCreatedAtDesc(pgId).forEach(n -> notices.put(n.getId(), n)));
         }
         if (role == Role.TENANT) {
+            noticeRepository.findByTargetTypeOrderByCreatedAtDesc(NoticeTargetType.ALL_TENANTS).forEach(n -> notices.put(n.getId(), n));
             Long pgId = accessControlService.getCurrentTenantProfile().getPg().getId();
             noticeRepository.findByTargetPgIdOrderByCreatedAtDesc(pgId).forEach(n -> notices.put(n.getId(), n));
         }
         noticeRepository.findByTargetUserIdOrderByCreatedAtDesc(userId).forEach(n -> notices.put(n.getId(), n));
+        if (role == Role.OWNER || role == Role.MANAGER) {
+            noticeRepository.findByCreatedByIdOrderByCreatedAtDesc(userId).forEach(n -> notices.put(n.getId(), n));
+        }
         return new ArrayList<>(notices.values()).stream()
                 .sorted(Comparator.comparing(Notice::getCreatedAt).reversed())
                 .map(this::toResponse)
@@ -99,6 +111,17 @@ public class NoticeService {
         }
     }
 
+    @Transactional
+    public void deleteNotice(Long noticeId) {
+        Notice notice = noticeRepository.findById(noticeId).orElseThrow(() -> new NotFoundException("Notice not found"));
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+        if (!notice.getCreatedBy().getId().equals(currentUserId)) {
+            throw new BadRequestException("Only the notice publisher can delete this notice");
+        }
+        noticeReadRepository.deleteByNoticeId(noticeId);
+        noticeRepository.delete(notice);
+    }
+
     public NoticeResponse toResponse(Notice notice) {
         Long currentUserId = SecurityUtils.getCurrentUserId();
         return NoticeResponse.builder()
@@ -108,6 +131,7 @@ public class NoticeService {
                 .targetType(notice.getTargetType())
                 .targetPgId(notice.getTargetPg() != null ? notice.getTargetPg().getId() : null)
                 .targetUserId(notice.getTargetUser() != null ? notice.getTargetUser().getId() : null)
+                .createdById(notice.getCreatedBy().getId())
                 .createdByName(notice.getCreatedBy().getName())
                 .createdAt(notice.getCreatedAt())
                 .read(currentUserId != null && noticeReadRepository.findByNoticeIdAndUserId(notice.getId(), currentUserId).isPresent())
@@ -141,11 +165,16 @@ public class NoticeService {
             throw new BadRequestException("targetUserId is required");
         }
         if (role == Role.MANAGER) {
-            if (request.getTargetType() == NoticeTargetType.ALL_PGS || request.getTargetType() == NoticeTargetType.ALL_MANAGERS) {
-                throw new BadRequestException("Manager cannot use this target type");
+            if (request.getTargetType() != NoticeTargetType.SPECIFIC_PG && request.getTargetType() != NoticeTargetType.SPECIFIC_TENANT) {
+                throw new BadRequestException("Manager can only target assigned PGs or tenants in assigned PGs");
             }
             if (request.getTargetPgId() != null) {
                 accessControlService.ensureManagerAssignedToPg(request.getTargetPgId());
+            }
+            if (request.getTargetUserId() != null) {
+                TenantProfile tenantProfile = tenantProfileRepository.findByUserId(request.getTargetUserId())
+                        .orElseThrow(() -> new NotFoundException("Target tenant not found"));
+                accessControlService.ensureManagerAssignedToPg(tenantProfile.getPg().getId());
             }
         }
     }

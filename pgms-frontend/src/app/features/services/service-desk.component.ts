@@ -162,10 +162,12 @@ type DeskFilter = 'ALL' | 'REQUESTED' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED
                 <p>{{ service.requestNotes || 'No request note provided.' }}</p>
               </div>
 
-              <div class="note-block">
-                <div class="note-label">Operations note</div>
-                <p>{{ service.managerNotes || 'No manager note recorded yet.' }}</p>
-              </div>
+              @if (service.managerNotes) {
+                <div class="note-block">
+                  <div class="note-label">Operations note</div>
+                  <p>{{ service.managerNotes }}</p>
+                </div>
+              }
 
               @if (service.rating) {
                 <div class="note-block">

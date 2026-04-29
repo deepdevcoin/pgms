@@ -142,7 +142,7 @@ type AmenityForm = {
         <div class="form-grid">
           <label class="fld">
             <span>PG</span>
-            <select [(ngModel)]="form.pgId" name="amenityPgId">
+            <select [(ngModel)]="form.pgId" name="amenityPgId" required>
               @for (pg of pgs(); track pg.id) {
                 <option [ngValue]="pg.id">{{ pg.name }}</option>
               }
@@ -160,32 +160,32 @@ type AmenityForm = {
 
           <label class="fld">
             <span>Amenity name</span>
-            <input [(ngModel)]="form.displayName" name="displayName" />
+            <input [(ngModel)]="form.displayName" name="displayName" required minlength="2" maxlength="80" />
           </label>
 
           <label class="fld">
             <span>Unit label</span>
-            <input [(ngModel)]="form.resourceName" name="resourceName" />
+            <input [(ngModel)]="form.resourceName" name="resourceName" required minlength="2" maxlength="40" />
           </label>
 
           <label class="fld fld--wide">
             <span>Location</span>
-            <input [(ngModel)]="form.facilityName" name="facilityName" />
+            <input [(ngModel)]="form.facilityName" name="facilityName" required minlength="2" maxlength="80" />
           </label>
 
           <label class="fld">
             <span>Units</span>
-            <input type="number" [(ngModel)]="form.unitCount" name="unitCount" />
+            <input type="number" min="1" step="1" [(ngModel)]="form.unitCount" name="unitCount" required />
           </label>
 
           <label class="fld">
             <span>Capacity Per Unit</span>
-            <input type="number" min="1" [(ngModel)]="form.capacity" name="capacity" />
+            <input type="number" min="1" step="1" [(ngModel)]="form.capacity" name="capacity" required />
           </label>
 
           <label class="fld">
             <span>Slot Duration</span>
-            <input type="number" min="15" step="15" [(ngModel)]="form.slotDurationMinutes" name="slotDurationMinutes" />
+            <input type="number" min="15" step="15" [(ngModel)]="form.slotDurationMinutes" name="slotDurationMinutes" required />
           </label>
 
           <label class="fld">
@@ -481,12 +481,12 @@ export class ManagerAmenitiesComponent {
   }
 
   saveEditor() {
-    this.sanitizeForm();
     const error = this.validateForm();
     if (error) {
       this.snack.open(error, 'Dismiss', { duration: 2800, panelClass: 'pgms-snack' });
       return;
     }
+    this.sanitizeForm();
     const payload = {
       pgId: this.form.pgId,
       amenityType: this.form.amenityType,
@@ -569,8 +569,12 @@ export class ManagerAmenitiesComponent {
     if (!this.form.displayName.trim()) return 'Enter an amenity name.';
     if (!this.form.resourceName.trim()) return 'Enter a unit label.';
     if (!this.form.facilityName.trim()) return 'Enter a location.';
-    if (Number(this.form.capacity) < 1) return 'Capacity per unit must be at least 1.';
-    if (Number(this.form.slotDurationMinutes) < 15) return 'Slot duration must be at least 15 minutes.';
+    if (this.form.displayName.trim().length < 2) return 'Amenity name must be at least 2 characters.';
+    if (this.form.resourceName.trim().length < 2) return 'Unit label must be at least 2 characters.';
+    if (this.form.facilityName.trim().length < 2) return 'Location must be at least 2 characters.';
+    if (!Number.isInteger(Number(this.form.unitCount)) || Number(this.form.unitCount) < 1) return 'Units must be at least 1.';
+    if (!Number.isInteger(Number(this.form.capacity)) || Number(this.form.capacity) < 1) return 'Capacity per unit must be at least 1.';
+    if (!Number.isInteger(Number(this.form.slotDurationMinutes)) || Number(this.form.slotDurationMinutes) < 15) return 'Slot duration must be at least 15 minutes.';
     if (!this.form.startTime || !this.form.endTime) return 'Choose both start and end time.';
     if (this.form.endTime <= this.form.startTime) return 'End time must be after start time.';
     return null;

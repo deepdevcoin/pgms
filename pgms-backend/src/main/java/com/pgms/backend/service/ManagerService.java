@@ -53,7 +53,6 @@ public class ManagerService {
                 .build());
         ManagerProfile profile = managerProfileRepository.save(ManagerProfile.builder()
                 .user(user)
-                .designation(request.getDesignation() == null || request.getDesignation().isBlank() ? "Manager" : request.getDesignation())
                 .pgIds(joinPgIds(request.getPgIds()))
                 .build());
         return toResponse(profile);
@@ -115,7 +114,6 @@ public class ManagerService {
                 .name(user.getName())
                 .email(user.getEmail())
                 .phone(user.getPhone())
-                .designation(profile.getDesignation())
                 .active(user.isActive())
                 .firstLogin(user.isFirstLogin())
                 .pgIds(pgIds)
