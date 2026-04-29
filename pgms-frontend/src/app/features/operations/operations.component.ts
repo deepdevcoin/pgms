@@ -20,7 +20,7 @@ import { OperationsHeaderComponent } from './operations-header.component';
 import { MenuWeekPlannerComponent } from './menu-week-planner.component';
 import { OperationsPaymentOverviewComponent } from './operations-payment-overview.component';
 import { OperationsTableComponent } from './operations-table.component';
-import { ActionConfig, ModuleKey, Row } from './operations.types';
+import { ActionConfig, FieldConfig, ModuleKey, Row } from './operations.types';
 
 @Component({
   selector: 'app-operations',
@@ -302,7 +302,11 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
       </label>
       <label class="fld">
         <span>Check in date</span>
-        <app-date-input [(value)]="subletGuestForm.checkInDate"></app-date-input>
+        <app-date-input
+          [(value)]="subletGuestForm.checkInDate"
+          [min]="subletCheckInMinDate()"
+          [max]="subletCheckInMaxDate()"
+        ></app-date-input>
       </label>
     </div>
     <div class="dialog-actions">
@@ -527,9 +531,7 @@ export class OperationsComponent {
   config = computed(() => this.configMap()[this.moduleKey()]);
   visibleFields = computed(() => (this.config().fields || [])
     .filter(field => !field.show || field.show(this.auth.role()))
-    .map(field => field.key === 'intendedVacateDate' && this.moduleKey() === 'vacate'
-      ? { ...field, min: this.minimumVacateDateIso() }
-      : field));
+    .map(field => this.decorateDateField(field)));
   filteredRows = computed(() => {
     const q = this.query.toLowerCase().trim();
     if (!q) return this.rows();
@@ -870,6 +872,14 @@ export class OperationsComponent {
     this.subletGuestForm = { guestName: '', guestPhone: '', checkInDate: '' };
   }
 
+  subletCheckInMinDate(): string {
+    return String(this.subletCheckInRow()?.['startDate'] || '');
+  }
+
+  subletCheckInMaxDate(): string {
+    return String(this.subletCheckInRow()?.['endDate'] || '');
+  }
+
   openConfirmDialog(eyebrow: string, title: string, subtitle: string, confirmLabel: string, action: () => void) {
     this.confirmAction = action;
     this.confirmDialogEyebrow.set(eyebrow);
@@ -930,7 +940,7 @@ export class OperationsComponent {
       const endDate = String(this.form['endDate'] || '');
       if (!startDate || !endDate) return 'Choose both sublet start and end dates.';
       if (startDate < this.todayIso()) return 'Sublet start date cannot be in the past.';
-      if (endDate <= startDate) return 'Sublet end date must be after the start date.';
+      if (endDate < startDate) return 'Sublet end date cannot be before the start date.';
       if (!String(this.form['reason'] || '').trim()) return 'Add a reason for the sublet request.';
     }
     return null;
@@ -972,6 +982,23 @@ export class OperationsComponent {
     const date = new Date();
     date.setDate(date.getDate() + 15);
     return date.toISOString().slice(0, 10);
+  }
+
+  private decorateDateField(field: FieldConfig): FieldConfig {
+    if (field.type !== 'date') return field;
+    if (this.moduleKey() === 'vacate' && field.key === 'intendedVacateDate') {
+      return { ...field, min: this.minimumVacateDateIso() };
+    }
+    if (this.moduleKey() === 'services' && field.key === 'preferredDate') {
+      return { ...field, min: this.todayIso() };
+    }
+    if (this.moduleKey() === 'sublets' && field.key === 'startDate') {
+      return { ...field, min: this.todayIso() };
+    }
+    if (this.moduleKey() === 'sublets' && field.key === 'endDate') {
+      return { ...field, min: this.todayIso(), minKey: 'startDate' };
+    }
+    return field;
   }
 
   private isEmail(value: string): boolean {

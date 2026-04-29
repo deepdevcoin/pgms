@@ -11,8 +11,11 @@ export interface FieldConfig {
   optionLabel?: (option: string) => string;
   min?: string;
   max?: string;
+  minKey?: string;
+  maxKey?: string;
   wide?: boolean;
   show?: (role: Role | null) => boolean;
+  visibleWhen?: (form: Row) => boolean;
 }
 
 export interface ActionConfig {

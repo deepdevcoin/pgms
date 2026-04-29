@@ -12,24 +12,30 @@ import { FieldConfig } from './operations.types';
   template: `
     <form class="form card" (ngSubmit)="submitForm.emit()" data-testid="ops-form">
       @for (field of fields; track field.key) {
-        <label class="fld" [class.wide]="field.type === 'textarea' || field.wide">
-          <span>{{ field.label }}</span>
-          @if (field.type === 'textarea') {
-            <textarea [(ngModel)]="form[field.key]" [name]="field.key"></textarea>
-          } @else if (field.type === 'select') {
-            <select [(ngModel)]="form[field.key]" [name]="field.key">
-              @for (option of field.options || []; track option) {
-                <option [value]="option">{{ field.optionLabel ? field.optionLabel(option) : option }}</option>
-              }
-            </select>
-          } @else if (field.type === 'date') {
-            <app-date-input [(value)]="form[field.key]" [min]="field.min || ''" [max]="field.max || ''"></app-date-input>
-          } @else if (field.type === 'checkbox') {
-            <input type="checkbox" [(ngModel)]="form[field.key]" [name]="field.key" />
-          } @else {
-            <input [type]="field.type" [(ngModel)]="form[field.key]" [name]="field.key" />
-          }
-        </label>
+        @if (!field.visibleWhen || field.visibleWhen(form)) {
+          <label class="fld" [class.wide]="field.type === 'textarea' || field.wide">
+            <span>{{ field.label }}</span>
+            @if (field.type === 'textarea') {
+              <textarea [(ngModel)]="form[field.key]" [name]="field.key"></textarea>
+            } @else if (field.type === 'select') {
+              <select [(ngModel)]="form[field.key]" [name]="field.key">
+                @for (option of field.options || []; track option) {
+                  <option [value]="option">{{ field.optionLabel ? field.optionLabel(option) : option }}</option>
+                }
+              </select>
+            } @else if (field.type === 'date') {
+              <app-date-input
+                [(value)]="form[field.key]"
+                [min]="field.minKey ? (form[field.minKey] || field.min || '') : (field.min || '')"
+                [max]="field.maxKey ? (form[field.maxKey] || field.max || '') : (field.max || '')"
+              ></app-date-input>
+            } @else if (field.type === 'checkbox') {
+              <input type="checkbox" [(ngModel)]="form[field.key]" [name]="field.key" />
+            } @else {
+              <input [type]="field.type" [(ngModel)]="form[field.key]" [name]="field.key" />
+            }
+          </label>
+        }
       }
       <button type="button" class="btn" *ngIf="showLoadWeek" (click)="loadWeek.emit()">Load week</button>
       <button class="btn btn--primary" type="submit" [disabled]="saving">

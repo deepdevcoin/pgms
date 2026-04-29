@@ -110,9 +110,9 @@ export function buildModuleConfig(role: Role | null, pgOptions: string[], pgName
       fields: role === 'TENANT' ? [
         { key: 'intendedVacateDate', label: 'Vacate date (15+ days)', type: 'date' },
         { key: 'hasReferral', label: 'Has referral', type: 'checkbox' },
-        { key: 'referralName', label: 'Referral name', type: 'text' },
-        { key: 'referralPhone', label: 'Referral phone', type: 'text' },
-        { key: 'referralEmail', label: 'Referral email', type: 'text' }
+        { key: 'referralName', label: 'Referral name', type: 'text', visibleWhen: form => !!form['hasReferral'] },
+        { key: 'referralPhone', label: 'Referral phone', type: 'text', visibleWhen: form => !!form['hasReferral'] },
+        { key: 'referralEmail', label: 'Referral email', type: 'text', visibleWhen: form => !!form['hasReferral'] }
       ] : []
     },
     services: {
@@ -169,7 +169,7 @@ export function buildModuleConfig(role: Role | null, pgOptions: string[], pgName
       createLabel: role === 'TENANT' ? 'Request sublet' : undefined,
       fields: role === 'TENANT' ? [
         { key: 'startDate', label: 'Start date', type: 'date' },
-        { key: 'endDate', label: 'End date', type: 'date' },
+        { key: 'endDate', label: 'End date', type: 'date', minKey: 'startDate' },
         { key: 'reason', label: 'Reason', type: 'textarea' }
       ] : []
     }

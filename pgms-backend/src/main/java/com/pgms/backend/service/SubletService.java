@@ -252,8 +252,8 @@ public class SubletService {
         if (request.getStartDate().isBefore(today)) {
             throw new BadRequestException("Sublet start date cannot be in the past");
         }
-        if (!request.getEndDate().isAfter(request.getStartDate())) {
-            throw new BadRequestException("Sublet end date must be after the start date");
+        if (request.getEndDate().isBefore(request.getStartDate())) {
+            throw new BadRequestException("Sublet end date cannot be before the start date");
         }
         if (request.getReason() == null || request.getReason().trim().isEmpty()) {
             throw new BadRequestException("Reason is required");
