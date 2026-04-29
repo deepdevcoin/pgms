@@ -25,8 +25,20 @@ public class NoticeSchemaNormalizer implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         try {
             jdbcTemplate.execute("alter table notices modify column content longtext not null");
+            Integer hasScheduledAt = jdbcTemplate.queryForObject("""
+                    select count(*)
+                    from information_schema.columns
+                    where table_schema = database()
+                      and table_name = 'notices'
+                      and column_name = 'scheduled_at'
+                    """, Integer.class);
+            if (hasScheduledAt != null && hasScheduledAt == 0) {
+                jdbcTemplate.execute("alter table notices add column scheduled_at datetime null");
+            }
+            jdbcTemplate.execute("update notices set scheduled_at = created_at where scheduled_at is null");
+            jdbcTemplate.execute("alter table notices modify column scheduled_at datetime not null");
         } catch (Exception ex) {
-            log.warn("Could not normalize notice content column: {}", ex.getMessage());
+            log.warn("Could not normalize notice schema: {}", ex.getMessage());
         }
     }
 }

@@ -624,7 +624,9 @@ export class MockDataService {
     return of(this.clone(this.notices)).pipe(delay(120));
   }
 
-  createNotice(payload: { title: string; content: string; targetType: string; targetPgId?: number; targetUserId?: number }, createdByName: string, createdById = 1): Observable<Notice> {
+  createNotice(payload: { title: string; content: string; targetType: string; targetPgId?: number; targetUserId?: number; scheduledAt?: string }, createdByName: string, createdById = 1): Observable<Notice> {
+    const now = new Date().toISOString();
+    const scheduledAt = payload.scheduledAt || now;
     const notice: Notice = {
       id: Date.now(),
       title: payload.title,
@@ -634,7 +636,9 @@ export class MockDataService {
       targetUserId: payload.targetUserId,
       createdById,
       createdByName,
-      createdAt: new Date().toISOString(),
+      createdAt: now,
+      scheduledAt,
+      deliveryStatus: new Date(scheduledAt).getTime() > Date.now() ? 'SCHEDULED' : 'SENT',
       read: false,
       readCount: 0
     };
@@ -1212,8 +1216,8 @@ export class MockDataService {
 
   private buildNotices(): Notice[] {
     return [
-      { id: 1, title: 'Water shutdown', content: 'Maintenance from 2 PM to 4 PM', targetType: 'ALL_PGS', createdById: 1, createdByName: 'StayMate Owner', createdAt: '2026-04-24T08:00:00', read: false, readCount: 2 },
-      { id: 2, title: 'Floor audit', content: 'Inspection tomorrow morning', targetType: 'ALL_MANAGERS', createdById: 1, createdByName: 'StayMate Owner', createdAt: '2026-04-23T12:00:00', read: true, readCount: 1 }
+      { id: 1, title: 'Water shutdown', content: 'Maintenance from 2 PM to 4 PM', targetType: 'ALL_PGS', createdById: 1, createdByName: 'StayMate Owner', createdAt: '2026-04-24T08:00:00', scheduledAt: '2026-04-24T08:00:00', deliveryStatus: 'SENT', read: false, readCount: 2 },
+      { id: 2, title: 'Floor audit', content: 'Inspection tomorrow morning', targetType: 'ALL_MANAGERS', createdById: 1, createdByName: 'StayMate Owner', createdAt: '2026-04-23T12:00:00', scheduledAt: '2026-04-23T12:00:00', deliveryStatus: 'SENT', read: true, readCount: 1 }
     ];
   }
 

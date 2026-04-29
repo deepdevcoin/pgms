@@ -97,17 +97,20 @@ export function buildModuleConfig(
       title: 'Notices',
       subtitle: 'Announcements with read tracking.',
       columns: role === 'TENANT'
-        ? ['title', 'content', 'createdByName', 'createdAt']
+        ? ['readStatus', 'title', 'content', 'targetType', 'createdByName', 'createdAt']
         : role === 'MANAGER'
-          ? ['title', 'content', 'targetType', 'createdByName', 'createdAt']
-          : ['title', 'targetType', 'createdByName', 'createdAt', 'readCount'],
+          ? ['title', 'content', 'targetType', 'deliveryStatus', 'timeRemaining', 'createdByName', 'scheduledAt']
+          : ['title', 'content', 'targetType', 'deliveryStatus', 'timeRemaining', 'createdByName', 'scheduledAt', 'readCount'],
       createLabel: role === 'OWNER' || role === 'MANAGER' ? 'Compose notice' : undefined,
       fields: role === 'OWNER' || role === 'MANAGER' ? [
         { key: 'title', label: 'Title', type: 'text', minLength: 3, maxLength: 120 },
-        { key: 'content', label: 'Content', type: 'textarea', minLength: 5 },
+        { key: 'content', label: 'Content', type: 'textarea', minLength: 5, maxLength: 5000 },
         { key: 'targetType', label: 'Target', type: 'select', options: role === 'OWNER' ? ['ALL_PGS', 'ALL_TENANTS', 'SPECIFIC_PG', 'ALL_MANAGERS', 'SPECIFIC_TENANT'] : ['SPECIFIC_PG', 'SPECIFIC_TENANT'], optionLabel: option => serviceTypeLabel(option) },
         { key: 'targetPgId', label: 'Target PG', type: 'search-select', options: pgOptions, optionLabel: option => pgName(option), optionSearchText: option => pgSearchText(option), visibleWhen: form => form['targetType'] === 'SPECIFIC_PG' },
-        { key: 'targetUserId', label: 'Target tenant', type: 'search-select', options: tenantOptions, optionLabel: option => tenantName(option), optionSearchText: option => tenantSearchText(option), visibleWhen: form => form['targetType'] === 'SPECIFIC_TENANT' }
+        { key: 'targetUserId', label: 'Target tenant', type: 'search-select', options: tenantOptions, optionLabel: option => tenantName(option), optionSearchText: option => tenantSearchText(option), visibleWhen: form => form['targetType'] === 'SPECIFIC_TENANT' },
+        { key: 'scheduleNotice', label: 'Schedule notice', type: 'checkbox', required: false },
+        { key: 'scheduledDate', label: 'Schedule date', type: 'date', visibleWhen: form => !!form['scheduleNotice'] },
+        { key: 'scheduledTime', label: 'Schedule time', type: 'time-dial', visibleWhen: form => !!form['scheduleNotice'] }
       ] : []
     },
     vacate: {

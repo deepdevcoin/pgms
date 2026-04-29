@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -21,6 +21,8 @@ import { MenuWeekPlannerComponent } from './menu-week-planner.component';
 import { OperationsPaymentOverviewComponent } from './operations-payment-overview.component';
 import { OperationsTableComponent } from './operations-table.component';
 import { ActionConfig, FieldConfig, ModuleKey, Row } from './operations.types';
+
+type NoticeFilter = 'ALL' | 'SCHEDULED' | 'SENT';
 
 @Component({
   selector: 'app-operations',
@@ -133,6 +135,21 @@ import { ActionConfig, FieldConfig, ModuleKey, Row } from './operations.types';
         </div>
         <button class="btn btn--ghost" (click)="load()"><mat-icon>refresh</mat-icon><span>Refresh</span></button>
       </div>
+      @if (moduleKey() === 'notices') {
+        <div class="notice-filter-bar">
+          @for (filter of noticeFilters; track filter) {
+            <button
+              class="notice-filter"
+              type="button"
+              [class.notice-filter--active]="noticeFilter() === filter"
+              (click)="noticeFilter.set(filter)"
+            >
+              <span>{{ noticeFilterLabel(filter) }}</span>
+              <strong>{{ noticeFilterCount(filter) }}</strong>
+            </button>
+          }
+        </div>
+      }
       }
 
       @if (loading()) {
@@ -157,11 +174,11 @@ import { ActionConfig, FieldConfig, ModuleKey, Row } from './operations.types';
         />
       } @else if (filteredRows().length === 0) {
         <div class="state card"><mat-icon>inbox</mat-icon><span>No records found.</span></div>
-      } @else if (moduleKey() === 'notices' && auth.role() === 'MANAGER') {
+      } @else if (moduleKey() === 'notices' && auth.role() !== 'TENANT') {
         <div class="notice-sections">
           <section class="notice-section">
             <div class="notice-section-head">
-              <h2>Created by me</h2>
+              <h2>My notices</h2>
               <span>{{ managerCreatedNoticeRows().length }} notice{{ managerCreatedNoticeRows().length === 1 ? '' : 's' }}</span>
             </div>
             @if (managerCreatedNoticeRows().length === 0) {
@@ -181,6 +198,7 @@ import { ActionConfig, FieldConfig, ModuleKey, Row } from './operations.types';
                 [moneyColumn]="moneyColumn.bind(this)"
                 [statusColumn]="statusColumn.bind(this)"
                 [pillClass]="pillClass.bind(this)"
+                [cellClass]="cellClass.bind(this)"
                 (rowClick)="handleRowClick($event)"
               />
             }
@@ -188,11 +206,11 @@ import { ActionConfig, FieldConfig, ModuleKey, Row } from './operations.types';
 
           <section class="notice-section">
             <div class="notice-section-head">
-              <h2>Received notices</h2>
+              <h2>Other notices</h2>
               <span>{{ managerReceivedNoticeRows().length }} notice{{ managerReceivedNoticeRows().length === 1 ? '' : 's' }}</span>
             </div>
             @if (managerReceivedNoticeRows().length === 0) {
-              <div class="state card state--compact"><mat-icon>inbox</mat-icon><span>No received notices.</span></div>
+              <div class="state card state--compact"><mat-icon>inbox</mat-icon><span>No other notices.</span></div>
             } @else {
               <app-operations-table
                 [columns]="managerReceivedNoticeColumns()"
@@ -208,6 +226,7 @@ import { ActionConfig, FieldConfig, ModuleKey, Row } from './operations.types';
                 [moneyColumn]="moneyColumn.bind(this)"
                 [statusColumn]="statusColumn.bind(this)"
                 [pillClass]="pillClass.bind(this)"
+                [cellClass]="cellClass.bind(this)"
                 (rowClick)="handleRowClick($event)"
               />
             }
@@ -230,6 +249,7 @@ import { ActionConfig, FieldConfig, ModuleKey, Row } from './operations.types';
           [moneyColumn]="moneyColumn.bind(this)"
           [statusColumn]="statusColumn.bind(this)"
           [pillClass]="pillClass.bind(this)"
+          [cellClass]="cellClass.bind(this)"
           (rowClick)="handleRowClick($event)"
         />
 
@@ -294,6 +314,17 @@ import { ActionConfig, FieldConfig, ModuleKey, Row } from './operations.types';
     (closed)="closeNoticePreview()"
   >
     <article class="notice-preview">
+      @if (noticePreviewReadStatus()) {
+        <span class="notice-preview-read" [class.notice-preview-read--unread]="noticePreviewReadStatus() === 'Unread'">
+          {{ noticePreviewReadStatus() }}
+        </span>
+      }
+      @if (noticePreviewTimer()) {
+        <div class="notice-preview-timer">
+          <mat-icon>{{ noticePreviewTimer() === 'Sent' ? 'check_circle' : 'schedule' }}</mat-icon>
+          <span>{{ noticePreviewTimer() === 'Sent' ? 'Sent' : 'Sends in ' + noticePreviewTimer() }}</span>
+        </div>
+      }
       <p>{{ noticePreviewContent() }}</p>
     </article>
   </app-popup-shell>
@@ -456,7 +487,38 @@ import { ActionConfig, FieldConfig, ModuleKey, Row } from './operations.types';
       border: 1px solid var(--border);
       border-radius: 12px;
       background: var(--bg);
+      display: grid;
+      gap: 12px;
     }
+    .notice-preview-read {
+      width: fit-content;
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(34,197,94,0.38);
+      background: rgba(34,197,94,0.14);
+      color: #86efac;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .notice-preview-read--unread {
+      border-color: rgba(251,191,36,0.42);
+      background: rgba(251,191,36,0.14);
+      color: #fde68a;
+    }
+    .notice-preview-timer {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(96,165,250,0.38);
+      background: rgba(96,165,250,0.12);
+      color: #bfdbfe;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .notice-preview-timer mat-icon { font-size: 16px; width: 16px; height: 16px; }
     .notice-preview p {
       margin: 0;
       color: var(--text);
@@ -469,6 +531,39 @@ import { ActionConfig, FieldConfig, ModuleKey, Row } from './operations.types';
     .notice-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 2px; }
     .notice-section-head h2 { margin: 0; font-size: 16px; line-height: 1.3; }
     .notice-section-head span { color: var(--text-muted); font-size: 12px; }
+    .notice-filter-bar { display: flex; gap: 8px; flex-wrap: wrap; }
+    .notice-filter {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      cursor: pointer;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .notice-filter strong {
+      min-width: 22px;
+      height: 22px;
+      padding: 0 6px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      font-size: 11px;
+      font-family: var(--font-mono);
+    }
+    .notice-filter--active {
+      color: #bfdbfe;
+      border-color: rgba(96,165,250,0.42);
+      background: rgba(96,165,250,0.12);
+    }
     .rating-picker { display: flex; gap: 6px; align-items: center; }
     .rating-star {
       width: 40px;
@@ -490,7 +585,7 @@ import { ActionConfig, FieldConfig, ModuleKey, Row } from './operations.types';
   `],
   host: {}
 })
-export class OperationsComponent {
+export class OperationsComponent implements OnDestroy {
   private route = inject(ActivatedRoute);
   private api = inject(ApiService);
   private snack = inject(MatSnackBar);
@@ -522,6 +617,8 @@ export class OperationsComponent {
   actionDialogConfirmLabel = signal('Save');
   noticePreviewOpen = signal(false);
   noticePreviewRow = signal<Row | null>(null);
+  noticeFilter = signal<NoticeFilter>('ALL');
+  nowMs = signal(Date.now());
   receiptsOpen = signal(false);
   receiptsLoading = signal(false);
   selectedNoticeTitle = signal('');
@@ -537,6 +634,8 @@ export class OperationsComponent {
   subletCheckInRow = signal<Row | null>(null);
   subletGuestForm = { guestName: '', guestPhone: '', checkInDate: '' };
   readonly ratingOptions = [1, 2, 3, 4, 5];
+  readonly noticeFilters: NoticeFilter[] = ['ALL', 'SCHEDULED', 'SENT'];
+  private readonly noticeTimer = window.setInterval(() => this.nowMs.set(Date.now()), 1000);
   private confirmAction: (() => void) | null = null;
   private textActionFactory: ((value: string) => { subscribe: (handlers: { next: () => void; error: (err: any) => void }) => void }) | null = null;
   private numberActionFactory: ((value: number) => { subscribe: (handlers: { next: () => void; error: (err: any) => void }) => void }) | null = null;
@@ -641,9 +740,18 @@ export class OperationsComponent {
     .filter(field => !field.show || field.show(this.auth.role()))
     .map(field => this.decorateDateField(field)));
   filteredRows = computed(() => {
+    this.nowMs();
     const q = this.query.toLowerCase().trim();
-    if (!q) return this.rows();
-    return this.rows().filter(row => JSON.stringify(row).toLowerCase().includes(q));
+    let rows = q ? this.rows().filter(row => JSON.stringify(row).toLowerCase().includes(q)) : this.rows();
+    if (this.moduleKey() === 'notices') {
+      rows = rows.filter(row => this.noticeFilter() === 'ALL' || this.noticeDeliveryState(row) === this.noticeFilter());
+    }
+    return rows;
+  });
+  noticeRowsForCounts = computed(() => {
+    this.nowMs();
+    const q = this.query.toLowerCase().trim();
+    return q ? this.rows().filter(row => JSON.stringify(row).toLowerCase().includes(q)) : this.rows();
   });
   managerCreatedNoticeRows = computed(() => this.filteredRows().filter(row => !!row['isPublisher']));
   managerReceivedNoticeRows = computed(() => this.filteredRows().filter(row => !row['isPublisher']));
@@ -663,8 +771,8 @@ export class OperationsComponent {
   });
   actionsMap = computed(() => buildModuleActions(this.auth.role(), this.actionHandlers));
   actions = computed<ActionConfig[]>(() => this.actionsMap()[this.moduleKey()]);
-  managerCreatedNoticeColumns = computed(() => ['title', 'content', 'targetType', 'createdAt', 'readCount']);
-  managerReceivedNoticeColumns = computed(() => ['title', 'content', 'targetType', 'createdByName', 'createdAt']);
+  managerCreatedNoticeColumns = computed(() => ['title', 'content', 'targetType', 'deliveryStatus', 'timeRemaining', 'scheduledAt', 'readCount']);
+  managerReceivedNoticeColumns = computed(() => ['readStatus', 'title', 'content', 'targetType', 'deliveryStatus', 'timeRemaining', 'createdByName', 'scheduledAt']);
   tenantMenuPgId = computed(() => {
     if (this.auth.role() !== 'TENANT') return 0;
     const fromProfile = Number(this.tenantProfile()?.pgId || 0);
@@ -807,7 +915,8 @@ export class OperationsComponent {
               content: this.form['content'],
               targetType: this.form['targetType'],
               targetPgId: this.form['targetType'] === 'SPECIFIC_PG' ? this.optionalNumber('targetPgId') : undefined,
-              targetUserId: this.form['targetType'] === 'SPECIFIC_TENANT' ? this.optionalNumber('targetUserId') : undefined
+              targetUserId: this.form['targetType'] === 'SPECIFIC_TENANT' ? this.optionalNumber('targetUserId') : undefined,
+              scheduledAt: this.noticeScheduledAt()
             })
           : key === 'vacate'
             ? this.api.createVacate({ intendedVacateDate: this.form['intendedVacateDate'], hasReferral: !!this.form['hasReferral'], referralName: this.form['referralName'], referralPhone: this.form['referralPhone'], referralEmail: this.form['referralEmail'] })
@@ -837,6 +946,15 @@ export class OperationsComponent {
     if (this.moduleKey() === 'notices' && col === 'content') {
       return this.truncateNoticeText(row[col]);
     }
+    if (this.moduleKey() === 'notices' && col === 'deliveryStatus') {
+      return this.noticeDeliveryState(row) === 'SCHEDULED' ? 'Scheduled' : 'Sent';
+    }
+    if (this.moduleKey() === 'notices' && col === 'timeRemaining') {
+      return this.noticeTimerLabel(row);
+    }
+    if (this.moduleKey() === 'notices' && col === 'readStatus') {
+      return this.noticeReadStatus(row);
+    }
     if (this.moduleKey() === 'notices' && col === 'readCount' && !row['isPublisher']) {
       return '-';
     }
@@ -855,8 +973,26 @@ export class OperationsComponent {
     return isMoneyColumn(col);
   }
 
-  statusColumn(col: string): boolean { return isStatusColumn(col); }
+  statusColumn(col: string): boolean {
+    return isStatusColumn(col) || (this.moduleKey() === 'notices' && ['targetType', 'deliveryStatus', 'readStatus'].includes(col));
+  }
   pillClass(status: unknown): string { return pillClassForStatus(status); }
+  cellClass(row: Row, col: string): string {
+    if (this.moduleKey() === 'notices' && col === 'title' && this.noticeDeliveryState(row) === 'SCHEDULED') {
+      return 'cell--notice-scheduled';
+    }
+    return '';
+  }
+
+  noticeFilterLabel(filter: NoticeFilter): string {
+    return filter === 'ALL' ? 'All' : filter === 'SCHEDULED' ? 'Scheduled' : 'Sent';
+  }
+
+  noticeFilterCount(filter: NoticeFilter): number {
+    const rows = this.noticeRowsForCounts();
+    if (filter === 'ALL') return rows.length;
+    return rows.filter(row => this.noticeDeliveryState(row) === filter).length;
+  }
 
   private resetForm() {
     this.form = {
@@ -872,7 +1008,10 @@ export class OperationsComponent {
       intendedVacateDate: this.minimumVacateDateIso(),
       pgId: this.auth.role() === 'TENANT' ? this.tenantProfile()?.pgId : this.pgs()[0]?.id,
       targetPgId: this.pgs()[0]?.id,
-      targetUserId: this.tenants()[0]?.userId
+      targetUserId: this.tenants()[0]?.userId,
+      scheduleNotice: false,
+      scheduledDate: '',
+      scheduledTime: ''
     };
   }
 
@@ -1110,6 +1249,13 @@ export class OperationsComponent {
       if (!String(this.form['content'] || '').trim()) return 'Enter the notice message.';
       if (this.form['targetType'] === 'SPECIFIC_PG' && !this.optionalNumber('targetPgId')) return 'Choose a target PG.';
       if (this.form['targetType'] === 'SPECIFIC_TENANT' && !this.optionalNumber('targetUserId')) return 'Choose a target tenant.';
+      const scheduledDate = String(this.form['scheduledDate'] || '').trim();
+      const scheduledTime = String(this.form['scheduledTime'] || '').trim();
+      if (this.form['scheduleNotice'] && (!scheduledDate || !scheduledTime)) return 'Choose both schedule date and schedule time.';
+      if (!this.form['scheduleNotice'] && (scheduledDate || scheduledTime)) return 'Tick schedule notice before choosing a send time.';
+      if (this.form['scheduleNotice'] && `${scheduledDate}T${scheduledTime}` <= this.localDateTimeInputValue()) {
+        return 'Scheduled notice time must be in the future.';
+      }
     }
     if (key === 'amenities') {
       const capacity = Number(this.form['capacity']);
@@ -1142,6 +1288,12 @@ export class OperationsComponent {
         if (!Number.isFinite(numberValue)) return `${field.label} must be a valid number.`;
         if (field.min !== undefined && numberValue < Number(field.min)) return `${field.label} must be at least ${field.min}.`;
         if (field.max !== undefined && numberValue > Number(field.max)) return `${field.label} must be at most ${field.max}.`;
+      }
+      if ((field.type === 'date' || field.type === 'time') && field.min !== undefined && text < field.min) {
+        return `${field.label} cannot be before ${field.min}.`;
+      }
+      if ((field.type === 'date' || field.type === 'time') && field.max !== undefined && text > field.max) {
+        return `${field.label} cannot be after ${field.max}.`;
       }
       if (field.minLength && text.length < field.minLength) return `${field.label} must be at least ${field.minLength} characters.`;
       if (field.maxLength && text.length > field.maxLength) return `${field.label} must be at most ${field.maxLength} characters.`;
@@ -1201,6 +1353,9 @@ export class OperationsComponent {
     }
     if (this.moduleKey() === 'sublets' && field.key === 'endDate') {
       return { ...field, min: this.todayIso(), minKey: 'startDate' };
+    }
+    if (this.moduleKey() === 'notices' && field.key === 'scheduledDate') {
+      return { ...field, min: this.todayIso() };
     }
     return field;
   }
@@ -1336,10 +1491,25 @@ export class OperationsComponent {
     return String(this.noticePreviewRow()?.['content'] || 'No message provided.');
   }
 
+  noticePreviewTimer(): string {
+    const row = this.noticePreviewRow();
+    if (!row || !row['scheduledAt']) return '';
+    return this.noticeTimerLabel(row);
+  }
+
+  noticePreviewReadStatus(): string {
+    const row = this.noticePreviewRow();
+    if (!row || row['isPublisher']) return '';
+    return this.noticeReadStatus(row);
+  }
+
   noticePreviewSubtitle(): string {
     const row = this.noticePreviewRow();
     if (!row) return '';
     const publisher = String(row['createdByName'] || 'Publisher');
+    const scheduledAt = this.value(row, 'scheduledAt');
+    const status = this.value(row, 'deliveryStatus');
+    if (scheduledAt && scheduledAt !== '-') return `${publisher} · ${status} · ${scheduledAt}`;
     const createdAt = this.value(row, 'createdAt');
     return createdAt && createdAt !== '-' ? `${publisher} · ${createdAt}` : publisher;
   }
@@ -1354,17 +1524,63 @@ export class OperationsComponent {
     const id = Number(row['id']);
     if (!id || row['read'] || row['isPublisher']) return;
     this.rows.set(this.rows().map(item => Number(item['id']) === id ? { ...item, read: true } : item));
+    if (Number(this.noticePreviewRow()?.['id']) === id) {
+      this.noticePreviewRow.set({ ...row, read: true });
+    }
     this.api.markNoticeRead(id).subscribe({
       error: () => {
         this.rows.set(this.rows().map(item => Number(item['id']) === id ? { ...item, read: false } : item));
+        if (Number(this.noticePreviewRow()?.['id']) === id) {
+          this.noticePreviewRow.set({ ...row, read: false });
+        }
         this.snack.open('Could not send read receipt', 'Dismiss', { duration: 2600, panelClass: 'pgms-snack' });
       }
     });
   }
 
+  private noticeReadStatus(row: Row): string {
+    if (row['isPublisher']) return '-';
+    return row['read'] ? 'Read' : 'Unread';
+  }
+
   private truncateNoticeText(value: unknown): string {
     const text = String(value || '').trim();
     return text.length > 50 ? `${text.slice(0, 50).trimEnd()}...` : text || '-';
+  }
+
+  private noticeDeliveryState(row: Row): 'SCHEDULED' | 'SENT' {
+    return this.noticeScheduledTime(row) > this.nowMs() ? 'SCHEDULED' : 'SENT';
+  }
+
+  private noticeTimerLabel(row: Row): string {
+    const remainingMs = this.noticeScheduledTime(row) - this.nowMs();
+    if (remainingMs <= 0) return 'Sent';
+    const totalSeconds = Math.ceil(remainingMs / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+  }
+
+  private noticeScheduledTime(row: Row): number {
+    const value = String(row['scheduledAt'] || row['createdAt'] || '');
+    const parsed = value ? new Date(value).getTime() : 0;
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  private noticeScheduledAt(): string | undefined {
+    const date = String(this.form['scheduledDate'] || '').trim();
+    const time = String(this.form['scheduledTime'] || '').trim();
+    return this.form['scheduleNotice'] && date && time ? `${date}T${time}` : undefined;
+  }
+
+  private localDateTimeInputValue(): string {
+    const date = new Date();
+    const offsetMs = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
   }
 
   private enrichNoticeRows(rows: Row[]): Row[] {
@@ -1425,5 +1641,9 @@ export class OperationsComponent {
 
   runAmenityCancel(row: Row) {
     this.actionHandlers.amenityCancel(row);
+  }
+
+  ngOnDestroy() {
+    clearInterval(this.noticeTimer);
   }
 }

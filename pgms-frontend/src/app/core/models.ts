@@ -158,6 +158,7 @@ export type AmenityType = 'WASHING_MACHINE' | 'TABLE_TENNIS' | 'CARROM' | 'BADMI
 export type BookingStatus = 'AVAILABLE' | 'BOOKED' | 'CANCELLED' | 'COMPLETED';
 export type SubletStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'ACTIVE' | 'COMPLETED';
 export type NoticeTargetType = 'ALL_PGS' | 'ALL_TENANTS' | 'SPECIFIC_PG' | 'ALL_MANAGERS' | 'SPECIFIC_TENANT';
+export type NoticeDeliveryStatus = 'SENT' | 'SCHEDULED';
 export type MealType = 'BREAKFAST' | 'LUNCH' | 'DINNER';
 
 export interface RentRecord {
@@ -259,6 +260,8 @@ export interface Notice {
   createdById?: number;
   createdByName?: string;
   createdAt?: string;
+  scheduledAt?: string;
+  deliveryStatus?: NoticeDeliveryStatus;
   read?: boolean;
   readCount?: number;
 }

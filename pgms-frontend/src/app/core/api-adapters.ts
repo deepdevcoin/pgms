@@ -1,6 +1,6 @@
 import {
   CleaningStatus, Complaint, ComplaintActivity, LoginResponse, Manager, ManagerSummary, OwnerSummary, PaymentOverview, PaymentSummary,
-  PaymentTransaction, PG, Role, Room, RoomStatus, ServiceBooking, SharingType, Tenant, RentRecord
+  PaymentTransaction, PG, Role, Room, RoomStatus, ServiceBooking, SharingType, Tenant, RentRecord, Notice
 } from './models';
 
 type AnyRecord = Record<string, unknown>;
@@ -15,6 +15,8 @@ const complaintCategories = ['MAINTENANCE', 'NOISE', 'HYGIENE', 'FOOD', 'OTHER',
 const complaintActivityTypes = ['CREATED', 'COMMENT', 'STATUS_CHANGE'] as const;
 const serviceStatuses = ['REQUESTED', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'REJECTED'] as const;
 const serviceTypes = ['CLEANING', 'LINEN_CHANGE', 'PEST_CONTROL', 'PLUMBING', 'ELECTRICAL'] as const;
+const noticeTargetTypes = ['ALL_PGS', 'ALL_TENANTS', 'SPECIFIC_PG', 'ALL_MANAGERS', 'SPECIFIC_TENANT'] as const;
+const noticeDeliveryStatuses = ['SENT', 'SCHEDULED'] as const;
 
 function isRecord(value: unknown): value is AnyRecord {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -366,6 +368,24 @@ export function mapComplaintActivity(source: unknown): ComplaintActivity {
     toStatus: text(source, ['toStatus'], '') as ComplaintActivity['toStatus'],
     message: text(source, ['message', 'notes'], ''),
     createdAt: text(source, ['createdAt'], '')
+  };
+}
+
+export function mapNotice(source: unknown): Notice {
+  return {
+    id: numberValue(source, ['id']),
+    title: text(source, ['title'], ''),
+    content: text(source, ['content'], ''),
+    targetType: enumValue(source, ['targetType'], noticeTargetTypes, 'ALL_PGS'),
+    targetPgId: optionalNumber(source, ['targetPgId', 'targetPg.id']),
+    targetUserId: optionalNumber(source, ['targetUserId', 'targetUser.id']),
+    createdById: optionalNumber(source, ['createdById', 'createdBy.id']),
+    createdByName: text(source, ['createdByName', 'createdBy.name'], ''),
+    createdAt: text(source, ['createdAt'], ''),
+    scheduledAt: text(source, ['scheduledAt'], ''),
+    deliveryStatus: enumValue(source, ['deliveryStatus'], noticeDeliveryStatuses, 'SENT'),
+    read: booleanValue(source, ['read'], false),
+    readCount: numberValue(source, ['readCount'], 0)
   };
 }
 

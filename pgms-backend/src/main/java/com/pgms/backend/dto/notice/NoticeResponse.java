@@ -18,6 +18,8 @@ public class NoticeResponse {
     private Long createdById;
     private String createdByName;
     private LocalDateTime createdAt;
+    private LocalDateTime scheduledAt;
+    private String deliveryStatus;
     private boolean read;
     private int readCount;
 }

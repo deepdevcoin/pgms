@@ -57,4 +57,7 @@ public class Notice {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private LocalDateTime scheduledAt;
 }

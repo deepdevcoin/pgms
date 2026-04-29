@@ -74,8 +74,10 @@ public class NoticeService {
         if (role == Role.OWNER || role == Role.MANAGER) {
             noticeRepository.findByCreatedByIdOrderByCreatedAtDesc(userId).forEach(n -> notices.put(n.getId(), n));
         }
+        LocalDateTime now = LocalDateTime.now();
         return new ArrayList<>(notices.values()).stream()
-                .sorted(Comparator.comparing(Notice::getCreatedAt).reversed())
+                .filter(notice -> isVisibleToCurrentUser(notice, userId, role, now))
+                .sorted(Comparator.comparing(this::noticeSortTime).reversed())
                 .map(this::toResponse)
                 .toList();
     }
@@ -85,18 +87,32 @@ public class NoticeService {
         User currentUser = userRepository.findById(SecurityUtils.getCurrentUserId())
                 .orElseThrow(() -> new NotFoundException("User not found"));
         validateTargets(currentUser.getRole(), request);
+        String title = request.getTitle() == null ? "" : request.getTitle().trim();
+        String content = request.getContent() == null ? "" : request.getContent().trim();
+        if (title.length() < 3 || title.length() > 120) {
+            throw new BadRequestException("Title must be between 3 and 120 characters");
+        }
+        if (content.length() < 5 || content.length() > 5000) {
+            throw new BadRequestException("Content must be between 5 and 5000 characters");
+        }
         Pg targetPg = request.getTargetPgId() == null ? null : pgRepository.findById(request.getTargetPgId())
                 .orElseThrow(() -> new NotFoundException("Target PG not found"));
         User targetUser = request.getTargetUserId() == null ? null : userRepository.findById(request.getTargetUserId())
                 .orElseThrow(() -> new NotFoundException("Target user not found"));
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime scheduledAt = request.getScheduledAt() == null ? now : request.getScheduledAt();
+        if (scheduledAt.isBefore(now.minusMinutes(1))) {
+            throw new BadRequestException("Scheduled time cannot be in the past");
+        }
         Notice notice = noticeRepository.save(Notice.builder()
-                .title(request.getTitle())
-                .content(request.getContent())
+                .title(title)
+                .content(content)
                 .targetType(request.getTargetType())
                 .targetPg(targetPg)
                 .targetUser(targetUser)
                 .createdBy(currentUser)
-                .createdAt(LocalDateTime.now())
+                .createdAt(now)
+                .scheduledAt(scheduledAt)
                 .build());
         return toResponse(notice);
     }
@@ -104,6 +120,9 @@ public class NoticeService {
     @Transactional
     public void markRead(Long noticeId) {
         Notice notice = noticeRepository.findById(noticeId).orElseThrow(() -> new NotFoundException("Notice not found"));
+        if (isScheduled(notice, LocalDateTime.now())) {
+            throw new BadRequestException("Scheduled notice is not available yet");
+        }
         Long userId = SecurityUtils.getCurrentUserId();
         if (noticeReadRepository.findByNoticeIdAndUserId(noticeId, userId).isEmpty()) {
             User user = userRepository.findById(userId).orElseThrow(() -> new NotFoundException("User not found"));
@@ -134,6 +153,8 @@ public class NoticeService {
                 .createdById(notice.getCreatedBy().getId())
                 .createdByName(notice.getCreatedBy().getName())
                 .createdAt(notice.getCreatedAt())
+                .scheduledAt(notice.getScheduledAt())
+                .deliveryStatus(isScheduled(notice, LocalDateTime.now()) ? "SCHEDULED" : "SENT")
                 .read(currentUserId != null && noticeReadRepository.findByNoticeIdAndUserId(notice.getId(), currentUserId).isPresent())
                 .readCount(noticeReadRepository.findByNoticeId(notice.getId()).size())
                 .build();
@@ -177,5 +198,20 @@ public class NoticeService {
                 accessControlService.ensureManagerAssignedToPg(tenantProfile.getPg().getId());
             }
         }
+    }
+
+    private boolean isVisibleToCurrentUser(Notice notice, Long userId, Role role, LocalDateTime now) {
+        if (role == Role.OWNER || notice.getCreatedBy().getId().equals(userId)) {
+            return true;
+        }
+        return !isScheduled(notice, now);
+    }
+
+    private boolean isScheduled(Notice notice, LocalDateTime now) {
+        return notice.getScheduledAt() != null && notice.getScheduledAt().isAfter(now);
+    }
+
+    private LocalDateTime noticeSortTime(Notice notice) {
+        return notice.getScheduledAt() != null ? notice.getScheduledAt() : notice.getCreatedAt();
     }
 }

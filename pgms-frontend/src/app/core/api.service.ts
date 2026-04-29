@@ -11,7 +11,7 @@ import {
 } from './models';
 import {
   asCollection, mapComplaint, mapComplaintActivity, mapLogin, mapManager, mapManagerSummary, mapOwnerSummary,
-  mapLayoutRooms, mapPaymentOverview, mapPg, mapRentRecord, mapRoom, mapServiceBooking, mapTenant, unwrapApiPayload
+  mapLayoutRooms, mapNotice, mapPaymentOverview, mapPg, mapRentRecord, mapRoom, mapServiceBooking, mapTenant, unwrapApiPayload
 } from './api-adapters';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -405,13 +405,13 @@ export class ApiService {
   listNotices(): Observable<Notice[]> {
     if (this.isDemo()) return this.mock.listNotices(this.role());
     const path = this.role() === 'OWNER' ? environment.endpoints.notices.ownerList : environment.endpoints.notices.list;
-    return this.get<unknown>(path).pipe(map(response => asCollection(response) as Notice[]));
+    return this.get<unknown>(path).pipe(map(response => asCollection(response).map(mapNotice)));
   }
 
-  createNotice(payload: { title: string; content: string; targetType: string; targetPgId?: number; targetUserId?: number }): Observable<Notice> {
+  createNotice(payload: { title: string; content: string; targetType: string; targetPgId?: number; targetUserId?: number; scheduledAt?: string }): Observable<Notice> {
     if (this.isDemo()) return this.mock.createNotice(payload, this.auth.user()?.name || 'Owner', this.auth.user()?.userId || 0);
     const path = this.role() === 'OWNER' ? environment.endpoints.notices.ownerCreate : environment.endpoints.notices.create;
-    return this.post<Notice>(path, payload);
+    return this.post<unknown>(path, payload).pipe(map(response => mapNotice(unwrapApiPayload(response))));
   }
 
   markNoticeRead(id: number): Observable<void> {

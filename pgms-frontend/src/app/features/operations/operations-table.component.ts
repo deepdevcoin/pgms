@@ -51,7 +51,9 @@ import { ActionConfig, CellClassValue, ModuleKey, Row } from './operations.types
               [ngClass]="cellClass(row, col)"
             >
               @if (statusColumn(col)) {
-                <span class="pill dot" [ngClass]="pillClass((row[col]))">{{ row[col] || '-' }}</span>
+                <span class="pill dot" [ngClass]="pillClass(value(row, col))">{{ value(row, col) }}</span>
+              } @else if (moduleKey === 'notices' && col === 'timeRemaining') {
+                <span class="pill dot" [ngClass]="value(row, col) === 'Sent' ? 'pill--sent' : 'pill--countdown'">{{ value(row, col) }}</span>
               } @else if (col === 'details') {
                 <div class="detail-block">
                   <div class="detail-main">{{ row['description'] || '-' }}</div>
@@ -145,6 +147,17 @@ import { ActionConfig, CellClassValue, ModuleKey, Row } from './operations.types
     .pill--pending, .pill--requested, .pill--open { background: var(--status-vacating-bg); border-color: var(--status-vacating-border); color: var(--status-vacating-text); }
     .pill--overdue, .pill--rejected, .pill--escalated { background: rgba(248,113,113,0.14); border-color: rgba(248,113,113,0.5); color: var(--danger); }
     .pill--partial, .pill--confirmed, .pill--in_progress { background: var(--status-occupied-bg); border-color: var(--status-occupied-border); color: var(--status-occupied-text); }
+    .pill--scheduled { background: rgba(96,165,250,0.14); border-color: rgba(96,165,250,0.42); color: #bfdbfe; }
+    .pill--sent { background: rgba(34,197,94,0.14); border-color: rgba(34,197,94,0.38); color: #86efac; }
+    .pill--read { background: rgba(34,197,94,0.14); border-color: rgba(34,197,94,0.38); color: #86efac; }
+    .pill--unread { background: rgba(251,191,36,0.14); border-color: rgba(251,191,36,0.42); color: #fde68a; }
+    .pill--countdown { background: rgba(96,165,250,0.14); border-color: rgba(96,165,250,0.42); color: #bfdbfe; font-family: var(--font-mono); }
+    .pill--all_pgs { background: rgba(99,102,241,0.14); border-color: rgba(99,102,241,0.42); color: #c7d2fe; }
+    .pill--all_tenants { background: rgba(20,184,166,0.14); border-color: rgba(20,184,166,0.42); color: #99f6e4; }
+    .pill--specific_pg { background: rgba(245,158,11,0.14); border-color: rgba(245,158,11,0.42); color: #fde68a; }
+    .pill--all_managers { background: rgba(168,85,247,0.14); border-color: rgba(168,85,247,0.42); color: #e9d5ff; }
+    .pill--specific_tenant { background: rgba(236,72,153,0.14); border-color: rgba(236,72,153,0.42); color: #fbcfe8; }
+    .cell--notice-scheduled { border-left: 3px solid rgba(96,165,250,0.75); padding-left: 10px; }
   `]
 })
 export class OperationsTableComponent {
@@ -197,7 +210,7 @@ export class OperationsTableComponent {
       return this.columns.includes('tenantName') ? '1120px' : '920px';
     }
     if (this.moduleKey === 'notices') {
-      return this.showActions ? '860px' : '720px';
+      return '100%';
     }
     const base = this.showActions ? 170 : 0;
     return `${Math.max(680, this.columns.length * (this.compact ? (this.moduleKey === 'payments' ? 88 : 112) : 128) + base)}px`;
@@ -215,22 +228,26 @@ export class OperationsTableComponent {
     if (this.wrapColumn(col)) return 'minmax(190px, 1.45fr)';
     if (this.statusColumn(col)) return 'minmax(112px, 0.88fr)';
     if (['tenantName', 'createdByName', 'pgName', 'targetType'].includes(col)) return 'minmax(136px, 1.1fr)';
-    if (['roomNumber', 'billingMonth', 'dueDate', 'slotDate', 'startDate', 'endDate', 'startTime', 'endTime', 'createdAt'].includes(col)) return 'minmax(108px, 0.9fr)';
+    if (['roomNumber', 'billingMonth', 'dueDate', 'slotDate', 'startDate', 'endDate', 'startTime', 'endTime', 'createdAt', 'scheduledAt'].includes(col)) return 'minmax(108px, 0.9fr)';
     if (this.moneyColumn(col)) return 'minmax(108px, 0.88fr)';
     return 'minmax(100px, 1fr)';
   }
 
   private noticeTemplate(): string {
     const cells: string[] = this.columns.map(col => {
-      if (col === 'title') return 'minmax(180px, 1.2fr)';
-      if (col === 'content') return 'minmax(260px, 1.8fr)';
-      if (col === 'targetType') return 'minmax(132px, 0.95fr)';
-      if (col === 'createdByName') return 'minmax(140px, 1fr)';
-      if (col === 'createdAt') return 'minmax(128px, 0.9fr)';
-      if (col === 'readCount') return 'minmax(88px, 0.65fr)';
+      if (col === 'title') return 'minmax(0, 1.05fr)';
+      if (col === 'content') return 'minmax(0, 1.35fr)';
+      if (col === 'targetType') return 'minmax(86px, 0.72fr)';
+      if (col === 'createdByName') return 'minmax(92px, 0.8fr)';
+      if (col === 'createdAt') return 'minmax(92px, 0.68fr)';
+      if (col === 'scheduledAt') return 'minmax(92px, 0.68fr)';
+      if (col === 'deliveryStatus') return 'minmax(82px, 0.55fr)';
+      if (col === 'readStatus') return 'minmax(72px, 0.48fr)';
+      if (col === 'timeRemaining') return 'minmax(86px, 0.6fr)';
+      if (col === 'readCount') return 'minmax(58px, 0.38fr)';
       return this.columnWidth(col);
     });
-    if (this.showActions) cells.push('minmax(92px, 120px)');
+    if (this.showActions) cells.push('minmax(76px, 92px)');
     return cells.join(' ');
   }
 

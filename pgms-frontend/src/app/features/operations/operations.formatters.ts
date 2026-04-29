@@ -20,6 +20,11 @@ const COLUMN_LABELS: Record<string, string> = {
   bookingCount: 'Booked',
   resourceName: 'Unit',
   createdAt: 'Time',
+  scheduledAt: 'Send Time',
+  timeRemaining: 'Timer',
+  deliveryStatus: 'Delivery',
+  readStatus: 'Read',
+  targetType: 'Target',
   guestRecordStatus: 'Guest Record',
   walletCreditAmount: 'Wallet Credit',
   managerMessage: 'Manager Message',
@@ -44,7 +49,7 @@ export function isStatusColumn(col: string): boolean {
 }
 
 export function pillClassForStatus(status: unknown): string {
-  return `pill--${String(status || '').toLowerCase()}`;
+  return `pill--${String(status || '').toLowerCase().replace(/[\s-]+/g, '_')}`;
 }
 
 export function formatRowValue(row: Row, col: string, pgName: (value: string) => string): string {
@@ -53,7 +58,8 @@ export function formatRowValue(row: Row, col: string, pgName: (value: string) =>
   if (col === 'pgId') return pgName(String(value));
   if (col === 'serviceType') return serviceTypeLabel(String(value));
   if (col === 'rating') return typeof value === 'number' ? `${value}/5` : '-';
-  if (col === 'createdAt' || col === 'updatedAt' || col === 'confirmedAt' || col === 'startedAt' || col === 'completedAt' || col === 'rejectedAt') {
+  if (col === 'targetType' || col === 'deliveryStatus') return prettyEnum(String(value));
+  if (col === 'createdAt' || col === 'updatedAt' || col === 'confirmedAt' || col === 'startedAt' || col === 'completedAt' || col === 'rejectedAt' || col === 'scheduledAt') {
     return compactDateTime(String(value));
   }
   if (['preferredDate', 'dueDate', 'slotDate', 'startDate', 'endDate', 'intendedVacateDate', 'joiningDate', 'checkInDate', 'checkOutDate'].includes(col)) {
