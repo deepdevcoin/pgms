@@ -102,11 +102,13 @@ export function buildModuleConfig(role: Role | null, pgOptions: string[], pgName
     vacate: {
       crumb: 'Lifecycle',
       title: 'Vacate Notices',
-      subtitle: role === 'TENANT' ? 'Submit and track your vacate request.' : 'Manage vacate notices, referrals and checkout.',
+      subtitle: role === 'TENANT'
+        ? 'Submit and track your vacate request. The vacate date must be at least 15 days from today.'
+        : 'Manage vacate notices, referrals and checkout.',
       columns: ['tenantName', 'roomNumber', 'intendedVacateDate', 'status', 'refundEligible', 'advanceRefundAmount', 'referralName', 'managerMessage'],
       createLabel: role === 'TENANT' ? 'Request vacate' : undefined,
       fields: role === 'TENANT' ? [
-        { key: 'intendedVacateDate', label: 'Vacate date', type: 'date' },
+        { key: 'intendedVacateDate', label: 'Vacate date (15+ days)', type: 'date' },
         { key: 'hasReferral', label: 'Has referral', type: 'checkbox' },
         { key: 'referralName', label: 'Referral name', type: 'text' },
         { key: 'referralPhone', label: 'Referral phone', type: 'text' },

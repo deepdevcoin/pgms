@@ -24,6 +24,7 @@ import java.util.List;
 
 @Service
 public class VacateService {
+    private static final int MIN_NOTICE_DAYS = 15;
 
     private final VacateNoticeRepository vacateNoticeRepository;
     private final AccessControlService accessControlService;
@@ -44,8 +45,9 @@ public class VacateService {
     public VacateNoticeResponse createVacateRequest(VacateRequest request) {
         TenantProfile tenantProfile = accessControlService.getCurrentTenantProfile();
         ensureNoActiveNotice(tenantProfile);
-        if (request.getIntendedVacateDate().isBefore(LocalDate.now())) {
-            throw new BadRequestException("Vacate date cannot be in the past");
+        LocalDate minimumVacateDate = LocalDate.now().plusDays(MIN_NOTICE_DAYS);
+        if (request.getIntendedVacateDate().isBefore(minimumVacateDate)) {
+            throw new BadRequestException("Vacate date must be at least 15 days from today");
         }
         if (Boolean.TRUE.equals(request.getHasReferral())
                 && (isBlank(request.getReferralName()) || isBlank(request.getReferralPhone()) || isBlank(request.getReferralEmail()))) {

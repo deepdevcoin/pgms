@@ -197,7 +197,22 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
   >
     <label class="fld">
       <span>{{ actionDialogLabel() }}</span>
-      @if (actionDialogType() === 'number') {
+      @if (actionDialogType() === 'rating') {
+        <div class="rating-picker" role="radiogroup" aria-label="Service rating">
+          @for (star of ratingOptions; track star) {
+            <button
+              class="rating-star"
+              type="button"
+              [class.rating-star--active]="selectedRating() >= star"
+              [attr.aria-pressed]="selectedRating() === star"
+              (click)="setRating(star)"
+            >
+              <mat-icon>{{ selectedRating() >= star ? 'star' : 'star_outline' }}</mat-icon>
+            </button>
+          }
+        </div>
+        <div class="rating-copy">{{ selectedRating() ? selectedRating() + ' of 5 selected' : 'Choose 1 to 5 stars' }}</div>
+      } @else if (actionDialogType() === 'number') {
         <input type="number" [(ngModel)]="actionDialogValue" name="actionDialogValue" min="0" step="0.01" />
       } @else {
         <textarea [(ngModel)]="actionDialogValue" name="actionDialogValue"></textarea>
@@ -360,6 +375,24 @@ import { ActionConfig, ModuleKey, Row } from './operations.types';
     .receipt-meta, .receipt-time { color: var(--text-muted); font-size: 12px; }
     .receipt-time { text-align: right; }
     .receipt-message { color: var(--text); font-size: 13px; line-height: 1.5; white-space: pre-line; }
+    .rating-picker { display: flex; gap: 6px; align-items: center; }
+    .rating-star {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg-elev);
+      color: var(--text-muted);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+    .rating-star--active {
+      color: #fbbf24;
+      border-color: rgba(251,191,36,0.35);
+      background: rgba(251,191,36,0.12);
+    }
+    .rating-copy { color: var(--text-muted); font-size: 12px; }
   `],
   host: {}
 })
@@ -390,7 +423,7 @@ export class OperationsComponent {
   actionDialogSubtitle = signal('');
   actionDialogEyebrow = signal('');
   actionDialogLabel = signal('');
-  actionDialogType = signal<'text' | 'number'>('text');
+  actionDialogType = signal<'text' | 'number' | 'rating'>('text');
   actionDialogConfirmLabel = signal('Save');
   receiptsOpen = signal(false);
   receiptsLoading = signal(false);
@@ -406,6 +439,7 @@ export class OperationsComponent {
   subletCheckInOpen = signal(false);
   subletCheckInRow = signal<Row | null>(null);
   subletGuestForm = { guestName: '', guestPhone: '', checkInDate: '' };
+  readonly ratingOptions = [1, 2, 3, 4, 5];
   private confirmAction: (() => void) | null = null;
   private textActionFactory: ((value: string) => { subscribe: (handlers: { next: () => void; error: (err: any) => void }) => void }) | null = null;
   private numberActionFactory: ((value: number) => { subscribe: (handlers: { next: () => void; error: (err: any) => void }) => void }) | null = null;
@@ -444,7 +478,7 @@ export class OperationsComponent {
     serviceStart: row => this.mutate(this.api.updateService(row['id'], 'IN_PROGRESS')),
     serviceComplete: row => this.mutate(this.api.updateService(row['id'], 'COMPLETED')),
     serviceReject: row => this.mutate(this.api.updateService(row['id'], 'REJECTED')),
-    serviceRate: row => this.openNumberDialog('Rate service', 'Give a score between 1 and 5 for the completed service.', 'Rating', 'Submit rating', rating => this.api.rateService(row['id'], rating)),
+    serviceRate: row => this.openRatingDialog('Rate service', 'Choose a score from 1 to 5 stars for the completed service.', 'Rating', 'Submit rating', rating => this.api.rateService(row['id'], rating)),
     amenityBook: row => this.mutate(this.api.bookAmenity(row['slotId'], false)),
     amenityOpenInvite: row => this.mutate(this.api.bookAmenity(row['slotId'], true)),
     amenityJoin: row => this.mutate(this.api.joinAmenityInvite(row['slotId'])),
@@ -491,7 +525,11 @@ export class OperationsComponent {
   moduleKey = computed(() => this.route.snapshot.data['module'] as ModuleKey);
   configMap = computed(() => buildModuleConfig(this.auth.role(), this.pgs().map(pg => String(pg.id)), option => this.pgName(option)));
   config = computed(() => this.configMap()[this.moduleKey()]);
-  visibleFields = computed(() => (this.config().fields || []).filter(field => !field.show || field.show(this.auth.role())));
+  visibleFields = computed(() => (this.config().fields || [])
+    .filter(field => !field.show || field.show(this.auth.role()))
+    .map(field => field.key === 'intendedVacateDate' && this.moduleKey() === 'vacate'
+      ? { ...field, min: this.minimumVacateDateIso() }
+      : field));
   filteredRows = computed(() => {
     const q = this.query.toLowerCase().trim();
     if (!q) return this.rows();
@@ -695,6 +733,7 @@ export class OperationsComponent {
       dayOfWeek: 'MONDAY',
       mealType: 'BREAKFAST',
       isVeg: true,
+      intendedVacateDate: this.minimumVacateDateIso(),
       pgId: this.auth.role() === 'TENANT' ? this.tenantProfile()?.pgId : this.pgs()[0]?.id
     };
   }
@@ -786,11 +825,33 @@ export class OperationsComponent {
     this.actionDialogOpen.set(true);
   }
 
+  private openRatingDialog(title: string, subtitle: string, label: string, confirmLabel: string, factory: (value: number) => { subscribe: (handlers: { next: () => void; error: (err: any) => void }) => void }, initialValue?: number) {
+    this.numberActionFactory = factory;
+    this.textActionFactory = null;
+    this.actionDialogEyebrow.set(this.config().title);
+    this.actionDialogTitle.set(title);
+    this.actionDialogSubtitle.set(subtitle);
+    this.actionDialogLabel.set(label);
+    this.actionDialogConfirmLabel.set(confirmLabel);
+    this.actionDialogType.set('rating');
+    this.actionDialogValue = initialValue && initialValue > 0 ? String(Math.round(initialValue)) : '';
+    this.actionDialogOpen.set(true);
+  }
+
   closeActionDialog() {
     this.actionDialogOpen.set(false);
     this.textActionFactory = null;
     this.numberActionFactory = null;
     this.actionDialogValue = '';
+  }
+
+  selectedRating(): number {
+    const value = Number(this.actionDialogValue || 0);
+    return Number.isFinite(value) ? Math.max(0, Math.min(5, Math.round(value))) : 0;
+  }
+
+  setRating(value: number) {
+    this.actionDialogValue = String(value);
   }
 
   private openSubletCheckIn(row: Row) {
@@ -852,7 +913,7 @@ export class OperationsComponent {
     if (key === 'vacate') {
       const date = String(this.form['intendedVacateDate'] || '');
       if (!date) return 'Choose an intended vacate date.';
-      if (date < this.todayIso()) return 'Vacate date cannot be in the past.';
+      if (date < this.minimumVacateDateIso()) return 'Vacate date must be at least 15 days from today.';
       if (this.form['hasReferral']) {
         if (!String(this.form['referralName'] || '').trim()) return 'Enter the referral name.';
         if (!/^\d{10}$/.test(String(this.form['referralPhone'] || '').trim())) return 'Referral phone must be exactly 10 digits.';
@@ -891,7 +952,7 @@ export class OperationsComponent {
 
   private submitSubtitle(): string {
     return this.moduleKey() === 'vacate'
-      ? 'We will send this notice to the manager for review.'
+      ? 'We will send this notice to the manager for review. The vacate date must be at least 15 days from today.'
       : this.moduleKey() === 'sublets'
         ? 'The manager will review the dates before a guest can check in.'
         : this.moduleKey() === 'services'
@@ -907,6 +968,12 @@ export class OperationsComponent {
     return new Date().toISOString().slice(0, 10);
   }
 
+  private minimumVacateDateIso(): string {
+    const date = new Date();
+    date.setDate(date.getDate() + 15);
+    return date.toISOString().slice(0, 10);
+  }
+
   private isEmail(value: string): boolean {
     return !!value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   }
@@ -917,10 +984,15 @@ export class OperationsComponent {
       this.snack.open('Please enter a value.', 'Dismiss', { duration: 2200, panelClass: 'pgms-snack' });
       return;
     }
-    if (this.actionDialogType() === 'number') {
+    if (this.actionDialogType() === 'number' || this.actionDialogType() === 'rating') {
       if (!this.numberActionFactory) return;
       const value = Number(raw);
-      if (!Number.isFinite(value) || value <= 0) {
+      if (this.actionDialogType() === 'rating') {
+        if (!Number.isInteger(value) || value < 1 || value > 5) {
+          this.snack.open('Choose a rating from 1 to 5 stars.', 'Dismiss', { duration: 2200, panelClass: 'pgms-snack' });
+          return;
+        }
+      } else if (!Number.isFinite(value) || value <= 0) {
         this.snack.open('Enter a valid amount.', 'Dismiss', { duration: 2200, panelClass: 'pgms-snack' });
         return;
       }

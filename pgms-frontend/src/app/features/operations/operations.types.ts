@@ -9,6 +9,8 @@ export interface FieldConfig {
   type: 'text' | 'number' | 'date' | 'time' | 'textarea' | 'select' | 'checkbox';
   options?: string[];
   optionLabel?: (option: string) => string;
+  min?: string;
+  max?: string;
   wide?: boolean;
   show?: (role: Role | null) => boolean;
 }

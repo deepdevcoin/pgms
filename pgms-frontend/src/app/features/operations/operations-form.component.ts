@@ -23,7 +23,7 @@ import { FieldConfig } from './operations.types';
               }
             </select>
           } @else if (field.type === 'date') {
-            <app-date-input [(value)]="form[field.key]"></app-date-input>
+            <app-date-input [(value)]="form[field.key]" [min]="field.min || ''" [max]="field.max || ''"></app-date-input>
           } @else if (field.type === 'checkbox') {
             <input type="checkbox" [(ngModel)]="form[field.key]" [name]="field.key" />
           } @else {
